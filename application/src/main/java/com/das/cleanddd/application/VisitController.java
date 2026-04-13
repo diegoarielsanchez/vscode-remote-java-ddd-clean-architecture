@@ -2,6 +2,8 @@ package com.das.cleanddd.application;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +37,8 @@ import jakarta.validation.Valid;
 @SecurityRequirement(name = "bearerAuth")
 public class VisitController {
 
+    private static final Logger log = LoggerFactory.getLogger(VisitController.class);
+
     @Autowired
     private final UseCase<CreateVisitInputDTO, VisitOutputDTO> createVisitUseCase;
     private final UseCase<UpdateVisitInputDTO, VisitOutputDTO> updateVisitUseCase;
@@ -52,27 +56,59 @@ public class VisitController {
     @Operation(summary = "Create visit")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<Object> createVisit(@Valid @RequestBody CreateVisitInputDTO inputDTO) throws DomainException {
-        return ResponseEntity.status(HttpStatus.CREATED).body(createVisitUseCase.execute(inputDTO));
+        log.info("POST /api/v1/visit/create - request received");
+        try {
+            VisitOutputDTO result = createVisitUseCase.execute(inputDTO);
+            log.info("POST /api/v1/visit/create - success");
+            return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        } catch (DomainException e) {
+            log.warn("POST /api/v1/visit/create - domain error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @PutMapping("/update")
     @Operation(summary = "Update visit")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> updateVisit(@Valid @RequestBody UpdateVisitInputDTO inputDTO) throws DomainException {
-        return ResponseEntity.ok(updateVisitUseCase.execute(inputDTO));
+        log.info("PUT /api/v1/visit/update - request received");
+        try {
+            VisitOutputDTO result = updateVisitUseCase.execute(inputDTO);
+            log.info("PUT /api/v1/visit/update - success");
+            return ResponseEntity.ok(result);
+        } catch (DomainException e) {
+            log.warn("PUT /api/v1/visit/update - domain error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @GetMapping("/get")
     @Operation(summary = "Get visit by ID")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> getVisitById(@Valid @RequestBody VisitIDDto inputDTO) throws DomainException {
-        return ResponseEntity.ok(getVisitByIdUseCase.execute(inputDTO));
+        log.info("GET /api/v1/visit/get - request received");
+        try {
+            VisitOutputDTO result = getVisitByIdUseCase.execute(inputDTO);
+            log.info("GET /api/v1/visit/get - success");
+            return ResponseEntity.ok(result);
+        } catch (DomainException e) {
+            log.warn("GET /api/v1/visit/get - domain error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @PostMapping("/list")
     @Operation(summary = "List visits")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> listVisits() throws DomainException {
-        return ResponseEntity.ok(listVisitsUseCase.execute());
+        log.info("POST /api/v1/visit/list - request received");
+        try {
+            List<VisitOutputDTO> result = listVisitsUseCase.execute();
+            log.info("POST /api/v1/visit/list - success, count={}", result.size());
+            return ResponseEntity.ok(result);
+        } catch (DomainException e) {
+            log.warn("POST /api/v1/visit/list - domain error: {}", e.getMessage());
+            throw e;
+        }
     }
 }
