@@ -47,6 +47,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/actuator/loggers/**", "/actuator/logfile").hasRole("USER")
                 .requestMatchers("/hello").permitAll()
                 .requestMatchers("/health-check").permitAll()
                 .requestMatchers(
