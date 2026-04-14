@@ -58,10 +58,14 @@ public final class PostgreSQLHealthCareProfRepository implements IHealthCareProf
 
     @Override
     public Optional<HealthCareProf> findById(HealthCareProfId identifier) {
-        if (identifier == null || identifier.value() == null) {
+        if (identifier == null) {
             return Optional.empty();
         }
-        return jpaRepository.findById(identifier.value()).map(this::toDomain);
+        String id = identifier.value();
+        if (id == null) {
+            return Optional.empty();
+        }
+        return jpaRepository.findById(id).map(this::toDomain);
     }
 
     @Override

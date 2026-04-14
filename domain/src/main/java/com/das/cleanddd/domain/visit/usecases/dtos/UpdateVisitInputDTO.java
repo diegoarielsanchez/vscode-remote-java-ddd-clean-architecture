@@ -1,10 +1,14 @@
 package com.das.cleanddd.domain.visit.usecases.dtos;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+
+import jakarta.validation.constraints.NotNull;
 
 public record UpdateVisitInputDTO(
     String id,
-    LocalDateTime visitDate,
+    @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate visitDate,
     String healthCareProfId,
     String visitComments,
     String visitSiteId,

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,7 +58,7 @@ class UpdateVisitUseCaseTest {
     void shouldThrowWhenIdIsNull() {
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             null,
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
@@ -91,7 +90,7 @@ class UpdateVisitUseCaseTest {
     void shouldThrowWhenHealthCareProfIdIsNull() {
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             UUID.randomUUID().toString(),
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             null,
             "notes",
             UUID.randomUUID().toString(),
@@ -107,7 +106,7 @@ class UpdateVisitUseCaseTest {
     void shouldThrowWhenVisitSiteIdIsNull() {
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             UUID.randomUUID().toString(),
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             null,
@@ -123,7 +122,7 @@ class UpdateVisitUseCaseTest {
     void shouldThrowWhenMedicalSalesRepIdIsNull() {
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             UUID.randomUUID().toString(),
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
@@ -144,7 +143,7 @@ class UpdateVisitUseCaseTest {
 
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             id,
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             healthCareProfId,
             "updated comments",
             visitSiteId,
@@ -163,7 +162,7 @@ class UpdateVisitUseCaseTest {
 
         VisitOutputDTO expected = new VisitOutputDTO(
             id,
-            input.visitDate(),
+            java.time.LocalDateTime.now(),
             input.healthCareProfId(),
             input.visitComments(),
             input.visitSiteId(),
@@ -181,7 +180,7 @@ class UpdateVisitUseCaseTest {
     void shouldThrowWhenVisitNotFound() {
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             UUID.randomUUID().toString(),
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
@@ -201,7 +200,7 @@ class UpdateVisitUseCaseTest {
 
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             id,
-            LocalDateTime.now().plusDays(1),
+            java.time.LocalDate.now().plusDays(1),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
@@ -229,7 +228,7 @@ class UpdateVisitUseCaseTest {
 
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             id,
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
@@ -257,7 +256,7 @@ class UpdateVisitUseCaseTest {
 
         UpdateVisitInputDTO input = new UpdateVisitInputDTO(
             id,
-            LocalDateTime.now(),
+            java.time.LocalDate.now(),
             UUID.randomUUID().toString(),
             "notes",
             UUID.randomUUID().toString(),
