@@ -69,6 +69,11 @@ Some things to try:
    - Check the check box next to "Node.js (via nvm) and yarn" (published by devcontainers) 
    - Click OK
    - Press <kbd>F1</kbd> and select the **Dev Containers: Rebuild Container** or **Codespaces: Rebuild Container** command so the modifications are picked up.
+  
+6. **Run postgres database services: Healdth Care Professional**
+   - HealthCareProf: docker run -d --name postgres-healthcareprof -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=<psw> -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest
+   - docker exec -it postgres-healthcareprof psql -U root -d healthcare_prof_db
+7. **Run mysql database services: Medical Sales Representative**
 
 ## OWASP Security Implementation
 
