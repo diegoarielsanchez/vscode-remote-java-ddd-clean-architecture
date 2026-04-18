@@ -71,10 +71,11 @@ Some things to try:
    - Press <kbd>F1</kbd> and select the **Dev Containers: Rebuild Container** or **Codespaces: Rebuild Container** command so the modifications are picked up.
   
 6. **Run postgres database services: Healdth Care Professional**
-   - HealthCareProf: docker run -d --name postgres-healthcareprof -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=<psw> -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest
+   - create: docker run -d --name postgres-healthcareprof -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=<psw> -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest
    - docker exec -it postgres-healthcareprof psql -U root -d healthcare_prof_db
+   - start: docker start postgres-healthcareprof
 7. **Run mysql database services: Medical Sales Representative**
-
+    - MedicalSalesRe: docker run --name 445ed93b882f -e MYSQL_ROOT_PASSWORD=riverplate -d mysql:latest
 ## OWASP Security Implementation
 
 This project implements OWASP Top 10 security best practices for Spring Boot applications. The implementation covers the following security areas:
