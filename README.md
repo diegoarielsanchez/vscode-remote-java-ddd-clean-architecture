@@ -72,10 +72,13 @@ Some things to try:
   
 6. **Run postgres database services: Healdth Care Professional**
    - create: docker run -d --name postgres-healthcareprof -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=<psw> -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest
-   - docker exec -it postgres-healthcareprof psql -U root -d healthcare_prof_db
+   - Shell: docker exec -it postgres-healthcareprof psql -U root -d healthcare_prof_db
    - start: docker start postgres-healthcareprof
 7. **Run mysql database services: Medical Sales Representative**
-    - MedicalSalesRe: docker run --name 445ed93b882f -e MYSQL_ROOT_PASSWORD=riverplate -d mysql:latest
+    - MedicalSalesRe: docker run -d --name mysql-medicalsalesrep -p 3307:3306 -e MYSQL_ROOT_PASSWORD=riverplate -e MYSQL_DATABASE=medical_sales_db -v mysql_data:/var/lib/mysql mysql:latest
+    - Shell:  docker exec -it mysql-medicalsalesrep mysql -u root -p
+    - start:  docker start mysql-medicalsalesrep
+
 ## OWASP Security Implementation
 
 This project implements OWASP Top 10 security best practices for Spring Boot applications. The implementation covers the following security areas:
