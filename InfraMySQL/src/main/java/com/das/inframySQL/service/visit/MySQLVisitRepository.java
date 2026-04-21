@@ -53,7 +53,11 @@ public final class MySQLVisitRepository implements IVisitRepository {
         if (id == null) {
             return Optional.empty();
         }
-        return visitJpaRepository.findById(id.value())
+        String idValue = id.value();
+        if (idValue == null) {
+            return Optional.empty();
+        }
+        return visitJpaRepository.findById(idValue)
                 .map(this::toDomain);
     }
 
@@ -83,10 +87,14 @@ public final class MySQLVisitRepository implements IVisitRepository {
     }
 
     private Visit toDomain(VisitEntity entity) {
+        String medicalSalesRepId = entity.getMedicalSalesRepId();
+        if (medicalSalesRepId == null) {
+            throw new IllegalStateException("MedicalSalesRep ID is null for visit: " + entity.getId());
+        }
         MedicalSalesRepEntity repEntity = medicalSalesRepJpaRepository
-                .findById(entity.getMedicalSalesRepId())
+                .findById(medicalSalesRepId)
                 .orElseThrow(() -> new IllegalStateException(
-                        "MedicalSalesRep not found: " + entity.getMedicalSalesRepId()));
+                        "MedicalSalesRep not found: " + medicalSalesRepId));
 
         MedicalSalesRep medicalSalesRep = new MedicalSalesRep(
                 new MedicalSalesRepId(repEntity.getId()),
