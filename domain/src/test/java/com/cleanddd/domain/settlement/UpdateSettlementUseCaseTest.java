@@ -72,7 +72,7 @@ class UpdateSettlementUseCaseTest {
         String id = UUID.randomUUID().toString();
         CreateInvoiceInputDTO invoiceDTO = new CreateInvoiceInputDTO(
             "INV-100",
-            LocalDate.now().minusDays(3),
+            LocalDate.now().minusDays(65),
             LocalDate.now().plusDays(27),
             new BigDecimal("1200.00")
         );

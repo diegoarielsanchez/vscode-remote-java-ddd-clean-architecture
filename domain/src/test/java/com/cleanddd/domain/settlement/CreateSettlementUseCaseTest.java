@@ -69,7 +69,7 @@ class CreateSettlementUseCaseTest {
     void shouldCreateSettlementWithInvoices() throws DomainException {
         CreateInvoiceInputDTO invoiceDTO = new CreateInvoiceInputDTO(
             "INV-001",
-            LocalDate.now().minusDays(5),
+            LocalDate.now().minusDays(65),
             LocalDate.now().plusDays(25),
             new BigDecimal("500.00")
         );
@@ -86,7 +86,7 @@ class CreateSettlementUseCaseTest {
             "OPEN",
             new BigDecimal("500.00"),
             List.of(new InvoiceOutputDTO(UUID.randomUUID().toString(), "INV-001",
-                LocalDate.now().minusDays(5), LocalDate.now().plusDays(25),
+                LocalDate.now().minusDays(65), LocalDate.now().plusDays(25),
                 new BigDecimal("500.00"), "DRAFT"))
         );
         when(mapper.outputFromEntity(any(Settlement.class))).thenReturn(expected);

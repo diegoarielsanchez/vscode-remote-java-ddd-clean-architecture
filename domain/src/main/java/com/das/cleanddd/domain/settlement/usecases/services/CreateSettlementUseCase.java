@@ -1,15 +1,10 @@
 package com.das.cleanddd.domain.settlement.usecases.services;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
-import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateSettlementInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
@@ -47,12 +42,11 @@ public final class CreateSettlementUseCase implements UseCase<CreateSettlementIn
 
             if (inputDTO.invoices() != null) {
                 for (CreateInvoiceInputDTO invoiceDTO : inputDTO.invoices()) {
-                    Invoice invoice = Invoice.create(
+                    settlement.addInvoice(
                             invoiceDTO.invoiceNumber(),
                             invoiceDTO.issueDate(),
                             invoiceDTO.dueDate(),
                             invoiceDTO.amount());
-                    settlement.addInvoice(invoice);
                 }
             }
 
