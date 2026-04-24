@@ -16,7 +16,7 @@ public class VisitMapper {
             visit.healthCareProf() == null ? null : visit.healthCareProf().id().value(),
             visit.visitComments() == null ? null : visit.visitComments().value(),
             visit.visitSideId() == null ? null : visit.visitSideId().value(),
-            visit.medicalSalesRep() == null ? null : visit.medicalSalesRep().id().value()
+            visit.medicalSalesRep() == null ? null : visit.medicalSalesRep().getId().value()
         );
     }
 

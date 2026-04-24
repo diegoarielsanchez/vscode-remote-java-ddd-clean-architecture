@@ -12,7 +12,7 @@ public class HealthCareProfMapper {
 
     public HealthCareProfOutputDTO outputFromEntity(HealthCareProf entity) {
       return new HealthCareProfOutputDTO(
-        entity.id().value(),
+        entity.getId().value(),
         entity.getName().value(),
         entity.getSurname().value(),
         entity.getEmail().value(),

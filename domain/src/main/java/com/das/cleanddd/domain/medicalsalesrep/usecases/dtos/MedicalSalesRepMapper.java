@@ -11,7 +11,7 @@ public class MedicalSalesRepMapper {
 
     public MedicalSalesRepOutputDTO outputFromEntity(MedicalSalesRep medicalSalesRep) {
       return new MedicalSalesRepOutputDTO(
-        medicalSalesRep.id().value(),
+        medicalSalesRep.getId().value(),
         medicalSalesRep.getName().value(),
         medicalSalesRep.getSurname().value(),
         medicalSalesRep.getEmail().value(),

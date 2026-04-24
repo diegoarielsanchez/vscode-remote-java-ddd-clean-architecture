@@ -34,8 +34,8 @@ public final class DefaultMedicalSalesRep extends MedicalSalesRep {
     this.validationUtils = (new UtilsFactory()).getValidationUtils();
 
     this.id = id != null ? id : MedicalSalesRepId.random();
-    this.firstName    = name.toString();
-    this.lastName = surname.toString();
+    this._firstName    = name.toString();
+    this._lastName = surname.toString();
     this.email   = email;
     this.active = new MedicalSalesRepActive(false);
     this.validate();
@@ -45,8 +45,8 @@ public final class DefaultMedicalSalesRep extends MedicalSalesRep {
   @Override
   public void validate() throws BusinessException {
     if(this.validationUtils.isNull(this.id)) throw new RequiredFieldException("id");
-    if(this.validationUtils.isNullOrEmpty(this.firstName)) throw new RequiredFieldException("firstName");
-    if(this.validationUtils.isNullOrEmpty(this.lastName)) throw new RequiredFieldException("lastName");
+    if(this.validationUtils.isNullOrEmpty(this._firstName)) throw new RequiredFieldException("firstName");
+    if(this.validationUtils.isNullOrEmpty(this._lastName)) throw new RequiredFieldException("lastName");
     if(this.validationUtils.isNullOrEmpty(this.email.toString())) throw new RequiredFieldException("email");
     if(this.validationUtils.isNull(this.active)) throw new RequiredFieldException("active");
 
@@ -62,12 +62,12 @@ public final class DefaultMedicalSalesRep extends MedicalSalesRep {
 
   @Override
   public String getFirstName() {
-    return  this.firstName;
+    return  this._firstName;
   }
 
   @Override
   public String getLastName() {
-    return this.lastName;
+    return this._lastName;
   }
 
   @Override

@@ -21,36 +21,36 @@ public final class DefaultHealthCareProf extends HealthCareProf {
   //private final String name;
 
   //@With(AccessLevel.PRIVATE)
-  private final transient HealthCareProfEmail email;
+  private final transient HealthCareProfEmail _email;
 
   //@With(AccessLevel.PRIVATE)
   //private final String surname;
 
-  private final transient HealthCareProfActive active;
+  private final transient HealthCareProfActive _active;
 
-  private final transient ValidationUtils validationUtils;
+  private final transient ValidationUtils _validationUtils;
 
   protected DefaultHealthCareProf(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties) throws BusinessException {
     super(id, name, surname, email, new HealthCareProfActive(false), specialties);
     
-    this.validationUtils = (new UtilsFactory()).getValidationUtils();
+    this._validationUtils = (new UtilsFactory()).getValidationUtils();
 
     this.id = id != null ? id : HealthCareProfId.random();
-    this.firstName    = name.toString();
-    this.lastName = surname.toString();
-    this.email   = email;
-    this.active = new HealthCareProfActive(false);
+    this._firstName    = name.toString();
+    this._lastName = surname.toString();
+    this._email   = email;
+    this._active = new HealthCareProfActive(false);
     this.validate();
   }
 
 
   @Override
   public void validate() throws BusinessException {
-    if(this.validationUtils.isNull(this.id)) throw new RequiredFieldException("id");
-    if(this.validationUtils.isNullOrEmpty(this.firstName)) throw new RequiredFieldException("firstName");
-    if(this.validationUtils.isNullOrEmpty(this.lastName)) throw new RequiredFieldException("lastName");
-    if(this.validationUtils.isNullOrEmpty(this.email.toString())) throw new RequiredFieldException("email");
-    if(this.validationUtils.isNull(this.active)) throw new RequiredFieldException("active");
+    if(this._validationUtils.isNull(this.id)) throw new RequiredFieldException("id");
+    if(this._validationUtils.isNullOrEmpty(this._firstName)) throw new RequiredFieldException("firstName");
+    if(this._validationUtils.isNullOrEmpty(this._lastName)) throw new RequiredFieldException("lastName");
+    if(this._validationUtils.isNullOrEmpty(this._email.toString())) throw new RequiredFieldException("email");
+    if(this._validationUtils.isNull(this._active)) throw new RequiredFieldException("active");
     if(this.getSpecialties() == null || this.getSpecialties().isEmpty()) throw new RequiredFieldException("specialties");
 
     //if(this.validationUtils.isNull(this.address)) throw new RequiredFieldException("address");
@@ -65,27 +65,27 @@ public final class DefaultHealthCareProf extends HealthCareProf {
 
   @Override
   public String getFirstName() {
-    return  this.firstName;
+    return  this._firstName;
   }
 
   @Override
   public String getLastName() {
-    return this.lastName;
+    return this._lastName;
   }
 
   @Override
   public HealthCareProfEmail getEmail() {
-    return this.email;
+    return this._email;
   }
 
   @Override
   public HealthCareProfActive getActive() {
-    return this.active;
+    return this._active;
   }
   
   @Override
   public Boolean isActive() {
-    return this.active != null && this.active.value() ? Boolean.TRUE : Boolean.FALSE;
+    return this._active != null && this._active.value() ? Boolean.TRUE : Boolean.FALSE;
   } 
 
   @Override
@@ -103,7 +103,7 @@ public final class DefaultHealthCareProf extends HealthCareProf {
  */
   //@Override
 /*   public HealthCareProf changeEmail(String newEmail) throws BusinessException {
-    DefaultHealthCareProf c = this.email.equals(newEmail) ? this : this.withEmail(newEmail);
+    DefaultHealthCareProf c = this._email.equals(newEmail) ? this : this.withEmail(newEmail);
     c.validate();
     return c;
   }
@@ -119,12 +119,12 @@ public final class DefaultHealthCareProf extends HealthCareProf {
 
   //@Override
 /*   public HealthCareProf activate() {
-    //return this.active.equals(Boolean.TRUE) ? this : this.withActive(true);
-    return this.active.equals(Boolean.TRUE) ? this : this.activate = true;
+    //return this._active.equals(Boolean.TRUE) ? this : this.withActive(true);
+    return this._active.equals(Boolean.TRUE) ? this : this._active = new HealthCareProfActive(true);
   }
  */
   //@Override
 /*   public HealthCareProf deactivate() {
-    return this.active.equals(Boolean.FALSE) ? this : this.withActive(false);
+    return this._active.equals(Boolean.FALSE) ? this : this._active = new HealthCareProfActive(false);
   } */
 }

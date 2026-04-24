@@ -25,19 +25,19 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCareProfInputDTO, HealthCareProfOutputDTO> {
 
     @Autowired
-    private final IHealthCareProfRepository repository; 
+    private final IHealthCareProfRepository _repository; 
     @Autowired
-    private final HealthCareProfFactory factory;
+    private final HealthCareProfFactory _factory;
     @Autowired
-    private final HealthCareProfMapper mapper;
+    private final HealthCareProfMapper _mapper;
 
     public UpdateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfFactory factory
         , HealthCareProfMapper mapper
         ) {
-        this.repository = repository;
-        this.factory = factory;
-        this.mapper = mapper;   
+        this._repository = repository;
+        this._factory = factory;
+        this._mapper = mapper;   
     }
     @Override
     public HealthCareProfOutputDTO execute(UpdateHealthCareProfInputDTO inputDTO)
@@ -75,15 +75,15 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
                 })
                 .toList();
             // Create a new HealthCareProf object using the factory
-            entity = factory.recreateExistingHealthCareProf(id, name, surname, email, null, specialties);
+            entity = _factory.recreateExistingHealthCareProf(id, name, surname, email, null, specialties);
         // fetch existing HealthCareProf from the repository
-        Optional<HealthCareProf> existingHealthCareProf = repository.findById(id);
+        Optional<HealthCareProf> existingHealthCareProf = _repository.findById(id);
         if (!existingHealthCareProf.isPresent()) {
             throw new DomainException("Health Care Professional not found.");
         }
         // Validate Unique Email
         if (!existingHealthCareProf.get().getEmail().equals(email)) {
-            Optional<HealthCareProf> HealthCareProfRepWithEmail = repository.findByEmail(email);
+            Optional<HealthCareProf> HealthCareProfRepWithEmail = _repository.findByEmail(email);
             if (HealthCareProfRepWithEmail.isPresent()) {
                 throw new DomainException("There is already a Health Care Professional with this email.");
             }
@@ -95,9 +95,9 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
             entityActivateStatus = entity.setDeactivate();
         }
         // Update the existing HealthCareProf with the new values
-        repository.save(entityActivateStatus);
+        _repository.save(entityActivateStatus);
         // Convert response to output and return
-        return mapper.outputFromEntity(entityActivateStatus);
+        return _mapper.outputFromEntity(entityActivateStatus);
         } catch (BusinessException | IllegalArgumentException  e) {
             throw new DomainException(e.getMessage());
         }

@@ -15,10 +15,10 @@ public class HealthCareProf extends PersonJavaBean {
     public static final int MAX_SPECIALTIES = 7;
     public static final String ERROR_MESSAGE_MAX_SPECIALTIES = "Specialties cannot have more than 7 items";
 
-    private final HealthCareProfId id;
-    private final transient HealthCareProfEmail    email;
-    private final transient HealthCareProfActive active;
-    private final transient ValidationUtils validationUtils;
+    private final HealthCareProfId _id;
+    private final transient HealthCareProfEmail    _email;
+    private final transient HealthCareProfActive _active;
+    private final transient ValidationUtils _validationUtils;
     private final List<Specialty> specialties;
 
     public HealthCareProf(HealthCareProfId id
@@ -29,13 +29,13 @@ public class HealthCareProf extends PersonJavaBean {
             , List<Specialty> specialties
         ) 
         {
-        this.id      = id == null ? HealthCareProfId.random() : id;
-        this.firstName    = name.toString();
-        this.lastName = surname.toString();
-        this.email   = email == null ? new HealthCareProfEmail(null) : email;
-        this.active =  active == null ? new HealthCareProfActive(false) : active;
+        this._id      = id == null ? HealthCareProfId.random() : id;
+        this._firstName    = name.toString();
+        this._lastName = surname.toString();
+        this._email   = email == null ? new HealthCareProfEmail(null) : email;
+        this._active =  active == null ? new HealthCareProfActive(false) : active;
         this.specialties = specialties == null ? null : List.copyOf(specialties);
-        this.validationUtils = (new UtilsFactory()).getValidationUtils();
+        this._validationUtils = (new UtilsFactory()).getValidationUtils();
         this.ensureSpecialtiesMaxSize(this.specialties);
     }
 
@@ -46,31 +46,31 @@ public class HealthCareProf extends PersonJavaBean {
     }
 
     public HealthCareProfId id() {
-        return this.id;
+        return this._id;
     }
 
     public HealthCareProfName getName() {
-        return new HealthCareProfName(firstName) {
+        return new HealthCareProfName(_firstName) {
         } ;
     }
 
     public HealthCareProfName getSurname() {
-        return new HealthCareProfName(lastName) {
+        return new HealthCareProfName(_lastName) {
         } ;
     }
 
     public HealthCareProfEmail getEmail() {
-        return this.email;
+        return this._email;
     }
 
     public HealthCareProfActive getActive() {
-        return this.active;
+        return this._active;
     }
     public Boolean isActive() {
-        return this.active != null && Boolean.TRUE.equals(this.active.value()) ? Boolean.TRUE : Boolean.FALSE;
+        return this._active != null && Boolean.TRUE.equals(this._active.value()) ? Boolean.TRUE : Boolean.FALSE;
     }
     public HealthCareProfId getId() {
-        return this.id;
+        return this._id;
     }
     public static HealthCareProf create(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, HealthCareProfActive active, List<Specialty> specialties) {
         return new HealthCareProf(id, name, surname, email, active, specialties);
@@ -81,15 +81,15 @@ public class HealthCareProf extends PersonJavaBean {
     }
  
     public HealthCareProf changeName(HealthCareProfName newName) throws BusinessException {
-        return new HealthCareProf(this.id, newName, new HealthCareProfName(this.lastName), this.email, this.active, this.specialties);
+        return new HealthCareProf(this._id, newName, new HealthCareProfName(this._lastName), this._email, this._active, this.specialties);
     }
 
     public HealthCareProf changeSurname(HealthCareProfName newSurname) throws BusinessException {
-        return new HealthCareProf(this.id, new HealthCareProfName(this.firstName), newSurname, this.email, this.active, this.specialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), newSurname, this._email, this._active, this.specialties);
     }
 
     public HealthCareProf changeEmail(HealthCareProfEmail newEmail) throws BusinessException {
-        return new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), newEmail, this.active, this.specialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), newEmail, this._active, this.specialties);
     }
 
     public HealthCareProf changeSpecialties(List<Specialty> newSpecialties) throws BusinessException {
@@ -102,7 +102,7 @@ public class HealthCareProf extends PersonJavaBean {
             return this;
         }
 
-        return new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), this.email, this.active, normalizedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, normalizedSpecialties);
     }
 
     public HealthCareProf addSpecialty(Specialty specialty) throws BusinessException {
@@ -119,7 +119,7 @@ public class HealthCareProf extends PersonJavaBean {
         }
 
         updatedSpecialties.add(specialty);
-        return new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), this.email, this.active, updatedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties);
     }
 
     public HealthCareProf removeSpecialty(Specialty specialty) throws BusinessException {
@@ -139,7 +139,7 @@ public class HealthCareProf extends PersonJavaBean {
             throw new RequiredFieldException("specialties");
         }
 
-        return new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), this.email, this.active, updatedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties);
     }
 
     public List<Specialty> getSpecialties() {
@@ -147,19 +147,19 @@ public class HealthCareProf extends PersonJavaBean {
     }
 
     public void validate() throws BusinessException {
-        if(this.validationUtils.isNull(this.id)) throw new RequiredFieldException("id");
-        if(this.validationUtils.isNullOrEmpty(this.firstName)) throw new RequiredFieldException("firstName");
-        if(this.validationUtils.isNullOrEmpty(this.lastName)) throw new RequiredFieldException("lastName");
-        if(this.validationUtils.isNullOrEmpty(this.email.toString())) throw new RequiredFieldException("email");
+        if(this._validationUtils.isNull(this._id)) throw new RequiredFieldException("id");
+        if(this._validationUtils.isNullOrEmpty(this._firstName)) throw new RequiredFieldException("firstName");
+        if(this._validationUtils.isNullOrEmpty(this._lastName)) throw new RequiredFieldException("lastName");
+        if(this._validationUtils.isNullOrEmpty(this._email.toString())) throw new RequiredFieldException("email");
         if(this.specialties == null || this.specialties.isEmpty()) throw new RequiredFieldException("specialties");
         //if(this.validationUtils.isNull(this.address)) throw new RequiredFieldException("address");
         //this.address.validate();
         }
 
     public HealthCareProf setActivate() {
-        return this.active != null && this.active.value() ? this : new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), this.email, new HealthCareProfActive(true), this.specialties);
+        return this._active != null && this._active.value() ? this : new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties);
     }
     public HealthCareProf setDeactivate() {
-        return this.active != null && !this.active.value() ? this : new HealthCareProf(this.id, new HealthCareProfName(this.firstName), new HealthCareProfName(this.lastName), this.email, new HealthCareProfActive(false), this.specialties);
+        return this._active != null && !this._active.value() ? this : new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties);
     }
 }

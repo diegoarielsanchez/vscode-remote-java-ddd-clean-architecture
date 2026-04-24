@@ -18,37 +18,41 @@ public class PersonJavaBean implements Serializable {
 
     @Serial
     private static final long serialVersionUID = -3760445487636086034L;
-    protected String firstName;
-    protected String lastName;
-    private LocalDate bornDate;
+    protected String _firstName;
+    protected String _lastName;
+    private LocalDate _bornDate;
 
     public  PersonJavaBean() {
     }
 
     public PersonJavaBean(String firstName, String lastName, LocalDate bornDate) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.bornDate = bornDate;
+        this._firstName = firstName;
+        this._lastName = lastName;
+        this._bornDate = bornDate;
     }
 
     public String getFirstName() {
-        return firstName;
+        return _firstName;
     }
 
     public String getLastName() {
-        return lastName;
+        return _lastName;
     }
 
     public LocalDate getBornDate() {
-        return bornDate;
+        return _bornDate;
     }
 
     public void setFirstName(String firstName) {
-        this.firstName = firstName;
+        this._firstName = firstName;
     }
 
     public void setLastName(String lastName) {
-        this.lastName = lastName;
+        this._lastName = lastName;
+    }
+
+    public void setBornDate(LocalDate bornDate) {
+        this._bornDate = bornDate;
     }
 
     //  additional getters/setters

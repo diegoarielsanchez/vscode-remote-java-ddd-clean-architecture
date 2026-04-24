@@ -39,7 +39,11 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
         if (id == null || id.value() == null) {
             return Optional.empty();
         }
-        return jpaRepository.findById(id.value())
+        String idValue = id.value();
+        if (idValue == null) {
+            return Optional.empty();
+        }
+        return jpaRepository.findById(idValue)
                 .map(this::toDomain);
     }
 
