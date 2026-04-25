@@ -155,6 +155,28 @@ class CreateVisitUseCaseTest {
     }
 
     @Test
+    void shouldThrowWhenVisitDateIsMoreThanOneMonthInThePast() {
+        CreateVisitInputDTO input = new CreateVisitInputDTO(
+            LocalDate.now().minusMonths(1).minusDays(1),
+            UUID.randomUUID().toString(),
+            "notes",
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString()
+        );
+
+        HealthCareProf healthCareProf = mock(HealthCareProf.class);
+        MedicalSalesRep medicalSalesRep = mock(MedicalSalesRep.class);
+        when(healthCareProf.isActive()).thenReturn(true);
+        when(medicalSalesRep.isActive()).thenReturn(true);
+        when(healthCareProfRepository.findById(any(HealthCareProfId.class))).thenReturn(Optional.of(healthCareProf));
+        when(medicalSalesRepRepository.findById(any(MedicalSalesRepId.class))).thenReturn(Optional.of(medicalSalesRep));
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class, () -> useCase.execute(input));
+        assertEquals("Visit date cannot be more than one month in the past.", ex.getMessage());
+        verify(visitRepository, never()).save(any(Visit.class));
+    }
+
+    @Test
     void shouldThrowWhenMedicalSalesRepIsInactive() {
         CreateVisitInputDTO input = new CreateVisitInputDTO(
             LocalDate.now(),

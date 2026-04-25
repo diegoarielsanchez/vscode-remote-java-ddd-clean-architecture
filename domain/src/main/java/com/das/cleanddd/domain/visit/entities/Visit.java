@@ -38,6 +38,9 @@ public final class Visit extends AggregateRoot {
         if (visitDate == null || visitDate.isAfter(LocalDateTime.now())) {
             throw new BusinessValidationException("Visit date cannot be later than today.");
         }
+        if (visitDate.isBefore(LocalDateTime.now().minusMonths(1))) {
+            throw new BusinessValidationException("Visit date cannot be more than one month in the past.");
+        }
         if (medicalSalesRep == null || !Boolean.TRUE.equals(medicalSalesRep.isActive())) {
             throw new BusinessValidationException("Medical Sales Representative must be active.");
         }

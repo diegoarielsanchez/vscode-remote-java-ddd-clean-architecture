@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
+import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
@@ -60,7 +61,7 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
             if (inputDTO.invoices() != null) {
                 for (CreateInvoiceInputDTO invoiceDTO : inputDTO.invoices()) {
                     updated.addInvoice(
-                            invoiceDTO.invoiceNumber(),
+                            new InvoiceNumber(invoiceDTO.invoiceNumber()),
                             invoiceDTO.issueDate(),
                             invoiceDTO.dueDate(),
                             invoiceDTO.amount());

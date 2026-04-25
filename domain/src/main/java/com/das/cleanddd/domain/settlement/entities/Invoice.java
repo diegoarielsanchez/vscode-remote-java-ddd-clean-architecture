@@ -12,23 +12,20 @@ public final class Invoice {
         DRAFT, ISSUED, PAID, CANCELLED
     }
 
-    private final InvoiceId _invoiceId;
-    private final String    _invoiceNumber;
+    private final InvoiceId      _invoiceId;
+    private final InvoiceNumber   _invoiceNumber;
     private final LocalDate _issueDate;
     private final LocalDate _dueDate;
     private final BigDecimal _amount;
     private InvoiceStatus   _status;
 
     public Invoice(InvoiceId invoiceId,
-                   String invoiceNumber,
+                   InvoiceNumber invoiceNumber,
                    LocalDate issueDate,
                    LocalDate dueDate,
                    BigDecimal amount,
                    InvoiceStatus status) throws BusinessValidationException {
 
-        if (invoiceNumber == null || invoiceNumber.isBlank()) {
-            throw new BusinessValidationException("Invoice number is required.");
-        }
         if (issueDate == null) {
             throw new BusinessValidationException("Issue date is required.");
         }
@@ -43,7 +40,7 @@ public final class Invoice {
         }
 
         this._invoiceId     = invoiceId == null ? InvoiceId.random() : invoiceId;
-        this._invoiceNumber = invoiceNumber.strip();
+        this._invoiceNumber = invoiceNumber;
         this._issueDate     = issueDate;
         this._dueDate       = dueDate;
         this._amount        = amount;
@@ -60,7 +57,7 @@ public final class Invoice {
         this._status        = null;
     }
 
-    static Invoice create(String invoiceNumber,
+    static Invoice create(InvoiceNumber invoiceNumber,
                            LocalDate issueDate,
                            LocalDate dueDate,
                            BigDecimal amount) throws BusinessValidationException {
@@ -70,7 +67,7 @@ public final class Invoice {
     // ── Queries ────────────────────────────────────────────────────────────
 
     public InvoiceId invoiceId()     { return _invoiceId; }
-    public String invoiceNumber()    { return _invoiceNumber; }
+    public InvoiceNumber invoiceNumber()    { return _invoiceNumber; }
     public LocalDate issueDate()     { return _issueDate; }
     public LocalDate dueDate()       { return _dueDate; }
     public BigDecimal amount()       { return _amount; }
@@ -115,6 +112,6 @@ public final class Invoice {
 
     @Override
     public String toString() {
-        return "Invoice{id=" + _invoiceId + ", number='" + _invoiceNumber + "', status=" + _status + '}';
+        return "Invoice{id=" + _invoiceId + ", number='" + _invoiceNumber.value() + "', status=" + _status + '}';
     }
 }

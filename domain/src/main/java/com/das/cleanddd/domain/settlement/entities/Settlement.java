@@ -58,7 +58,7 @@ public final class Settlement extends AggregateRoot {
 
     // ── Invoice membership ────────────────────────────────────────────────
 
-    public Invoice addInvoice(String invoiceNumber,
+    public Invoice addInvoice(InvoiceNumber invoiceNumber,
                                LocalDate issueDate,
                                LocalDate dueDate,
                                BigDecimal amount) throws BusinessValidationException {
@@ -66,9 +66,9 @@ public final class Settlement extends AggregateRoot {
             throw new BusinessValidationException("Cannot add invoices to a CLOSED settlement.");
         }
         boolean duplicate = _invoices.stream()
-                .anyMatch(i -> i.invoiceNumber().equalsIgnoreCase(invoiceNumber));
+                .anyMatch(i -> i.invoiceNumber().equals(invoiceNumber));
         if (duplicate) {
-            throw new BusinessValidationException("An invoice with number '" + invoiceNumber + "' already exists in this settlement.");
+            throw new BusinessValidationException("An invoice with number '" + invoiceNumber.value() + "' already exists in this settlement.");
         }
         Invoice invoice = Invoice.create(invoiceNumber, issueDate, dueDate, amount);
         _invoices.add(invoice);

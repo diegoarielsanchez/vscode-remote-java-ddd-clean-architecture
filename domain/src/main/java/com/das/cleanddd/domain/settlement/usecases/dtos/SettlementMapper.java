@@ -30,7 +30,7 @@ public class SettlementMapper {
     private InvoiceOutputDTO invoiceOutputFromEntity(Invoice invoice) {
         return new InvoiceOutputDTO(
                 invoice.invoiceId().value(),
-                invoice.invoiceNumber(),
+                invoice.invoiceNumber().value(),
                 invoice.issueDate(),
                 invoice.dueDate(),
                 invoice.amount(),

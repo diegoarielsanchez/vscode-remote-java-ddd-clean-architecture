@@ -223,6 +223,34 @@ class UpdateVisitUseCaseTest {
     }
 
     @Test
+    void shouldThrowWhenVisitDateIsMoreThanOneMonthInThePast() {
+        String id = UUID.randomUUID().toString();
+
+        UpdateVisitInputDTO input = new UpdateVisitInputDTO(
+            id,
+            java.time.LocalDate.now().minusMonths(1).minusDays(1),
+            UUID.randomUUID().toString(),
+            "notes",
+            UUID.randomUUID().toString(),
+            UUID.randomUUID().toString()
+        );
+
+        Visit existingVisit = mock(Visit.class);
+        HealthCareProf healthCareProf = mock(HealthCareProf.class);
+        MedicalSalesRep medicalSalesRep = mock(MedicalSalesRep.class);
+        when(healthCareProf.isActive()).thenReturn(true);
+        when(medicalSalesRep.isActive()).thenReturn(true);
+
+        when(visitRepository.search(any(VisitId.class))).thenReturn(Optional.of(existingVisit));
+        when(healthCareProfRepository.findById(any(HealthCareProfId.class))).thenReturn(Optional.of(healthCareProf));
+        when(medicalSalesRepRepository.findById(any(MedicalSalesRepId.class))).thenReturn(Optional.of(medicalSalesRep));
+
+        BusinessValidationException ex = assertThrows(BusinessValidationException.class, () -> useCase.execute(input));
+        assertEquals("Visit date cannot be more than one month in the past.", ex.getMessage());
+        verify(visitRepository, never()).save(any(Visit.class));
+    }
+
+    @Test
     void shouldThrowWhenMedicalSalesRepIsInactive() {
         String id = UUID.randomUUID().toString();
 
