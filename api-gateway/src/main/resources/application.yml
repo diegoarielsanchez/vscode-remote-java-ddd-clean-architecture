@@ -1,0 +1,129 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  # Disable Spring Security's default login page (handled by JWT filter)
+  security:
+    user:
+      name: ""
+      password: ""
+
+  cloud:
+    gateway:
+      # Global default filters applied to every route
+      default-filters:
+        - AddResponseHeader=X-Content-Type-Options, nosniff
+        - AddResponseHeader=X-Frame-Options, DENY
+        - AddResponseHeader=X-XSS-Protection, "1; mode=block"
+        - AddResponseHeader=Strict-Transport-Security, "max-age=31536000; includeSubDomains"
+
+      routes:
+        # ── Medical Sales Representative Service ─────────────────────────────
+        - id: medical-sales-rep
+          uri: lb://medical-sales-rep-service
+          predicates:
+            - Path=/api/v1/medicalsalesrep/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: msrCircuitBreaker
+                fallbackUri: forward:/fallback/unavailable
+
+        # ── Health Care Professional Service ─────────────────────────────────
+        - id: healthcare-prof
+          uri: lb://healthcare-prof-service
+          predicates:
+            - Path=/api/v1/healthcareprof/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: hcpCircuitBreaker
+                fallbackUri: forward:/fallback/unavailable
+
+        # ── Visit Service (visits and visit plans) ────────────────────────────
+        - id: visit
+          uri: lb://visit-service
+          predicates:
+            - Path=/api/v1/visit/**,/api/v1/visitplan/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: visitCircuitBreaker
+                fallbackUri: forward:/fallback/unavailable
+
+        # ── Settlement Service ────────────────────────────────────────────────
+        - id: settlement
+          uri: lb://settlement-service
+          predicates:
+            - Path=/api/v1/settlement/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: settlementCircuitBreaker
+                fallbackUri: forward:/fallback/unavailable
+
+      # Global CORS (also enforced via SecurityConfig)
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Requested-With
+            exposedHeaders:
+              - Authorization
+            maxAge: 3600
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: when-authorized
+    gateway:
+      enabled: true
+
+# JWT
+jwt:
+  secret: ${JWT_SECRET}
+
+# Rate limiter defaults (overridable via env)
+gateway:
+  ratelimit:
+    capacity: 20
+    refill-tokens: 20
+    refill-seconds: 60
+
+# Eureka Service Discovery
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka:eureka@localhost:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.das.gateway: INFO
+  file:
+    name: logs/api-gateway.log

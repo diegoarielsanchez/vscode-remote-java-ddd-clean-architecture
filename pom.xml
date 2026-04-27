@@ -22,6 +22,20 @@
         <module>InfraMySQL</module>
         <module>InfraMongoDB</module>
         <module>InfraPostgreSQL</module>
+        <!-- Extracted shared DDD building blocks -->
+        <module>domain-commons</module>
+        <!-- Microservice: Medical Sales Representative -->
+        <module>medical-sales-rep-service</module>
+        <!-- Microservice: Health Care Professional -->
+        <module>healthcare-prof-service</module>
+        <!-- Microservice: Visit & Visit Plan -->
+        <module>visit-service</module>
+        <!-- Microservice: Settlement -->
+        <module>settlement-service</module>
+        <!-- API Gateway -->
+        <module>api-gateway</module>
+        <!-- Service Registry (Eureka Server) -->
+        <module>eureka-server</module>
     </modules>
 
     <properties>
