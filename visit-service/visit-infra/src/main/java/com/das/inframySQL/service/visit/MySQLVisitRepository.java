@@ -12,11 +12,9 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
+import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepActive;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepEmail;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
@@ -24,8 +22,6 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.Visit;
 import com.das.cleanddd.domain.visit.entities.VisitId;
-import com.das.inframySQL.service.medicalsalesrep.MedicalSalesRepEntity;
-import com.das.inframySQL.service.medicalsalesrep.MedicalSalesRepJpaRepository;
 
 @Primary
 @Service
@@ -35,7 +31,7 @@ public final class MySQLVisitRepository implements IVisitRepository {
     private VisitJpaRepository visitJpaRepository;
 
     @Autowired
-    private MedicalSalesRepJpaRepository medicalSalesRepJpaRepository;
+    private IMedicalSalesRepRepository medicalSalesRepRepository;
 
     @Autowired
     private IHealthCareProfRepository healthCareProfRepository;
@@ -91,18 +87,10 @@ public final class MySQLVisitRepository implements IVisitRepository {
         if (medicalSalesRepId == null) {
             throw new IllegalStateException("MedicalSalesRep ID is null for visit: " + entity.getId());
         }
-        MedicalSalesRepEntity repEntity = medicalSalesRepJpaRepository
-                .findById(medicalSalesRepId)
+        MedicalSalesRep medicalSalesRep = medicalSalesRepRepository
+                .findById(new MedicalSalesRepId(medicalSalesRepId))
                 .orElseThrow(() -> new IllegalStateException(
                         "MedicalSalesRep not found: " + medicalSalesRepId));
-
-        MedicalSalesRep medicalSalesRep = new MedicalSalesRep(
-                new MedicalSalesRepId(repEntity.getId()),
-                new MedicalSalesRepName(repEntity.getName()),
-                new MedicalSalesRepName(repEntity.getSurname()),
-                new MedicalSalesRepEmail(repEntity.getEmail()),
-                new MedicalSalesRepActive(repEntity.getActive())
-        );
 
         HealthCareProf healthCareProf = healthCareProfRepository
                 .findById(new HealthCareProfId(entity.getHealthCareProfId()))

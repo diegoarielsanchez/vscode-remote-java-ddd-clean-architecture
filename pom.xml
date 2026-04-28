@@ -19,9 +19,6 @@
         <module>application</module>
         <module>domain</module>
         <module>library</module>
-        <module>InfraMySQL</module>
-        <module>InfraMongoDB</module>
-        <module>InfraPostgreSQL</module>
         <!-- Extracted shared DDD building blocks -->
         <module>domain-commons</module>
         <!-- Microservice: Medical Sales Representative -->

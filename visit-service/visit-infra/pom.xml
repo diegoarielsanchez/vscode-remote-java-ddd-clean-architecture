@@ -19,16 +19,16 @@
             <groupId>com.das.visit</groupId>
             <artifactId>visit-domain</artifactId>
         </dependency>
-        <!-- Cross-context: visit infra references MSR and HCP infra entities/repos -->
+        <!-- spring-web: RestTemplate for inter-service HTTP calls (Option A) -->
         <dependency>
-            <groupId>com.das.msr</groupId>
-            <artifactId>msr-infra</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
         </dependency>
+        <!-- servlet API: needed for RequestContextHolder/ServletRequestAttributes -->
         <dependency>
-            <groupId>com.das.hcp</groupId>
-            <artifactId>hcp-infra</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

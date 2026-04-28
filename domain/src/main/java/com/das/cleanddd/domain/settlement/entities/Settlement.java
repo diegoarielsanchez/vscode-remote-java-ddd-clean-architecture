@@ -75,6 +75,12 @@ public final class Settlement extends AggregateRoot {
         return invoice;
     }
 
+    public java.util.Optional<Invoice> getInvoice(InvoiceNumber invoiceNumber) {
+        return _invoices.stream()
+                .filter(i -> i.invoiceNumber().equals(invoiceNumber))
+                .findFirst();
+    }
+
     public void removeInvoice(Invoice invoice) throws BusinessValidationException {
         if (_status == SettlementStatus.CLOSED) {
             throw new BusinessValidationException("Cannot remove invoices from a CLOSED settlement.");

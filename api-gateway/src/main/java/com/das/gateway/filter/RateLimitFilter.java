@@ -54,8 +54,9 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().add("X-RateLimit-Retry-After", String.valueOf(refillSeconds));
         byte[] body = "{\"error\":\"Too Many Requests\",\"message\":\"Rate limit exceeded. Please retry later.\"}".getBytes();
-        return exchange.getResponse()
-                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+        Mono<org.springframework.core.io.buffer.DataBuffer> dataBuffer = 
+            Mono.just(exchange.getResponse().bufferFactory().wrap(body));
+        return exchange.getResponse().writeWith(dataBuffer);
     }
 
     private Bucket newBucket(String ip) {

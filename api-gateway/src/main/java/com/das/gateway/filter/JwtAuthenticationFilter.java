@@ -81,9 +81,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private Mono<Void> unauthorizedResponse(ServerWebExchange exchange, String message) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        byte[] body = ("{\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}").getBytes();
+        String jsonBody = "{\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}";
+        byte[] body = jsonBody.getBytes();
         return exchange.getResponse()
-                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body != null ? body : new byte[0]))
+                        .flux()
+                        .cast(org.springframework.core.io.buffer.DataBuffer.class));
     }
 
     @Override

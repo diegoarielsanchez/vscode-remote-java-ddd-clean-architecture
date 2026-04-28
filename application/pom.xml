@@ -81,32 +81,14 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Domain exceptions (DomainException) — no component scan of domain @Service beans -->
 		<dependency>
 			<groupId>com.das.domain</groupId>
 			<artifactId>domain</artifactId>
             <version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.das.library</groupId>
-			<artifactId>library</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.das.infraMySQL</groupId>
-			<artifactId>InfraMySQL</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.das.infraPostgreSQL</groupId>
-			<artifactId>InfraPostgreSQL</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<!-- H2 in-memory DB for dev (replaces MySQL when not available) -->
-		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
-			<scope>runtime</scope>
-		</dependency>
+
 		<!-- JWT Support -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
