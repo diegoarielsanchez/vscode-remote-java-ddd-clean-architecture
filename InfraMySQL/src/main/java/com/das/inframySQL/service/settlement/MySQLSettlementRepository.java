@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.InvoiceId;
+import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
@@ -87,7 +88,7 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
     private Invoice invoiceToDomain(InvoiceEntity ie) throws BusinessValidationException {
         return new Invoice(
                 new InvoiceId(ie.getId()),
-                ie.getInvoiceNumber(),
+                new InvoiceNumber(ie.getInvoiceNumber()),
                 ie.getIssueDate(),
                 ie.getDueDate(),
                 ie.getAmount(),
@@ -112,7 +113,7 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
     private InvoiceEntity invoiceToEntity(Invoice invoice, SettlementEntity parent) {
         InvoiceEntity ie = new InvoiceEntity();
         ie.setId(invoice.invoiceId().value());
-        ie.setInvoiceNumber(invoice.invoiceNumber());
+        ie.setInvoiceNumber(invoice.invoiceNumber().value());
         ie.setIssueDate(invoice.issueDate());
         ie.setDueDate(invoice.dueDate());
         ie.setAmount(invoice.amount());

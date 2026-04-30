@@ -27,6 +27,84 @@
       "label": "Run Backend + UI",
       "dependsOn": ["Run Backend (Spring Boot)", "Run UI (Vite)"],
       "dependsOrder": "parallel"
+    },
+    {
+      "label": "Run Eureka Server",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "eureka-server", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run API Gateway",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "api-gateway", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run MSR Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "medical-sales-rep-service/msr-application", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run HCP Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "healthcare-prof-service/hcp-application", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Visit Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "visit-service/visit-application", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Settlement Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "settlement-service/settlement-application", "-am", "spring-boot:run"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run All Microservices",
+      "dependsOn": [
+        "Run Eureka Server",
+        "Run MSR Service",
+        "Run HCP Service",
+        "Run Visit Service",
+        "Run Settlement Service",
+        "Run API Gateway"
+      ],
+      "dependsOrder": "parallel"
     }
   ]
 }

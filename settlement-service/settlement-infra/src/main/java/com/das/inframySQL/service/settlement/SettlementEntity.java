@@ -24,6 +24,8 @@ public class SettlementEntity {
 
     private String status;
 
+    private String medicalSalesRepId;
+
     @OneToMany(mappedBy = "settlement", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<InvoiceEntity> invoices = new ArrayList<>();
 
@@ -42,6 +44,9 @@ public class SettlementEntity {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getMedicalSalesRepId() { return medicalSalesRepId; }
+    public void setMedicalSalesRepId(String medicalSalesRepId) { this.medicalSalesRepId = medicalSalesRepId; }
 
     public List<InvoiceEntity> getInvoices() { return invoices; }
     public void setInvoices(List<InvoiceEntity> invoices) { this.invoices = invoices; }

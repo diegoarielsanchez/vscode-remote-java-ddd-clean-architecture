@@ -6,8 +6,10 @@ spring:
     name: eureka-server
   security:
     user:
-      name: ${EUREKA_USER:eureka}
-      password: ${EUREKA_PASSWORD:eureka}
+      # Credentials MUST be supplied via EUREKA_USER and EUREKA_PASSWORD environment variables.
+      # No fallback defaults — startup will fail if these are not set.
+      name: ${EUREKA_USER}
+      password: ${EUREKA_PASSWORD}
 
 eureka:
   instance:
@@ -17,7 +19,7 @@ eureka:
     register-with-eureka: false
     fetch-registry: false
     service-url:
-      defaultZone: http://${EUREKA_USER:eureka}:${EUREKA_PASSWORD:eureka}@${EUREKA_HOSTNAME:localhost}:${server.port}/eureka/
+      defaultZone: http://${EUREKA_USER}:${EUREKA_PASSWORD}@${EUREKA_HOSTNAME:localhost}:${server.port}/eureka/
   server:
     enable-self-preservation: false
     eviction-interval-timer-in-ms: 5000

@@ -146,7 +146,15 @@
 					<format>ALL</format>
 					<outputDirectory>${project.build.directory}/dependency-check</outputDirectory>
 				</configuration>
-				<!-- Removed automatic execution - run manually with: mvn org.owasp:dependency-check-maven:check -->
+				<executions>
+					<execution>
+						<id>dependency-check-verify</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

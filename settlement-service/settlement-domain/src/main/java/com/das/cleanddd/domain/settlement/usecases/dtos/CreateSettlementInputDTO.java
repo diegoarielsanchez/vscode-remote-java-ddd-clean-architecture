@@ -12,5 +12,6 @@ import jakarta.validation.constraints.NotNull;
 public record CreateSettlementInputDTO(
     @NotBlank String description,
     @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate settlementDate,
+    @NotBlank String medicalSalesRepId,
     @Valid List<CreateInvoiceInputDTO> invoices
 ) {}

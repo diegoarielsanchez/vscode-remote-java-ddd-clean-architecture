@@ -19,6 +19,7 @@ public class SettlementMapper {
                 settlement.description(),
                 settlement.settlementDate(),
                 settlement.status().name(),
+                settlement.medicalSalesRepId() != null ? settlement.medicalSalesRepId().value() : null,
                 settlement.totalAmount(),
                 invoiceDTOs);
     }

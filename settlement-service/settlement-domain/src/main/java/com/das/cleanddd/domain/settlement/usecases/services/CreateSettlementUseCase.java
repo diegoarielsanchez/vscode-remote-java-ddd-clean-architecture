@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
+import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateSettlementInputDTO;
@@ -39,7 +40,10 @@ public final class CreateSettlementUseCase implements UseCase<CreateSettlementIn
         }
 
         try {
-            Settlement settlement = Settlement.create(inputDTO.description(), inputDTO.settlementDate());
+            MedicalSalesRepId msrId = inputDTO.medicalSalesRepId() != null && !inputDTO.medicalSalesRepId().isBlank()
+                    ? new MedicalSalesRepId(inputDTO.medicalSalesRepId())
+                    : null;
+            Settlement settlement = Settlement.create(inputDTO.description(), inputDTO.settlementDate(), msrId);
 
             if (inputDTO.invoices() != null) {
                 for (CreateInvoiceInputDTO invoiceDTO : inputDTO.invoices()) {
