@@ -1,5 +1,6 @@
 package com.das.inframySQL.service.visit;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,7 +126,28 @@ public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
 
     @Override
     public List<HealthCareProf> searchAll() {
-        throw new UnsupportedOperationException("HCP data is owned by hcp-service");
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            String token = extractAuthorizationHeader();
+            if (token != null) {
+                headers.set("Authorization", token);
+            }
+            HttpEntity<Void> request = new HttpEntity<>(headers);
+            ResponseEntity<HcpResponse[]> response = restTemplate.exchange(
+                    baseUrl + "/api/v1/healthcareprof/list?firstName=&lastName=&page=1&pageSize=10000",
+                    HttpMethod.POST,
+                    request,
+                    HcpResponse[].class);
+            if (response.getBody() == null) {
+                return List.of();
+            }
+            return Arrays.stream(response.getBody())
+                    .map(this::toHealthCareProf)
+                    .toList();
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     @Override

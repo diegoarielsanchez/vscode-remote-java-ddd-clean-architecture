@@ -84,7 +84,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String jsonBody = "{\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}";
         byte[] body = jsonBody.getBytes();
         return exchange.getResponse()
-                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body != null ? body : new byte[0]))
+                .writeWith(Mono.fromCallable(() -> exchange.getResponse().bufferFactory().wrap(body))
                         .flux()
                         .cast(org.springframework.core.io.buffer.DataBuffer.class));
     }

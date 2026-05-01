@@ -17,6 +17,8 @@ import com.das.cleanddd.domain.healthcareprof.entities.SpecialtyCatalog;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
+import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
+import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -30,14 +32,17 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
     private final HealthCareProfFactory _factory;
     @Autowired
     private final HealthCareProfMapper _mapper;
+    private final IHcpEventPublisher _publisher;
 
     public UpdateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfFactory factory
         , HealthCareProfMapper mapper
+        , IHcpEventPublisher publisher
         ) {
         this._repository = repository;
         this._factory = factory;
-        this._mapper = mapper;   
+        this._mapper = mapper;
+        this._publisher = publisher;
     }
     @Override
     public HealthCareProfOutputDTO execute(UpdateHealthCareProfInputDTO inputDTO)
@@ -96,6 +101,13 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
         }
         // Update the existing HealthCareProf with the new values
         _repository.save(entityActivateStatus);
+        // Publish domain event
+        _publisher.publish(new HcpUpdatedEvent(
+                entityActivateStatus.getId().toString(),
+                entityActivateStatus.getFirstName(),
+                entityActivateStatus.getLastName(),
+                entityActivateStatus.getEmail().toString(),
+                entityActivateStatus.isActive()));
         // Convert response to output and return
         return _mapper.outputFromEntity(entityActivateStatus);
         } catch (BusinessException | IllegalArgumentException  e) {

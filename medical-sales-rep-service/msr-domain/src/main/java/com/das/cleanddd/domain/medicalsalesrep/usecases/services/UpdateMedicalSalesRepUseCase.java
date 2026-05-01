@@ -14,6 +14,8 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepReposito
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.UpdateMedicalSalesRepInputDTO;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrUpdatedEvent;
+import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -27,14 +29,17 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
     private final MedicalSalesRepFactory factory;
     @Autowired
     private final MedicalSalesRepMapper mapper;
+    private final IMsrEventPublisher publisher;
 
     public UpdateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
         , MedicalSalesRepFactory factory
         , MedicalSalesRepMapper mapper
+        , IMsrEventPublisher publisher
         ) {
         this.repository = repository;
         this.factory = factory;
-        this.mapper = mapper;   
+        this.mapper = mapper;
+        this.publisher = publisher;
     }
     @Override
     public MedicalSalesRepOutputDTO execute(UpdateMedicalSalesRepInputDTO inputDTO)
@@ -81,6 +86,12 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
         }
         // Update the existing MedicalSalesRep with the new values
         repository.save(medicalSalesRepActivateStatus);
+        publisher.publish(new MsrUpdatedEvent(
+                medicalSalesRepActivateStatus.getId().value(),
+                medicalSalesRepActivateStatus.getName().value(),
+                medicalSalesRepActivateStatus.getSurname().value(),
+                medicalSalesRepActivateStatus.getEmail().value(),
+                medicalSalesRepActivateStatus.getActive().value()));
         // Convert response to output and return
         return mapper.outputFromEntity(medicalSalesRepActivateStatus);
         } catch (BusinessException | IllegalArgumentException  e) {

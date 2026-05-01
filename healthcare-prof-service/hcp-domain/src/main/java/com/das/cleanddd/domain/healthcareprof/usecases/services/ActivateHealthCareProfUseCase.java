@@ -7,20 +7,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
+import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
+import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 public class ActivateHealthCareProfUseCase implements UseCaseOnlyInput<HealthCareProfIDDto> {
     
-    //private final HealthCareProf HealdCareProfRep;
-    //private final CustomerDataAccess customerDataAccess;
     @Autowired
-    private final IHealthCareProfRepository repository; 
+    private final IHealthCareProfRepository repository;
+    private final IHcpEventPublisher publisher;
 
-
-    public ActivateHealthCareProfUseCase(IHealthCareProfRepository repository) {
+    public ActivateHealthCareProfUseCase(IHealthCareProfRepository repository, IHcpEventPublisher publisher) {
         this.repository = repository;
+        this.publisher = publisher;
     }
 
     @Override
@@ -35,7 +36,9 @@ public class ActivateHealthCareProfUseCase implements UseCaseOnlyInput<HealthCar
             throw new DomainException("Health Care Professional not found.");
         }
         if(Boolean.FALSE.equals(entity.get().isActive())) {
-            repository.save(entity.get().setActivate());
+            HealthCareProf activated = entity.get().setActivate();
+            repository.save(activated);
+            publisher.publish(new HcpActivatedEvent(activated.getId().toString(), activated.isActive()));
           }
     }
 }

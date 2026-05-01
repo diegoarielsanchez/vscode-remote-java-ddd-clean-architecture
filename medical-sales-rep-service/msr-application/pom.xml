@@ -78,6 +78,13 @@
             <version>7.6.0</version>
         </dependency>
 
+        <!-- H2 in-memory database (dev profile) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Test support -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -97,6 +104,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>false</skip>
+                </configuration>
             </plugin>
         </plugins>
     </build>

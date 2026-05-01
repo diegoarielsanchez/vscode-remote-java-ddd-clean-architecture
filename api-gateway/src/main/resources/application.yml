@@ -5,12 +5,6 @@ spring:
   application:
     name: api-gateway
 
-  # Disable Spring Security's default login page (handled by JWT filter)
-  security:
-    user:
-      name: ""
-      password: ""
-
   cloud:
     gateway:
       # Global default filters applied to every route
@@ -99,7 +93,7 @@ management:
 
 # JWT
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:local-dev-secret-key-change-in-production-min-256-bits}
 
 # Rate limiter defaults (overridable via env)
 gateway:

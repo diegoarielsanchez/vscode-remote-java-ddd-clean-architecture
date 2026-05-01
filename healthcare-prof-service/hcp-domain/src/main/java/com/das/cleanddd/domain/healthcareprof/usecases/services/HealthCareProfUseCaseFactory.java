@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfFactory;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
+import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfNamesInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
@@ -32,13 +33,13 @@ public class HealthCareProfUseCaseFactory {
     private final FindHealthCareProfBySpecialtyUseCase findHealthCareProfBySpecialtyUseCase;
     
 
-    public HealthCareProfUseCaseFactory(IHealthCareProfRepository entityRepository) {
+    public HealthCareProfUseCaseFactory(IHealthCareProfRepository entityRepository, IHcpEventPublisher eventPublisher) {
 
         this._repository = entityRepository;
-        this.createHealthCareProfUseCase = new CreateHealthCareProfUseCase(this._repository, this._factory, this._mapper);
-        this.updateHealthCareProfUseCase = new UpdateHealthCareProfUseCase(this._repository, this._factory, this._mapper);
-        this.activateHealthCareProfUseCase = new ActivateHealthCareProfUseCase(this._repository);
-        this.deactivateHealthCareProfUseCase = new DeactivateHealthCareProfUseCase(this._repository);
+        this.createHealthCareProfUseCase = new CreateHealthCareProfUseCase(this._repository, this._factory, this._mapper, eventPublisher);
+        this.updateHealthCareProfUseCase = new UpdateHealthCareProfUseCase(this._repository, this._factory, this._mapper, eventPublisher);
+        this.activateHealthCareProfUseCase = new ActivateHealthCareProfUseCase(this._repository, eventPublisher);
+        this.deactivateHealthCareProfUseCase = new DeactivateHealthCareProfUseCase(this._repository, eventPublisher);
         this.getHealthCareProfByIdUseCase = new GetHealthCareProfByIdUseCase(this._repository, this._mapper);
         this.findHealthCareProfByNameUseCase = new FindHealthCareProfByNameUseCase(this._repository, this._mapper);
         this.findHealthCareProfBySpecialtyUseCase = new FindHealthCareProfBySpecialtyUseCase(this._repository, this._mapper);

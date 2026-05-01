@@ -32,6 +32,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- RabbitMQ (event publishing — Option B ACL) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- Test support -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

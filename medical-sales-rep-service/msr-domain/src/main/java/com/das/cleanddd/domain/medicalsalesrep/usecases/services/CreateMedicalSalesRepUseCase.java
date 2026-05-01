@@ -13,6 +13,8 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepReposito
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.CreateMedicalSalesRepInputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrCreatedEvent;
+import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -27,14 +29,17 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
     private final MedicalSalesRepFactory factory;
     @Autowired
     private final MedicalSalesRepMapper mapper;
+    private final IMsrEventPublisher publisher;
     
     public CreateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
         , MedicalSalesRepFactory factory
         , MedicalSalesRepMapper mapper
+        , IMsrEventPublisher publisher
         ) {
         this.repository = repository;
         this.factory = factory;
-        this.mapper = mapper;   
+        this.mapper = mapper;
+        this.publisher = publisher;
     }
 
     @Override
@@ -69,6 +74,12 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
             medicalSalesRep = factory.createMedicalSalesRep(medicalSalesRepName, medicalSalesRepSurname, medicalSalesRepEmail);
             // Create
             repository.save(medicalSalesRep);
+            publisher.publish(new MsrCreatedEvent(
+                    medicalSalesRep.getId().value(),
+                    medicalSalesRep.getName().value(),
+                    medicalSalesRep.getSurname().value(),
+                    medicalSalesRep.getEmail().value(),
+                    medicalSalesRep.getActive().value()));
             // Convert response to output and return
             return mapper.outputFromEntity(medicalSalesRep);
         } catch (BusinessException | IllegalArgumentException  e) {

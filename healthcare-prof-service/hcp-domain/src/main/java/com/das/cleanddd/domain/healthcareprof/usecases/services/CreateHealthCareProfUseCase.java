@@ -16,6 +16,8 @@ import com.das.cleanddd.domain.healthcareprof.entities.SpecialtyCatalog;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
+import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
+import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -30,14 +32,17 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
     private final HealthCareProfFactory factory;
     @Autowired
     private final HealthCareProfMapper mapper;
+    private final IHcpEventPublisher publisher;
     
     public CreateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfFactory factory
         , HealthCareProfMapper mapper
+        , IHcpEventPublisher publisher
         ) {
         this.repository = repository;
         this.factory = factory;
-        this.mapper = mapper;   
+        this.mapper = mapper;
+        this.publisher = publisher;
     }
 
     @Override
@@ -84,6 +89,13 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
             entity = factory.createHealthCareProf(name, surname, email, specialties);
             // Create
             repository.save(entity);
+            // Publish domain event
+            publisher.publish(new HcpCreatedEvent(
+                    entity.getId().toString(),
+                    entity.getFirstName(),
+                    entity.getLastName(),
+                    entity.getEmail().toString(),
+                    entity.isActive()));
             // Convert response to output and return
             return mapper.outputFromEntity(entity);
         } catch (BusinessException | IllegalArgumentException  e) {
