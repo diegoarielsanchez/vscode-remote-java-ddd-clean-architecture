@@ -13,10 +13,10 @@ public class VisitPlanMapper {
         return new VisitPlanOutputDTO(
             visitPlan.visitId().value(),
             visitPlan.visitTimeDate(),
-            visitPlan.healthCareProf() == null ? null : visitPlan.healthCareProf().id().value(),
+            visitPlan.healthCareProfId() == null ? null : visitPlan.healthCareProfId().value(),
             visitPlan.visitComments() == null ? null : visitPlan.visitComments().value(),
             visitPlan.visitSideId() == null ? null : visitPlan.visitSideId().value(),
-            visitPlan.medicalSalesRep() == null ? null : visitPlan.medicalSalesRep().getId().value()
+            visitPlan.medicalSalesRepId() == null ? null : visitPlan.medicalSalesRepId().value()
         );
     }
 

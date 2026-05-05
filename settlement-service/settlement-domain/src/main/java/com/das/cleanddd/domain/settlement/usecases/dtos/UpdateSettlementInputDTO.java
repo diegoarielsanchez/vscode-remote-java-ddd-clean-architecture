@@ -13,5 +13,6 @@ public record UpdateSettlementInputDTO(
     @NotBlank String id,
     @NotBlank String description,
     @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate settlementDate,
-    @Valid List<CreateInvoiceInputDTO> invoices
+    @Valid List<CreateInvoiceInputDTO> invoices,
+    @NotBlank String medicalSalesRepId
 ) {}

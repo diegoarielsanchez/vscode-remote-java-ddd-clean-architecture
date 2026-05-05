@@ -70,19 +70,17 @@ Some things to try:
    - Click OK
    - Press <kbd>F1</kbd> and select the **Dev Containers: Rebuild Container** or **Codespaces: Rebuild Container** command so the modifications are picked up.
   
-6. **Run postgres database services: Healdth Care Professional**
-   - create: docker run -d --name postgres-healthcareprof -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=<psw> -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest
-   - Shell: docker exec -it postgres-healthcareprof psql -U root -d healthcare_prof_db
-   - start: docker start postgres-healthcareprof
-7. **Run mysql database services: Medical Sales Representative**
-    - MedicalSalesRep: docker run -d --name mysql-medicalsalesrep -p 3307:3306 -e MYSQL_ROOT_PASSWORD=riverplate -e MYSQL_DATABASE=medical_sales_db -v mysql_data:/var/lib/mysql mysql:latest
-    - Shell:  docker exec -it mysql-medicalsalesrep mysql -u root -p
-    - start:  docker start mysql-medicalsalesrep
-8. **Run rabbit message queue service**
+6. **Run postgres database services: Healthcare Professional & Medical Sales Rep (shared container)**
+   - create: `docker run -d --name postgres-ddd-clean -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=river -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest`
+   - create medicalsalesrep_db inside the same container: `docker exec -it postgres-ddd-clean psql -U root -d postgres -c "CREATE DATABASE medicalsalesrep_db;"`
+   - Shell (healthcare_db): `docker exec -it postgres-ddd-clean psql -U root -d healthcare_db`
+   - Shell (medicalsalesrep_db): `docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db`
+   - start: `docker start postgres-ddd-clean`
+7. **Run rabbit message queue service**
    - create: docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
    - docker start rabbitmq
 
-9. **Run Services**
+8. **Run Services**
    1. Eureka Server: mvn -pl eureka-server -am spring-boot:run
    2. API Gateway: mvn -pl api-gateway -am spring-boot:run
    3. Microservices (in separate terminals, any order): 

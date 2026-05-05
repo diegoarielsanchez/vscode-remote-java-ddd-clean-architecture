@@ -13,10 +13,10 @@ public class VisitMapper {
         return new VisitOutputDTO(
             visit.visitId().value(),
             visit.visitDate(),
-            visit.healthCareProf() == null ? null : visit.healthCareProf().id().value(),
+            visit.healthCareProfId() == null ? null : visit.healthCareProfId().value(),
             visit.visitComments() == null ? null : visit.visitComments().value(),
             visit.visitSideId() == null ? null : visit.visitSideId().value(),
-            visit.medicalSalesRep() == null ? null : visit.medicalSalesRep().getId().value()
+            visit.medicalSalesRepId() == null ? null : visit.medicalSalesRepId().value()
         );
     }
 

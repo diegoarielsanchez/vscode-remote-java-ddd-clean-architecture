@@ -19,6 +19,14 @@
             <groupId>com.das.visit</groupId>
             <artifactId>visit-domain</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.das.msr</groupId>
+            <artifactId>msr-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.das.hcp</groupId>
+            <artifactId>hcp-domain</artifactId>
+        </dependency>
         <!-- spring-web: RestTemplate for inter-service HTTP calls (Option A) -->
         <dependency>
             <groupId>org.springframework</groupId>

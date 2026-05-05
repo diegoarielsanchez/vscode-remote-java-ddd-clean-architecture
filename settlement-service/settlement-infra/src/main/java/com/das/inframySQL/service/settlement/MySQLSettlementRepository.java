@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.InvoiceId;
+import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
@@ -74,12 +75,16 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
             }
         }
         try {
+            MedicalSalesRepId msrId = entity.getMedicalSalesRepId() != null
+                    ? new MedicalSalesRepId(entity.getMedicalSalesRepId())
+                    : null;
             return new Settlement(
                     new SettlementId(entity.getId()),
                     entity.getDescription(),
                     entity.getSettlementDate(),
                     SettlementStatus.valueOf(entity.getStatus()),
-                    invoices);
+                    invoices,
+                    msrId);
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Cannot reconstruct Settlement from DB row id=" + entity.getId(), e);
         }
@@ -101,6 +106,7 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
         entity.setDescription(domain.description());
         entity.setSettlementDate(domain.settlementDate());
         entity.setStatus(domain.status().name());
+        entity.setMedicalSalesRepId(domain.medicalSalesRepId() != null ? domain.medicalSalesRepId().value() : null);
 
         List<InvoiceEntity> invoiceEntities = domain.invoices().stream()
                 .map(inv -> invoiceToEntity(inv, entity))

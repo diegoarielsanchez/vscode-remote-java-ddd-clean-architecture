@@ -1,24 +1,21 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitRepository;
+import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
 import com.das.cleanddd.domain.visit.entities.VisitFactory;
+import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
@@ -29,9 +26,9 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
     @Autowired
     private final IVisitRepository visitRepository;
     @Autowired
-    private final IHealthCareProfRepository healthCareProfRepository;
+    private final IHealthCareProfValidator healthCareProfValidator;
     @Autowired
-    private final IMedicalSalesRepRepository medicalSalesRepRepository;
+    private final IMedicalSalesRepValidator medicalSalesRepValidator;
     @Autowired
     private final VisitFactory factory;
     @Autowired
@@ -39,14 +36,14 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
 
     public CreateVisitUseCase(
         IVisitRepository visitRepository,
-        IHealthCareProfRepository healthCareProfRepository,
-        IMedicalSalesRepRepository medicalSalesRepRepository,
+        IHealthCareProfValidator healthCareProfValidator,
+        IMedicalSalesRepValidator medicalSalesRepValidator,
         VisitFactory factory,
         VisitMapper mapper
     ) {
         this.visitRepository = visitRepository;
-        this.healthCareProfRepository = healthCareProfRepository;
-        this.medicalSalesRepRepository = medicalSalesRepRepository;
+        this.healthCareProfValidator = healthCareProfValidator;
+        this.medicalSalesRepValidator = medicalSalesRepValidator;
         this.factory = factory;
         this.mapper = mapper;
     }
@@ -74,14 +71,12 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
             Identifier visitSiteId = new Identifier(inputDTO.visitSiteId()) {};
 
-            Optional<HealthCareProf> healthCareProf = healthCareProfRepository.findById(healthCareProfId);
-            if (healthCareProf.isEmpty()) {
-                throw new DomainException("Health Care Professional not found");
+            if (!healthCareProfValidator.existsAndActive(inputDTO.healthCareProfId())) {
+                throw new DomainException("Health Care Professional not found or not active");
             }
 
-            Optional<MedicalSalesRep> medicalSalesRep = medicalSalesRepRepository.findById(medicalSalesRepId);
-            if (medicalSalesRep.isEmpty()) {
-                throw new DomainException("Medical Sales Representative not found");
+            if (!medicalSalesRepValidator.existsAndActive(inputDTO.medicalSalesRepId())) {
+                throw new DomainException("Medical Sales Representative not found or not active");
             }
 
             LocalDateTime visitDateTime = inputDTO.visitDate().atStartOfDay();
@@ -94,13 +89,12 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
                 ? null
                 : new TextValueObject(inputDTO.visitComments()) {};
 
-            // Create a new Visit object using the factory
             Visit visit = factory.createVisit(
                 visitDateTime,
-                healthCareProf.get(),
+                healthCareProfId,
                 comments,
                 visitSiteId,
-                medicalSalesRep.get()
+                medicalSalesRepId
             );
 
             visitRepository.save(visit);

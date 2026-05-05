@@ -10,5 +10,6 @@ public record SettlementOutputDTO(
     LocalDate settlementDate,
     String status,
     BigDecimal totalAmount,
-    List<InvoiceOutputDTO> invoices
+    List<InvoiceOutputDTO> invoices,
+    String medicalSalesRepId
 ) {}

@@ -4,12 +4,12 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
+import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
@@ -26,22 +26,22 @@ public class VisitPlanUseCaseFactory {
 
     public VisitPlanUseCaseFactory(
         IVisitPlanRepository visitPlanRepository,
-        IHealthCareProfRepository healthCareProfRepository,
-        IMedicalSalesRepRepository medicalSalesRepRepository
+        IHealthCareProfValidator healthCareProfValidator,
+        IMedicalSalesRepValidator medicalSalesRepValidator
     ) {
         VisitPlanMapper mapper = new VisitPlanMapper();
         VisitPlanFactory visitPlanFactory = new VisitPlanFactory();
         this.createVisitPlanUseCase = new CreateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfRepository,
-            medicalSalesRepRepository,
+            healthCareProfValidator,
+            medicalSalesRepValidator,
             visitPlanFactory,
             mapper
         );
         this.updateVisitPlanUseCase = new UpdateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfRepository,
-            medicalSalesRepRepository,
+            healthCareProfValidator,
+            medicalSalesRepValidator,
             mapper
         );
         this.getVisitPlanByIdUseCase = new GetVisitPlanByIdUseCase(visitPlanRepository, mapper);

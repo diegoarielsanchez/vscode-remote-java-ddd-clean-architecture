@@ -16,17 +16,19 @@ public final class Settlement extends AggregateRoot {
         OPEN, CLOSED
     }
 
-    private final SettlementId      _settlementId;
-    private final String            _description;
-    private final LocalDate         _settlementDate;
-    private SettlementStatus        _status;
-    private final List<Invoice>     _invoices;
+    private final SettlementId         _settlementId;
+    private final String               _description;
+    private final LocalDate            _settlementDate;
+    private SettlementStatus           _status;
+    private final List<Invoice>        _invoices;
+    private final MedicalSalesRepId    _medicalSalesRepId;
 
     public Settlement(SettlementId settlementId,
                       String description,
                       LocalDate settlementDate,
                       SettlementStatus status,
-                      List<Invoice> invoices) throws BusinessValidationException {
+                      List<Invoice> invoices,
+                      MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
 
         if (settlementDate == null) {
             throw new BusinessValidationException("Settlement date is required.");
@@ -34,26 +36,32 @@ public final class Settlement extends AggregateRoot {
         if (description == null || description.isBlank()) {
             throw new BusinessValidationException("Settlement description is required.");
         }
+        if (medicalSalesRepId == null) {
+            throw new BusinessValidationException("Medical sales rep is required.");
+        }
 
-        this._settlementId   = settlementId == null ? SettlementId.random() : settlementId;
-        this._description    = description.strip();
-        this._settlementDate = settlementDate;
-        this._status         = status == null ? SettlementStatus.OPEN : status;
-        this._invoices       = invoices == null ? new ArrayList<>() : new ArrayList<>(invoices);
+        this._settlementId      = settlementId == null ? SettlementId.random() : settlementId;
+        this._description       = description.strip();
+        this._settlementDate    = settlementDate;
+        this._status            = status == null ? SettlementStatus.OPEN : status;
+        this._invoices          = invoices == null ? new ArrayList<>() : new ArrayList<>(invoices);
+        this._medicalSalesRepId = medicalSalesRepId;
     }
 
     @SuppressWarnings("unused")
     private Settlement() {
-        this._settlementId   = null;
-        this._description    = null;
-        this._settlementDate = null;
-        this._status         = null;
-        this._invoices       = new ArrayList<>();
+        this._settlementId      = null;
+        this._description       = null;
+        this._settlementDate    = null;
+        this._status            = null;
+        this._invoices          = new ArrayList<>();
+        this._medicalSalesRepId = null;
     }
 
     public static Settlement create(String description,
-                                    LocalDate settlementDate) throws BusinessValidationException {
-        return new Settlement(SettlementId.random(), description, settlementDate, SettlementStatus.OPEN, null);
+                                    LocalDate settlementDate,
+                                    MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
+        return new Settlement(SettlementId.random(), description, settlementDate, SettlementStatus.OPEN, null, medicalSalesRepId);
     }
 
     // ── Invoice membership ────────────────────────────────────────────────
@@ -88,7 +96,7 @@ public final class Settlement extends AggregateRoot {
         if (_status == SettlementStatus.CLOSED) {
             throw new BusinessValidationException("Settlement is already CLOSED.");
         }
-        return new Settlement(_settlementId, _description, _settlementDate, SettlementStatus.CLOSED, _invoices);
+        return new Settlement(_settlementId, _description, _settlementDate, SettlementStatus.CLOSED, _invoices, _medicalSalesRepId);
     }
 
     // ── Computed value ────────────────────────────────────────────────────
@@ -102,11 +110,12 @@ public final class Settlement extends AggregateRoot {
 
     // ── Queries ───────────────────────────────────────────────────────────
 
-    public SettlementId settlementId()       { return _settlementId; }
-    public String description()              { return _description; }
-    public LocalDate settlementDate()        { return _settlementDate; }
-    public SettlementStatus status()         { return _status; }
-    public List<Invoice> invoices()          { return Collections.unmodifiableList(_invoices); }
+    public SettlementId settlementId()             { return _settlementId; }
+    public String description()                    { return _description; }
+    public LocalDate settlementDate()              { return _settlementDate; }
+    public SettlementStatus status()               { return _status; }
+    public List<Invoice> invoices()                { return Collections.unmodifiableList(_invoices); }
+    public MedicalSalesRepId medicalSalesRepId()   { return _medicalSalesRepId; }
 
     // ── Object identity ───────────────────────────────────────────────────
 

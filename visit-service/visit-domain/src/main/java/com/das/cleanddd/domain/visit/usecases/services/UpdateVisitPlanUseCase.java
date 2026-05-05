@@ -6,19 +6,17 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
+import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
+import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -29,21 +27,21 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
     @Autowired
     private final IVisitPlanRepository visitPlanRepository;
     @Autowired
-    private final IHealthCareProfRepository healthCareProfRepository;
+    private final IHealthCareProfValidator healthCareProfValidator;
     @Autowired
-    private final IMedicalSalesRepRepository medicalSalesRepRepository;
+    private final IMedicalSalesRepValidator medicalSalesRepValidator;
     @Autowired
     private final VisitPlanMapper mapper;
 
     public UpdateVisitPlanUseCase(
         IVisitPlanRepository visitPlanRepository,
-        IHealthCareProfRepository healthCareProfRepository,
-        IMedicalSalesRepRepository medicalSalesRepRepository,
+        IHealthCareProfValidator healthCareProfValidator,
+        IMedicalSalesRepValidator medicalSalesRepValidator,
         VisitPlanMapper mapper
     ) {
         this.visitPlanRepository = visitPlanRepository;
-        this.healthCareProfRepository = healthCareProfRepository;
-        this.medicalSalesRepRepository = medicalSalesRepRepository;
+        this.healthCareProfValidator = healthCareProfValidator;
+        this.medicalSalesRepValidator = medicalSalesRepValidator;
         this.mapper = mapper;
     }
 
@@ -76,15 +74,13 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
             }
 
             HealthCareProfId healthCareProfId = new HealthCareProfId(inputDTO.healthCareProfId());
-            Optional<HealthCareProf> healthCareProf = healthCareProfRepository.findById(healthCareProfId);
-            if (healthCareProf.isEmpty()) {
-                throw new DomainException("Health Care Professional not found");
+            if (!healthCareProfValidator.existsAndActive(inputDTO.healthCareProfId())) {
+                throw new DomainException("Health Care Professional not found or not active");
             }
 
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
-            Optional<MedicalSalesRep> medicalSalesRep = medicalSalesRepRepository.findById(medicalSalesRepId);
-            if (medicalSalesRep.isEmpty()) {
-                throw new DomainException("Medical Sales Representative not found");
+            if (!medicalSalesRepValidator.existsAndActive(inputDTO.medicalSalesRepId())) {
+                throw new DomainException("Medical Sales Representative not found or not active");
             }
 
             Identifier visitSiteId = new Identifier(inputDTO.visitSiteId()) {};
@@ -95,11 +91,11 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
             VisitPlan updatedVisitPlan = new VisitPlan(
                 visitId,
                 inputDTO.visitDateTime(),
-                healthCareProf.get(),
+                healthCareProfId,
                 comments,
                 visitSiteId,
                 List.of(),
-                medicalSalesRep.get()
+                medicalSalesRepId
             );
 
             visitPlanRepository.save(updatedVisitPlan);

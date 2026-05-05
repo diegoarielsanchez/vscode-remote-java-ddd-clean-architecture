@@ -17,14 +17,14 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.das.cleanddd.domain.shared.criteria.Criteria;
+import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfActive;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfEmail;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfName;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
+import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfEmail;
+import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfActive;
 import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
-import com.das.cleanddd.domain.shared.criteria.Criteria;
 
 /**
  * Option A — Anti-Corruption Layer for HCP bounded context.

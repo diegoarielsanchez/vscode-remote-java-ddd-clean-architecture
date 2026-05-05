@@ -7,19 +7,17 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitRepository;
+import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
 import com.das.cleanddd.domain.visit.entities.VisitId;
+import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
@@ -30,21 +28,21 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
     @Autowired
     private final IVisitRepository visitRepository;
     @Autowired
-    private final IHealthCareProfRepository healthCareProfRepository;
+    private final IHealthCareProfValidator healthCareProfValidator;
     @Autowired
-    private final IMedicalSalesRepRepository medicalSalesRepRepository;
+    private final IMedicalSalesRepValidator medicalSalesRepValidator;
     @Autowired
     private final VisitMapper mapper;
 
     public UpdateVisitUseCase(
         IVisitRepository visitRepository,
-        IHealthCareProfRepository healthCareProfRepository,
-        IMedicalSalesRepRepository medicalSalesRepRepository,
+        IHealthCareProfValidator healthCareProfValidator,
+        IMedicalSalesRepValidator medicalSalesRepValidator,
         VisitMapper mapper
     ) {
         this.visitRepository = visitRepository;
-        this.healthCareProfRepository = healthCareProfRepository;
-        this.medicalSalesRepRepository = medicalSalesRepRepository;
+        this.healthCareProfValidator = healthCareProfValidator;
+        this.medicalSalesRepValidator = medicalSalesRepValidator;
         this.mapper = mapper;
     }
 
@@ -78,15 +76,13 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
             }
 
             HealthCareProfId healthCareProfId = new HealthCareProfId(inputDTO.healthCareProfId());
-            Optional<HealthCareProf> healthCareProf = healthCareProfRepository.findById(healthCareProfId);
-            if (healthCareProf.isEmpty()) {
-                throw new DomainException("Health Care Professional not found");
+            if (!healthCareProfValidator.existsAndActive(inputDTO.healthCareProfId())) {
+                throw new DomainException("Health Care Professional not found or not active");
             }
 
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
-            Optional<MedicalSalesRep> medicalSalesRep = medicalSalesRepRepository.findById(medicalSalesRepId);
-            if (medicalSalesRep.isEmpty()) {
-                throw new DomainException("Medical Sales Representative not found");
+            if (!medicalSalesRepValidator.existsAndActive(inputDTO.medicalSalesRepId())) {
+                throw new DomainException("Medical Sales Representative not found or not active");
             }
 
             Identifier visitSiteId = new Identifier(inputDTO.visitSiteId()) {};
@@ -97,11 +93,11 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
             Visit updatedVisit = new Visit(
                 visitId,
                 visitDateTime,
-                healthCareProf.get(),
+                healthCareProfId,
                 comments,
                 visitSiteId,
                 List.of(),
-                medicalSalesRep.get()
+                medicalSalesRepId
             );
 
             visitRepository.save(updatedVisit);

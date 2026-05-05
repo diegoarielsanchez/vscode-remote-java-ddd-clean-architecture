@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
+import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
@@ -43,6 +44,9 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
         if (inputDTO.settlementDate() == null) {
             throw new DomainException("Settlement date is required.");
         }
+        if (inputDTO.medicalSalesRepId() == null || inputDTO.medicalSalesRepId().isBlank()) {
+            throw new DomainException("Medical sales rep id is required.");
+        }
 
         try {
             SettlementId settlementId = new SettlementId(inputDTO.id());
@@ -56,7 +60,8 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
                     inputDTO.description(),
                     inputDTO.settlementDate(),
                     existing.get().status(),
-                    null);
+                    null,
+                    new MedicalSalesRepId(inputDTO.medicalSalesRepId()));
 
             if (inputDTO.invoices() != null) {
                 for (CreateInvoiceInputDTO invoiceDTO : inputDTO.invoices()) {

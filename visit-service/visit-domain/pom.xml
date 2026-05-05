@@ -19,17 +19,6 @@
             <groupId>com.das.domain</groupId>
             <artifactId>domain-commons</artifactId>
         </dependency>
-        <!-- Cross-context dependencies: Visit references HCP and MSR aggregates -->
-        <dependency>
-            <groupId>com.das.hcp</groupId>
-            <artifactId>hcp-domain</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.das.msr</groupId>
-            <artifactId>msr-domain</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>

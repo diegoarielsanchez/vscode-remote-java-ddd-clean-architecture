@@ -8,8 +8,6 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
@@ -20,20 +18,20 @@ public final class Visit extends AggregateRoot {
 
     private VisitId _visitId;
     private LocalDateTime _visitDate;
-    private HealthCareProf _healthCareProf;
+    private HealthCareProfId _healthCareProfId;
     private TextValueObject _visitComments;
-    private MedicalSalesRep _medicalSalesRep;
+    private MedicalSalesRepId _medicalSalesRepId;
     private Identifier _visitSiteId;
     private final List<VisitItem> _visitItems = new ArrayList<>();
     //private final Set<ShoppingItem> shoppingItems = new LinkedHashSet<>();
 
     public Visit(VisitId visitId
         , LocalDateTime visitDate
-        , HealthCareProf healthCareProf
+        , HealthCareProfId healthCareProfId
         , TextValueObject visitComments
         , Identifier visitSiteId
         , List<VisitItem> visitItems
-        , MedicalSalesRep medicalSalesRep) throws BusinessValidationException {
+        , MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
 
         if (visitDate == null || visitDate.isAfter(LocalDateTime.now())) {
             throw new BusinessValidationException("Visit date cannot be later than today.");
@@ -41,31 +39,29 @@ public final class Visit extends AggregateRoot {
         if (visitDate.isBefore(LocalDateTime.now().minusMonths(1))) {
             throw new BusinessValidationException("Visit date cannot be more than one month in the past.");
         }
-        if (medicalSalesRep == null || !Boolean.TRUE.equals(medicalSalesRep.isActive())) {
-            throw new BusinessValidationException("Medical Sales Representative must be active.");
+        if (medicalSalesRepId == null) {
+            throw new BusinessValidationException("Medical Sales Representative is required.");
         }
-        if (healthCareProf == null || !Boolean.TRUE.equals(healthCareProf.isActive())) {
-            throw new BusinessValidationException("Health Care Professional must be active.");
+        if (healthCareProfId == null) {
+            throw new BusinessValidationException("Health Care Professional is required.");
         }
 
-        this._visitId       = visitId;
-        this._visitDate = visitDate;
-        this._healthCareProf = healthCareProf;
-        this._visitComments = visitComments;
-        this._visitSiteId = visitSiteId;
-        //this._visitItems = visitItems;
-        this._medicalSalesRep = medicalSalesRep;
+        this._visitId           = visitId;
+        this._visitDate         = visitDate;
+        this._healthCareProfId  = healthCareProfId;
+        this._visitComments     = visitComments;
+        this._visitSiteId       = visitSiteId;
+        this._medicalSalesRepId = medicalSalesRepId;
     }
 
     @SuppressWarnings("unused")
     private Visit() {
-        _visitId       = null;
-        _visitDate = null;
-        _healthCareProf = null;
-        _visitComments = null;
-        _visitSiteId = null;
-        //_visitItems = null;
-        _medicalSalesRep = null;
+        _visitId           = null;
+        _visitDate         = null;
+        _healthCareProfId  = null;
+        _visitComments     = null;
+        _visitSiteId       = null;
+        _medicalSalesRepId = null;
     }
 
     public void addItem(VisitItem visitItem) {
@@ -80,8 +76,8 @@ public final class Visit extends AggregateRoot {
         return _visitId;
     }
 
-    public HealthCareProf healthCareProf() {
-        return _healthCareProf;
+    public HealthCareProfId healthCareProfId() {
+        return _healthCareProfId;
     }
 
     public Identifier visitSideId() {
@@ -103,8 +99,8 @@ public final class Visit extends AggregateRoot {
         return _visitDate.getHour() < 12 ? "MORNING" : "AFTERNOON";
     }
 
-    public MedicalSalesRep medicalSalesRep() {
-        return _medicalSalesRep;
+    public MedicalSalesRepId medicalSalesRepId() {
+        return _medicalSalesRepId;
     }
 
     @Override

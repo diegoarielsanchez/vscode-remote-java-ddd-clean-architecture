@@ -2,12 +2,12 @@ package com.das.cleanddd.domain.visit.usecases.services;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.VisitFactory;
+import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
@@ -25,22 +25,22 @@ public class VisitUseCaseFactory {
 
     public VisitUseCaseFactory(
         IVisitRepository visitRepository,
-        IHealthCareProfRepository healthCareProfRepository,
-        IMedicalSalesRepRepository medicalSalesRepRepository
+        IHealthCareProfValidator healthCareProfValidator,
+        IMedicalSalesRepValidator medicalSalesRepValidator
     ) {
         VisitMapper mapper = new VisitMapper();
         VisitFactory visitFactory = new VisitFactory();
         this.createVisitUseCase = new CreateVisitUseCase(
             visitRepository,
-            healthCareProfRepository,
-            medicalSalesRepRepository,
+            healthCareProfValidator,
+            medicalSalesRepValidator,
             visitFactory,
             mapper
         );
         this.updateVisitUseCase = new UpdateVisitUseCase(
             visitRepository,
-            healthCareProfRepository,
-            medicalSalesRepRepository,
+            healthCareProfValidator,
+            medicalSalesRepValidator,
             mapper
         );
         this.getVisitByIdUseCase = new GetVisitByIdUseCase(visitRepository, mapper);

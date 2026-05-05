@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.Invoice;
+import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 
 @Service
@@ -14,13 +15,15 @@ public class SettlementMapper {
         List<InvoiceOutputDTO> invoiceDTOs = settlement.invoices().stream()
                 .map(this::invoiceOutputFromEntity)
                 .toList();
+        MedicalSalesRepId msrId = settlement.medicalSalesRepId();
         return new SettlementOutputDTO(
                 settlement.settlementId().value(),
                 settlement.description(),
                 settlement.settlementDate(),
                 settlement.status().name(),
                 settlement.totalAmount(),
-                invoiceDTOs);
+                invoiceDTOs,
+                msrId != null ? msrId.value() : null);
     }
 
     public List<SettlementOutputDTO> outputFromEntityList(List<Settlement> settlements) {

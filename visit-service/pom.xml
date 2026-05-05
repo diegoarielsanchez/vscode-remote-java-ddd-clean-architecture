@@ -21,6 +21,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <domain-commons.version>1.0.0-SNAPSHOT</domain-commons.version>
+        <msr-domain.version>1.0.0-SNAPSHOT</msr-domain.version>
+        <hcp-domain.version>1.0.0-SNAPSHOT</hcp-domain.version>
         <spring-cloud.version>2024.0.1</spring-cloud.version>
     </properties>
 
@@ -37,6 +39,16 @@
                 <groupId>com.das.domain</groupId>
                 <artifactId>domain-commons</artifactId>
                 <version>${domain-commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.das.msr</groupId>
+                <artifactId>msr-domain</artifactId>
+                <version>${msr-domain.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.das.hcp</groupId>
+                <artifactId>hcp-domain</artifactId>
+                <version>${hcp-domain.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.das.visit</groupId>

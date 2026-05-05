@@ -7,17 +7,13 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
+import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 
@@ -26,12 +22,6 @@ public final class MySQLVisitPlanRepository implements IVisitPlanRepository {
 
     @Autowired
     private VisitPlanJpaRepository visitPlanJpaRepository;
-
-    @Autowired
-    private IMedicalSalesRepRepository medicalSalesRepRepository;
-
-    @Autowired
-    private IHealthCareProfRepository healthCareProfRepository;
 
     @Override
     public void save(VisitPlan visitPlan) {
@@ -64,17 +54,14 @@ public final class MySQLVisitPlanRepository implements IVisitPlanRepository {
     }
 
     private VisitPlan toDomain(VisitPlanEntity entity) {
+        String hcpId = entity.getHealthCareProfId();
+        if (hcpId == null) {
+            throw new IllegalStateException("HealthCareProf ID is null for visit plan: " + entity.getId());
+        }
         String msrId = entity.getMedicalSalesRepId();
         if (msrId == null) {
             throw new IllegalStateException("MedicalSalesRep ID is null for visit plan: " + entity.getId());
         }
-        MedicalSalesRep medicalSalesRep = medicalSalesRepRepository
-                .findById(new MedicalSalesRepId(msrId))
-                .orElseThrow(() -> new IllegalStateException("MedicalSalesRep not found: " + msrId));
-
-        HealthCareProf healthCareProf = healthCareProfRepository
-                .findById(new HealthCareProfId(entity.getHealthCareProfId()))
-                .orElseThrow(() -> new IllegalStateException("HealthCareProf not found: " + entity.getHealthCareProfId()));
 
         TextValueObject visitComments = entity.getVisitComments() != null
                 ? new TextValueObject(entity.getVisitComments()) {}
@@ -88,11 +75,11 @@ public final class MySQLVisitPlanRepository implements IVisitPlanRepository {
             return new VisitPlan(
                     new VisitId(entity.getId()),
                     entity.getVisitDateTime(),
-                    healthCareProf,
+                    new HealthCareProfId(hcpId),
                     visitComments,
                     visitSiteId,
                     List.of(),
-                    medicalSalesRep);
+                    new MedicalSalesRepId(msrId));
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Failed to reconstruct VisitPlan from database: " + e.getMessage(), e);
         }
@@ -107,8 +94,8 @@ public final class MySQLVisitPlanRepository implements IVisitPlanRepository {
         entity.setVisitDateTime(visitPlan.visitTimeDate());
         entity.setVisitComments(visitPlan.visitComments() != null ? visitPlan.visitComments().value() : null);
         entity.setVisitSiteId(visitPlan.visitSideId() != null ? visitPlan.visitSideId().value() : null);
-        entity.setHealthCareProfId(visitPlan.healthCareProf() != null ? visitPlan.healthCareProf().getId().value() : null);
-        entity.setMedicalSalesRepId(visitPlan.medicalSalesRep() != null ? visitPlan.medicalSalesRep().getId().value() : null);
+        entity.setHealthCareProfId(visitPlan.healthCareProfId() != null ? visitPlan.healthCareProfId().value() : null);
+        entity.setMedicalSalesRepId(visitPlan.medicalSalesRepId() != null ? visitPlan.medicalSalesRepId().value() : null);
         return entity;
     }
 }

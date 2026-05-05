@@ -9,8 +9,8 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.visit.IVisitRepository;
@@ -55,8 +55,8 @@ public final class VisitRepository implements IVisitRepository {
             return false;
         }
         return visits.values().stream().anyMatch(v ->
-            v.healthCareProf().getId().value().equals(healthCareProfId.value()) &&
-            v.medicalSalesRep().getId().value().equals(medicalSalesRepId.value()) &&
+            v.healthCareProfId().value().equals(healthCareProfId.value()) &&
+            v.medicalSalesRepId().value().equals(medicalSalesRepId.value()) &&
             v.visitDate().equals(visitDate)
         );
     }

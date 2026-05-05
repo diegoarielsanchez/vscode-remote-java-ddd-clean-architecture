@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.settlement.entities.IMedicalSalesRepPort;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateSettlementInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementIDDto;
@@ -21,9 +22,10 @@ public class SettlementUseCaseFactory {
     private final GetSettlementByIdUseCase getSettlementByIdUseCase;
     private final ListSettlementsUseCase listSettlementsUseCase;
 
-    public SettlementUseCaseFactory(ISettlementRepository settlementRepository) {
+    public SettlementUseCaseFactory(ISettlementRepository settlementRepository,
+                                     IMedicalSalesRepPort medicalSalesRepPort) {
         SettlementMapper mapper = new SettlementMapper();
-        this.createSettlementUseCase = new CreateSettlementUseCase(settlementRepository, mapper);
+        this.createSettlementUseCase = new CreateSettlementUseCase(settlementRepository, mapper, medicalSalesRepPort);
         this.updateSettlementUseCase = new UpdateSettlementUseCase(settlementRepository, mapper);
         this.getSettlementByIdUseCase = new GetSettlementByIdUseCase(settlementRepository, mapper);
         this.listSettlementsUseCase = new ListSettlementsUseCase(settlementRepository, mapper);
