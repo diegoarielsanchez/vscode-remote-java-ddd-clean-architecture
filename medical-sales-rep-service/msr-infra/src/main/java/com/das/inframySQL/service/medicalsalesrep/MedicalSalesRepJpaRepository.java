@@ -12,7 +12,7 @@ public interface MedicalSalesRepJpaRepository extends JpaRepository<MedicalSales
     Optional<MedicalSalesRepEntity> findByEmail(String email);
 
     @Query("SELECT e FROM MedicalSalesRepEntity e " +
-           "WHERE (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT(:name, '%'))) " +
-           "AND (:surname IS NULL OR LOWER(e.surname) LIKE LOWER(CONCAT(:surname, '%')))")
+           "WHERE (:name = '' OR LOWER(e.name) LIKE LOWER(CONCAT(:name, '%'))) " +
+           "AND (:surname = '' OR LOWER(e.surname) LIKE LOWER(CONCAT(:surname, '%')))")
     List<MedicalSalesRepEntity> findByNameOrSurname(@Param("name") String name, @Param("surname") String surname);
 }

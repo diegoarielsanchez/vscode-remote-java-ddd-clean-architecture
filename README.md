@@ -73,9 +73,11 @@ Some things to try:
 6. **Run postgres database services: Healthcare Professional & Medical Sales Rep (shared container)**
    - create: `docker run -d --name postgres-ddd-clean -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=river -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest`
    - create medicalsalesrep_db inside the same container: `docker exec -it postgres-ddd-clean psql -U root -d postgres -c "CREATE DATABASE medicalsalesrep_db;"`
-   - Shell (healthcare_db): `docker exec -it postgres-ddd-clean psql -U root -d healthcare_db`
+   - Shell (healthcare_db): `\`
    - Shell (medicalsalesrep_db): `docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db`
    - start: `docker start postgres-ddd-clean`
+   - Visit and Setlement services
+   -- shell docker exec -it mysql-ddd-clean mysql -u root -p
 7. **Run rabbit message queue service**
    - create: docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
    - docker start rabbitmq
