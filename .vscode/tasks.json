@@ -27,6 +27,81 @@
       "label": "Run Backend + UI",
       "dependsOn": ["Run Backend (Spring Boot)", "Run UI (Vite)"],
       "dependsOrder": "parallel"
+    },
+    {
+      "label": "1. Eureka Server",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "eureka-server", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "2. API Gateway",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "api-gateway", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "3. Medical Sales Rep Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "medical-sales-rep-service/msr-application", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "4. Healthcare Prof Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "healthcare-prof-service/hcp-application", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "5. Visit Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "visit-service/visit-application", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "6. Settlement Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "settlement-service/settlement-application", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "7. Identity Service",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["-pl", "identity-service/identity-application", "-am", "spring-boot:run", "--no-transfer-progress"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Run All Microservices (script)",
+      "type": "shell",
+      "command": "./start-all-services.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }

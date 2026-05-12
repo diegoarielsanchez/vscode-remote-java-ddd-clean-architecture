@@ -1,0 +1,144 @@
+# Production Docker Compose — network isolation enforced at the Docker layer.
+#
+# Network topology:
+#   frontend  (bridge, host-accessible) — gateway only, port 8080 published
+#   backend   (internal: true)          — all services; no host access to 8086-8089
+#
+# Required env vars: copy .env.example → .env and fill in secrets before running.
+#   docker compose up -d
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true      # no route to/from the Docker host on this network
+
+services:
+
+  # ── Eureka Service Registry ────────────────────────────────────────────────
+  eureka-server:
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      EUREKA_USER: ${EUREKA_USER}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      EUREKA_HOSTNAME: eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    restart: unless-stopped
+    # No ports: — Eureka is only reachable inside the backend network
+
+  # ── API Gateway (sole public entry point) ──────────────────────────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    networks: [frontend, backend]   # bridges public traffic into the backend
+    ports:
+      - "8080:8080"                 # ONLY port reachable from the host
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    restart: unless-stopped
+
+  # ── Medical Sales Rep Service ──────────────────────────────────────────────
+  medical-sales-rep-service:
+    build:
+      context: .
+      dockerfile: medical-sales-rep-service/msr-application/Dockerfile
+    networks: [backend]             # not reachable from host — gateway only
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      DB_URL: ${MSR_DB_URL}
+      PG_USERNAME: ${MSR_PG_USERNAME}
+      PG_PASSWORD: ${MSR_PG_PASSWORD}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+    # No ports: — only reachable via gateway through Eureka discovery
+
+  # ── Healthcare Professional Service ────────────────────────────────────────
+  healthcare-prof-service:
+    build:
+      context: .
+      dockerfile: healthcare-prof-service/hcp-application/Dockerfile
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      DB_URL: ${HCP_DB_URL}
+      PG_USERNAME: ${HCP_PG_USERNAME}
+      PG_PASSWORD: ${HCP_PG_PASSWORD}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Visit Service ──────────────────────────────────────────────────────────
+  visit-service:
+    build:
+      context: .
+      dockerfile: visit-service/visit-application/Dockerfile
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      DB_URL: ${VISIT_DB_URL}
+      DB_USERNAME: ${VISIT_DB_USERNAME}
+      DB_PASSWORD: ${VISIT_DB_PASSWORD}
+      MSR_BASE_URL: http://medical-sales-rep-service:8086
+      HCP_BASE_URL: http://healthcare-prof-service:8087
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Settlement Service ─────────────────────────────────────────────────────
+  settlement-service:
+    build:
+      context: .
+      dockerfile: settlement-service/settlement-application/Dockerfile
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      DB_URL: ${SETTLEMENT_DB_URL}
+      DB_USERNAME: ${SETTLEMENT_DB_USERNAME}
+      DB_PASSWORD: ${SETTLEMENT_DB_PASSWORD}
+      MSR_SERVICE_BASE_URL: http://medical-sales-rep-service:8086
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped

@@ -15,6 +15,12 @@ spring:
         - AddResponseHeader=Strict-Transport-Security, "max-age=31536000; includeSubDomains"
 
       routes:
+        # ── Authentication (Identity Service) ────────────────────────────────
+        - id: auth
+          uri: lb://identity-service
+          predicates:
+            - Path=/auth/**
+
         # ── Medical Sales Representative Service ─────────────────────────────
         - id: medical-sales-rep
           uri: lb://medical-sales-rep-service
@@ -63,7 +69,10 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            allowedOriginPatterns:
+              - "http://localhost:5173"
+              - "http://localhost:3000"
+              - "https://*.yourdomain.com"
             allowedMethods:
               - GET
               - POST
@@ -93,7 +102,7 @@ management:
 
 # JWT
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-key-change-in-production-min-256-bits}
+  secret: ${JWT_SECRET:dev-secret-key-for-local-development-only-32chars}
 
 # Rate limiter defaults (overridable via env)
 gateway:

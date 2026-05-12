@@ -1,257 +1,510 @@
-# Try Out Development Containers: Java
+# Java DDD Clean Architecture — Microservices
 
-[![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode-remote-try-java)
+A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 21.
 
-A **development container** is a running container with a well-defined tool/runtime stack and its prerequisites. You can try out development containers with **[GitHub Codespaces](https://github.com/features/codespaces)** or **[Visual Studio Code Dev Containers](https://aka.ms/vscode-remote/containers)**.
+## Table of Contents
 
-This is a sample project that lets you try out either option in a few easy steps. We have a variety of other [vscode-remote-try-*](https://github.com/search?q=org%3Amicrosoft+vscode-remote-try-&type=Repositories) sample projects, too.
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [Configuration](#configuration)
+- [Option A — Run Locally (Development)](#option-a--run-locally-development)
+- [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
+- [Service Reference](#service-reference)
+- [API Reference](#api-reference)
+- [Security](#security)
+- [Running Tests](#running-tests)
 
-> **Note:** If you already have a Codespace or dev container, you can jump to the [Things to try](#things-to-try) section.
+---
 
-## Setting up the development container
+## Architecture Overview
 
-### GitHub Codespaces
-Follow these steps to open this sample in a Codespace:
-1. Click the **Code** drop-down menu.
-2. Click on the **Codespaces** tab.
-3. Click **Create codespace on main**.
-
-For more info, check out the [GitHub documentation](https://docs.github.com/en/free-pro-team@latest/github/developing-online-with-codespaces/creating-a-codespace#creating-a-codespace).
-
-### VS Code Dev Containers
-
-If you already have VS Code and Docker installed, you can click the badge above or [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode-remote-try-java) to get started. Clicking these links will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
-
-Follow these steps to open this sample in a container using the VS Code Dev Containers extension:
-
-1. If this is your first time using a development container, please ensure your system meets the pre-reqs (i.e. have Docker installed) in the [getting started steps](https://aka.ms/vscode-remote/containers/getting-started).
-
-2. To use this repository, you can either open the repository in an isolated Docker volume:
-
-    - Press <kbd>F1</kbd> and select the **Dev Containers: Try a Sample...** command.
-    - Choose the "Java" sample, wait for the container to start, and try things out!
-        > **Note:** Under the hood, this will use the **Dev Containers: Clone Repository in Container Volume...** command to clone the source code in a Docker volume instead of the local filesystem. [Volumes](https://docs.docker.com/storage/volumes/) are the preferred mechanism for persisting container data.
-
-   Or open a locally cloned copy of the code:
-
-   - Clone this repository to your local filesystem.
-   - Press <kbd>F1</kbd> and select the **Dev Containers: Open Folder in Container...** command.
-   - Select the cloned copy of this folder, wait for the container to start, and try things out!
-
-## Things to try
-
-Once you have this sample opened, you'll be able to work with it like you would locally.
-
-Some things to try:
-
-1. **Edit:**
-   - Open `src/main/java/com/mycompany/app/App.java`.
-   - Try adding some code and check out the language features.
-   - Make a spelling mistake and notice it is detected. The [Code Spell Checker](https://marketplace.visualstudio.com/items?itemName=streetsidesoftware.code-spell-checker) extension was automatically installed because it is referenced in `.devcontainer/devcontainer.json`.
-   - Also notice that the [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) is installed. The JDK is in the `mcr.microsoft.com/devcontainers/java` image and Dev Container settings and metadata are automatically picked up from [image labels](https://containers.dev/implementors/reference/#labels).
-
-2. **Terminal:** Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>\`</kbd> and type `uname` and other Linux commands from the terminal window.
-
-3. **Build, Run, and Debug:**
-   - Open `src/main/java/com/mycompany/app/App.java`.
-   - Add a breakpoint.
-   - Press <kbd>F5</kbd> to launch the app in the container.
-   - Once the breakpoint is hit, try hovering over variables, examining locals, and more.
-
-4. **Run a Test:**
-   - Open `src/test/java/com/mycompany/app/AppTest.java`.
-   - Put a breakpoint in a test.
-   - Click the `Debug Test` in the Code Lens above the function and watch it hit the breakpoint.
-
-5. **Install Node.js using a Dev Container Feature:**
-   - Press <kbd>F1</kbd> and select the **Dev Containers: Configure Container Features...** or **Codespaces: Configure Container Features...** command.
-   - Type "node" in the text box at the top.
-   - Check the check box next to "Node.js (via nvm) and yarn" (published by devcontainers) 
-   - Click OK
-   - Press <kbd>F1</kbd> and select the **Dev Containers: Rebuild Container** or **Codespaces: Rebuild Container** command so the modifications are picked up.
-  
-6. **Run postgres database services: Healthcare Professional & Medical Sales Rep (shared container)**
-   - create: `docker run -d --name postgres-ddd-clean -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=river -e POSTGRES_DB=healthcare_db -v postgres_data:/var/lib/postgresql/data postgres:latest`
-   - create medicalsalesrep_db inside the same container: `docker exec -it postgres-ddd-clean psql -U root -d postgres -c "CREATE DATABASE medicalsalesrep_db;"`
-   - Shell (healthcare_db): `\`
-   - Shell (medicalsalesrep_db): `docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db`
-   - start: `docker start postgres-ddd-clean`
-   - Visit and Setlement services
-   -- shell docker exec -it mysql-ddd-clean mysql -u root -p
-7. **Run rabbit message queue service**
-   - create: docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-   - docker start rabbitmq
-
-8. **Run Services**
-   1. Eureka Server: mvn -pl eureka-server -am spring-boot:run
-   2. API Gateway: mvn -pl api-gateway -am spring-boot:run
-   3. Microservices (in separate terminals, any order): 
-   - mvn -pl medical-sales-rep-service/msr-application -am spring-boot:run
-   - mvn -pl healthcare-prof-service/hcp-application -am spring-boot:run
-   - mvn -pl visit-service/visit-application -am spring-boot:run
-   - mvn -pl settlement-service/settlement-application -am spring-boot:run
-
-   All commands run from the repo root. The VS Code task "Run Backend (Spring Boot)" (Ctrl+Shift+P → "Tasks: Run Task") starts the legacy application module on port 8085 if you only need that.
-
-   or  mvn -pl application -am spring-boot:run
-
-
-## OWASP Security Implementation
-
-This project implements OWASP Top 10 security best practices for Spring Boot applications. The implementation covers the following security areas:
-
-### 🔒 **A01:2021 - Broken Access Control**
-- **Spring Security Configuration**: Implemented comprehensive security config with proper authorization
-- **Role-based Access**: Configured user roles and permissions
-- **Session Management**: Stateless sessions with proper timeout and cookie security
-
-### 🔑 **A02:2021 - Cryptographic Failures**
-- **Password Encryption**: BCrypt password encoder with strength 12
-- **Secure Headers**: HSTS, CSP, X-Frame-Options, and other security headers
-- **HTTPS Enforcement**: Secure cookie configuration
-
-### 🛡️ **A03:2021 - Injection**
-- **Input Validation**: Jakarta Validation with `@Valid` annotations on all endpoints
-- **SQL Injection Prevention**: Parameterized queries in JPA repositories
-- **XSS Prevention**: Proper output encoding and Content Security Policy
-
-### 🚫 **A04:2021 - Insecure Design**
-- **Domain-Driven Design**: Clean architecture separating business logic from infrastructure
-- **Input Sanitization**: Comprehensive validation at domain level
-- **Error Handling**: Secure exception handling that doesn't leak sensitive information
-
-### 🔧 **A05:2021 - Security Misconfiguration**
-- **Security Headers**: Comprehensive security headers configuration
-- **Actuator Security**: Limited exposure of sensitive endpoints
-- **Environment Configuration**: Secure property management
-
-### 📦 **A06:2021 - Vulnerable Components**
-- **OWASP Dependency Check**: Automated vulnerability scanning in CI/CD
-- **Regular Updates**: Latest stable versions of Spring Boot and dependencies
-- **Dependency Auditing**: Maven plugin for continuous vulnerability monitoring
-
-### 🔐 **A07:2021 - Identification & Authentication Failures**
-- **Spring Security**: Proper authentication mechanisms
-- **Password Policies**: Strong password requirements
-- **Session Security**: Secure session management
-
-### 📊 **A08:2021 - Software Integrity Failures**
-- **Input Validation**: Comprehensive validation of all inputs
-- **Data Integrity**: Domain validation ensuring data consistency
-- **Audit Logging**: Security event logging
-
-### 📋 **A09:2021 - Security Logging & Monitoring**
-- **Actuator Endpoints**: Health checks and metrics monitoring
-- **Error Logging**: Secure error handling and logging
-- **Rate Limiting**: Protection against abuse with configurable limits
-
-### 🌐 **A10:2021 - Server-Side Request Forgery (SSRF)**
-- **CORS Configuration**: Strict CORS policies
-- **Input Validation**: URL validation to prevent SSRF attacks
-- **Network Security**: Proper firewall and network segmentation
-
-### 🛠️ **Security Features Implemented**
-
-#### **Rate Limiting**
-```java
-// Configured with Bucket4j for distributed rate limiting
-// Allows 100 requests per minute with burst capacity
+```
+                        ┌─────────────────────────┐
+  Browser / Client ────▶│   API Gateway (:8080)   │
+                        │  Spring Cloud Gateway   │
+                        │  JWT auth · CircuitBreaker│
+                        └──────────┬──────────────┘
+                                   │ lb:// (Eureka)
+          ┌──────────────┬─────────┴────┬──────────────────┐
+          │              │              │                  │
+┌─────────▼──────┐  ┌────▼────────┐  ┌─▼──────────────┐  ┌▼────────────────────┐
+│  MSR Service   │  │ HCP Service │  │  Visit Service │  │  Settlement Service │
+│   (:8086)      │  │  (:8087)    │  │   (:8088)      │  │   (:8089)           │
+│  PostgreSQL    │  │  PostgreSQL │  │  MySQL         │  │  MySQL              │
+└────────────────┘  └─────────────┘  └────────────────┘  └─────────────────────┘
+                        ┌─────────────────────────┐
+                        │  Identity Service(:8090) │
+                        │  JWT issuance · BCrypt   │
+                        └─────────────────────────┘
+                        ┌─────────────────────────┐
+                        │  Eureka Server (:8761)  │
+                        └─────────────────────────┘
 ```
 
-#### **Input Validation**
-```java
-@PostMapping("/create")
-public ResponseEntity<Object> createMedicalSalesRep(@Valid @RequestBody CreateMedicalSalesRepInputDTO inputDTO)
+Each microservice follows a three-layer Clean Architecture:
+
+| Layer | Module | Responsibility |
+|---|---|---|
+| Application | `*-application` | HTTP controllers, security config, Spring Boot entry point |
+| Domain | `*-domain` | Entities, use-cases, repository interfaces, domain events |
+| Infrastructure | `*-infra` | JPA repositories, HTTP clients, RabbitMQ publishers |
+
+The `domain-commons` module provides shared DDD building blocks (`AggregateRoot`, `ValueObject`, `Criteria`, exception hierarchy) used by all domain modules.
+
+---
+
+## Prerequisites
+
+| Tool | Version |
+|---|---|
+| Java (JDK) | 21 |
+| Maven | 3.9+ |
+| Docker & Docker Compose | 24+ (for Option B or local databases) |
+| Git | any |
+
+Verify:
+
+```bash
+java -version    # openjdk 21
+mvn -version     # Apache Maven 3.9.x
+docker --version # Docker 24.x
 ```
 
-#### **Security Headers**
-```properties
-# Security headers configured in SecurityConfig
-- Strict-Transport-Security
-- X-Frame-Options: DENY
-- X-Content-Type-Options
-- Referrer-Policy
-- Permissions-Policy
+---
+
+## Project Structure
+
+```
+.
+├── domain-commons/             # Shared DDD building blocks
+├── eureka-server/              # Service registry (Spring Cloud Netflix Eureka)
+├── api-gateway/                # Reactive gateway (Spring Cloud Gateway)
+├── identity-service/           # Centralised authentication & JWT issuance
+│   ├── identity-application/   # Spring Boot app, AuthController, security config
+│   ├── identity-domain/        # User entity, ports, LoginUseCase, DTOs
+│   └── identity-infra/         # BCrypt adapter, JWT adapter, in-memory user store
+├── medical-sales-rep-service/
+│   ├── msr-application/        # Spring Boot app, controllers, security
+│   ├── msr-domain/             # Entities, use-cases, interfaces
+│   └── msr-infra/              # JPA repos, HTTP clients
+├── healthcare-prof-service/
+│   ├── hcp-application/
+│   ├── hcp-domain/
+│   └── hcp-infra/
+├── visit-service/
+│   ├── visit-application/
+│   ├── visit-domain/
+│   └── visit-infra/
+├── settlement-service/
+│   ├── settlement-application/
+│   ├── settlement-domain/
+│   └── settlement-infra/
+├── docker-compose.yml          # Full stack (prod profile)
+├── .env.example                # Environment variable template
+└── pom.xml                     # Parent POM
 ```
 
-#### **Dependency Vulnerability Scanning**
-```xml
-<!-- OWASP Dependency Check Plugin -->
-<plugin>
-    <groupId>org.owasp</groupId>
-    <artifactId>dependency-check-maven</artifactId>
-    <configuration>
-        <failBuildOnCVSS>7</failBuildOnCVSS>
-    </configuration>
-</plugin>
+---
+
+## Configuration
+
+Each service reads configuration from `application.properties` (dev defaults) or `application-prod.properties` (all values required via environment variables, no fallbacks).
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and fill in your values before running Docker Compose:
+
+```bash
+cp .env.example .env
 ```
 
-### 🚀 **Running Security Checks**
+| Variable | Used by | Description |
+|---|---|---|
+| `JWT_SECRET` | Gateway, all services | Shared JWT signing secret (≥ 32 chars) |
+| `EUREKA_USER` | Eureka, all services | Eureka basic-auth username |
+| `EUREKA_PASSWORD` | Eureka, all services | Eureka basic-auth password |
+| `EUREKA_URL` | All services (prod) | Full Eureka URL with credentials |
+| `CORS_ALLOWED_ORIGINS` | Gateway | Comma-separated allowed origins |
+| `MSR_DB_URL` | MSR service | PostgreSQL JDBC URL for `medicalsalesrep_db` |
+| `MSR_PG_USERNAME` | MSR service | DB username |
+| `MSR_PG_PASSWORD` | MSR service | DB password |
+| `HCP_DB_URL` | HCP service | PostgreSQL JDBC URL for `healthcare_db` |
+| `HCP_PG_USERNAME` | HCP service | DB username |
+| `HCP_PG_PASSWORD` | HCP service | DB password |
+| `VISIT_DB_URL` | Visit service | MySQL JDBC URL for `visitdb` |
+| `VISIT_DB_USERNAME` | Visit service | DB username |
+| `VISIT_DB_PASSWORD` | Visit service | DB password |
+| `SETTLEMENT_DB_URL` | Settlement service | MySQL JDBC URL for `settlementdb` |
+| `SETTLEMENT_DB_USERNAME` | Settlement service | DB username |
+| `SETTLEMENT_DB_PASSWORD` | Settlement service | DB password |
+| `RABBITMQ_HOST` | All services | RabbitMQ hostname |
+| `RABBITMQ_USERNAME` | All services | RabbitMQ username |
+| `RABBITMQ_PASSWORD` | All services | RabbitMQ password |
 
-1. **Dependency Vulnerability Scan**:
-   ```bash
-   mvn org.owasp:dependency-check-maven:check
-   ```
+### Dev defaults (no `.env` needed)
 
-2. **Run Application with Security**:
-   ```bash
-   mvn spring-boot:run
-   ```
+The `application.properties` files ship with working dev defaults so services start without a `.env`:
 
-3. **Test Rate Limiting**:
-   ```bash
-   # Make multiple requests to test rate limiting
-   curl -X GET http://localhost:8085/api/v1/medicalsalesrep/list
-   ```
+| Service | Database | Dev credentials |
+|---|---|---|
+| MSR | PostgreSQL `localhost:5433/medicalsalesrep_db` | `root` / `river` |
+| HCP | PostgreSQL `localhost:5433/healthcare_db` | `root` / `river` |
+| Visit | MySQL `localhost:3306/visitdb` | `root` / (your MySQL root password) |
+| Settlement | MySQL `localhost:3306/settlementdb` | `root` / (your MySQL root password) |
 
-### 📋 **Security Testing Checklist**
+---
 
-- [ ] Authentication works correctly
-- [ ] Authorization prevents unauthorized access
-- [ ] Input validation blocks malicious inputs
-- [ ] HTTPS is enforced in production
-- [ ] Security headers are present
-- [ ] Rate limiting prevents abuse
-- [ ] Error messages don't leak sensitive information
-- [ ] Dependencies are free of known vulnerabilities
-- [ ] Session management is secure
-- [ ] CORS policies are restrictive
+## Option A — Run Locally (Development)
 
-### 🔍 **Monitoring & Alerting**
+### 1. Start the databases
 
-The application exposes security-relevant metrics via Spring Boot Actuator:
-- Health checks: `/actuator/health`
-- Metrics: `/actuator/metrics`
-- Info: `/actuator/info`
+**PostgreSQL** (shared container for MSR and HCP):
 
-Configure monitoring tools to alert on:
-- High error rates
-- Rate limit violations
-- Authentication failures
-- Unusual traffic patterns
+```bash
+# Create and start
+docker run -d --name postgres-ddd-clean \
+  -p 5433:5432 \
+  -e POSTGRES_USER=root \
+  -e POSTGRES_PASSWORD=river \
+  -e POSTGRES_DB=healthcare_db \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:latest
 
-### 📚 **Additional Security Resources**
+# Create the second database inside the same container
+docker exec -it postgres-ddd-clean \
+  psql -U root -d postgres -c "CREATE DATABASE medicalsalesrep_db;"
 
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Spring Security Documentation](https://spring.io/projects/spring-security)
-- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
-- [Spring Boot Security Best Practices](https://spring.io/guides/topicals/spring-security-architecture/)
+# To restart later
+docker start postgres-ddd-clean
+```
 
-## Contributing
+**MySQL** (shared container for Visit and Settlement):
 
-This project welcomes contributions and suggestions. Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.microsoft.com.
+```bash
+docker run -d --name mysql-ddd-clean \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=yourpassword \
+  -e MYSQL_DATABASE=visitdb \
+  -v mysql_data:/var/lib/mysql \
+  mysql:8
 
-When you submit a pull request, a CLA-bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+# Create the second database
+docker exec -it mysql-ddd-clean \
+  mysql -u root -pyourpassword -e "CREATE DATABASE IF NOT EXISTS settlementdb;"
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+# To restart later
+docker start mysql-ddd-clean
+```
+
+**RabbitMQ**:
+
+```bash
+docker run -d --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3-management
+
+# Management UI: http://localhost:15672  (guest / guest)
+```
+
+### 2. Build all modules
+
+Run once from the repo root to install shared modules (`domain-commons`, etc.) into your local Maven repository:
+
+```bash
+mvn clean install -DskipTests
+```
+
+### 3. Start the services
+
+Open a separate terminal for each service. Start in this order:
+
+**Terminal 1 — Eureka Server**
+
+```bash
+mvn -pl eureka-server -am spring-boot:run
+# Ready when: "Started EurekaServerApplication" appears
+# Dashboard: http://localhost:8761
+```
+
+**Terminal 2 — API Gateway**
+
+```bash
+mvn -pl api-gateway -am spring-boot:run
+# Ready when: "Started GatewayApplication" appears
+# Listens on: http://localhost:8080
+```
+
+**Terminal 3 — Identity Service**
+
+```bash
+mvn -pl identity-service/identity-application -am spring-boot:run
+# Ready when: "Started IdentityApplication" appears
+# Auth endpoint: POST http://localhost:8090/auth/login
+```
+
+**Terminals 4–7 — Microservices (any order)**
+
+```bash
+# Medical Sales Rep Service
+mvn -pl medical-sales-rep-service/msr-application -am spring-boot:run
+
+# Healthcare Prof Service
+mvn -pl healthcare-prof-service/hcp-application -am spring-boot:run
+
+# Visit Service
+mvn -pl visit-service/visit-application -am spring-boot:run
+
+# Settlement Service
+mvn -pl settlement-service/settlement-application -am spring-boot:run
+```
+
+All commands run from the repo root.
+
+### 4. Verify all services are registered
+
+Open the Eureka dashboard at `http://localhost:8761`. You should see all four microservices listed as `UP`.
+
+### 5. Obtain a JWT token
+
+Authentication is centralised in the **Identity Service** (`identity-service/identity-application`). Obtain a token directly or via the gateway — both routes resolve to the same service:
+
+```bash
+# Via API Gateway (recommended)
+curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"Apatehia65$"}'
+
+# Directly against the Identity Service
+curl -s -X POST http://localhost:8090/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"Apatehia65$"}'
+```
+
+Use the returned token in subsequent requests:
+
+```bash
+curl -s "http://localhost:8080/api/v1/medicalsalesrep/get?id=<uuid>" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Option B — Run with Docker Compose (Production)
+
+All services run as Docker containers on an internal network. Only the API Gateway port is published to the host.
+
+### 1. Fill in secrets
+
+```bash
+cp .env.example .env
+# Edit .env — replace every "change-me" value with a real secret
+```
+
+### 2. Build and start
+
+```bash
+docker compose up -d --build
+```
+
+This starts:
+
+| Container | Published port | Profile |
+|---|---|---|
+| `eureka-server` | none (internal only) | `prod` |
+| `api-gateway` | `8080` | `prod` |
+| `identity-service` | none | `prod` |
+| `medical-sales-rep-service` | none | `prod` |
+| `healthcare-prof-service` | none | `prod` |
+| `visit-service` | none | `prod` |
+| `settlement-service` | none | `prod` |
+
+> In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
+
+### 3. Check status
+
+```bash
+docker compose ps
+docker compose logs -f api-gateway
+```
+
+### 4. Stop
+
+```bash
+docker compose down
+```
+
+---
+
+## Service Reference
+
+| Service | Port (dev) | Module path | Database |
+|---|---|---|---|
+| Eureka Server | 8761 | `eureka-server` | — |
+| API Gateway | 8080 | `api-gateway` | — |
+| Identity Service | 8090 | `identity-service/identity-application` | — (in-memory) |
+| Medical Sales Rep | 8086 | `medical-sales-rep-service/msr-application` | PostgreSQL `medicalsalesrep_db` |
+| Healthcare Prof | 8087 | `healthcare-prof-service/hcp-application` | PostgreSQL `healthcare_db` |
+| Visit | 8088 | `visit-service/visit-application` | MySQL `visitdb` |
+| Settlement | 8089 | `settlement-service/settlement-application` | MySQL `settlementdb` |
+
+---
+
+## API Reference
+
+All endpoints are accessible via the **API Gateway** at `http://localhost:8080`. Direct service ports are bound to `127.0.0.1` in dev (loopback only).
+
+### Authentication — Identity Service (`/auth`)
+
+All authentication is handled by the **Identity Service**. The endpoint is exposed directly on port `8090` and proxied through the API Gateway at `http://localhost:8080/auth/login`.
+
+Dev credential: `user` / `Apatehia65$`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/auth/login` | Returns a JWT bearer token |
+
+Request body:
+```json
+{ "username": "user", "password": "Apatehia65$" }
+```
+
+Example response:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "username": "user",
+  "roles": ["ROLE_USER"]
+}
+```
+
+Include the token in all subsequent requests:
+```
+Authorization: Bearer <token>
+```
+
+---
+
+### Medical Sales Rep Service — `/api/v1/medicalsalesrep`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/medicalsalesrep/create` | Create a new medical sales rep |
+| `PUT` | `/api/v1/medicalsalesrep/update` | Update an existing rep |
+| `POST` | `/api/v1/medicalsalesrep/activate` | Activate a rep |
+| `POST` | `/api/v1/medicalsalesrep/deactivate` | Deactivate a rep |
+| `GET` | `/api/v1/medicalsalesrep/get?id=<uuid>` | Get a rep by ID |
+| `POST` | `/api/v1/medicalsalesrep/list` | List reps (with criteria filter) |
+
+---
+
+### Healthcare Prof Service — `/api/v1/healthcareprof`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/healthcareprof/create` | Create a new healthcare professional |
+| `PUT` | `/api/v1/healthcareprof/update` | Update an existing HCP |
+| `POST` | `/api/v1/healthcareprof/activate` | Activate an HCP |
+| `POST` | `/api/v1/healthcareprof/deactivate` | Deactivate an HCP |
+| `GET` | `/api/v1/healthcareprof/get?id=<uuid>` | Get an HCP by ID |
+| `POST` | `/api/v1/healthcareprof/list` | List HCPs (with criteria filter) |
+| `GET` | `/api/v1/healthcareprof/specialties` | List available specialties |
+
+---
+
+### Visit Service — `/api/v1/visit` and `/api/v1/visitplan`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/visit/create` | Create a visit |
+| `PUT` | `/api/v1/visit/update` | Update a visit |
+| `GET` | `/api/v1/visit/get?id=<uuid>` | Get a visit by ID |
+| `POST` | `/api/v1/visit/list` | List visits (with criteria filter) |
+| `POST` | `/api/v1/visitplan/create` | Create a visit plan |
+| `PUT` | `/api/v1/visitplan/update` | Update a visit plan |
+| `GET` | `/api/v1/visitplan/get?id=<uuid>` | Get a visit plan by ID |
+| `POST` | `/api/v1/visitplan/list` | List visit plans (with criteria filter) |
+
+---
+
+### Settlement Service — `/api/v1/settlement`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/settlement/create` | Create a settlement |
+| `PUT` | `/api/v1/settlement/update` | Update a settlement |
+| `GET` | `/api/v1/settlement/get?id=<uuid>` | Get a settlement by ID |
+| `POST` | `/api/v1/settlement/list` | List settlements (with criteria filter) |
+
+---
+
+## Security
+
+### Authentication & Authorization
+
+- **Token issuance** is centralised in `identity-service` (`POST /auth/login`, port `8090`).
+- JWT bearer tokens are validated by the API Gateway before routing to any downstream service.
+- Each microservice also validates the token independently (defence in depth).
+- Tokens are signed with a shared `JWT_SECRET` (≥ 32 chars, HS256). **Rotate this secret in production.**
+- The `/auth/**` and `/error` paths are public; all other paths require a valid token.
+- Passwords are hashed with BCrypt (cost factor 12) — OWASP A02 compliant.
+- All login attempts (success and failure) are written to `AUDIT` level logs with the sanitized username.
+
+### CORS
+
+The gateway allows only the origins listed in `CORS_ALLOWED_ORIGINS` (defaults to `http://localhost:5173` and `http://localhost:3000` in dev). Set a specific production origin in `.env`.
+
+### Security Headers
+
+All responses include:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Strict-Transport-Security` (HSTS)
+- `Referrer-Policy: no-referrer`
+
+### Network Isolation
+
+- In dev, services bind to `127.0.0.1` only — they are not reachable from outside the host.
+- In Docker Compose, only the API Gateway publishes a port (`8080`). All other services are on an internal Docker network with no published ports.
+
+### Audit Logging
+
+All `/auth/login` attempts (success and failure) are logged at the `AUDIT` level with the sanitized username and resolved client IP.
+
+### Production Checklist
+
+- [ ] Replace all `change-me` values in `.env`
+- [ ] Use a random JWT secret of at least 32 characters (`openssl rand -base64 32`)
+- [ ] Run behind TLS (reverse proxy such as nginx or a load balancer)
+- [ ] Set `CORS_ALLOWED_ORIGINS` to your frontend domain only
+- [ ] Confirm `SPRING_PROFILES_ACTIVE=prod` is set in your deployment
+
+### Dependency Vulnerability Scan
+
+```bash
+mvn org.owasp:dependency-check-maven:check
+```
+
+---
+
+## Running Tests
+
+```bash
+# All modules
+mvn test
+
+# Single module
+mvn -pl medical-sales-rep-service/msr-domain test
+mvn -pl healthcare-prof-service/hcp-domain test
+mvn -pl visit-service/visit-domain test
+mvn -pl settlement-service/settlement-domain test
+```
+
+Test reports are written to `<module>/target/surefire-reports/`.
+
+---
 
 ## License
 
-Copyright © Microsoft Corporation All rights reserved.<br />
-Licensed under the MIT License. See LICENSE in the project root for license information.
+Licensed under the MIT License. See [LICENSE](LICENSE) for details.

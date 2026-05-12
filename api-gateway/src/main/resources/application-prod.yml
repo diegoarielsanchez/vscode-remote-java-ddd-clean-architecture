@@ -1,0 +1,24 @@
+# ── Production profile — ALL secrets are REQUIRED (no fallback defaults) ────
+# Set SPRING_PROFILES_ACTIVE=prod to activate this profile.
+# Startup will fail immediately if any of these env vars are absent.
+
+jwt:
+  secret: ${JWT_SECRET}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL}
+
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: ${CORS_ALLOWED_ORIGINS}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.das.gateway: INFO

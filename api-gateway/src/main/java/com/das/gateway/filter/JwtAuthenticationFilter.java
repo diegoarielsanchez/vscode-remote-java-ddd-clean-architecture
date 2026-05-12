@@ -16,11 +16,10 @@ import org.springframework.web.server.ServerWebExchange;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Reactive GlobalFilter that validates the JWT bearer token on every request
@@ -35,7 +34,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final List<String> EXCLUDED_PREFIXES = List.of(
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/auth/"
     );
 
     @Value("${jwt.secret}")
@@ -70,7 +70,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private Claims extractClaims(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        byte[] keyBytes = jwtSecret.getBytes();
+        SecretKey key = new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256");
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
