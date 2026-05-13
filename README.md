@@ -225,7 +225,7 @@ Open a separate terminal for each service. Start in this order:
 ```bash
 mvn -pl eureka-server -am spring-boot:run
 # Ready when: "Started EurekaServerApplication" appears
-# Dashboard: http://localhost:8761
+# Dashboard: http://localhost:8761 (eureka, eureka)
 ```
 
 **Terminal 2 — API Gateway**

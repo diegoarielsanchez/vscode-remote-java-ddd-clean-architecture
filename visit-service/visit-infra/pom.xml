@@ -32,6 +32,11 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>
+        <!-- Apache HttpClient 5: allows RestTemplate to send GET requests with a body -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!-- servlet API: needed for RequestContextHolder/ServletRequestAttributes -->
         <dependency>
             <groupId>jakarta.servlet</groupId>

@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -32,12 +34,14 @@ import com.das.cleanddd.domain.shared.criteria.Criteria;
 @Service
 public class HttpMedicalSalesRepRepository implements IMedicalSalesRepRepository {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final String baseUrl;
 
     public HttpMedicalSalesRepRepository(
             @Value("${services.msr.base-url:http://localhost:8086}") String baseUrl) {
         this.baseUrl = baseUrl;
+        this.restTemplate = new RestTemplate(
+                new HttpComponentsClientHttpRequestFactory(HttpClients.createDefault()));
     }
 
     @Override
@@ -53,7 +57,7 @@ public class HttpMedicalSalesRepRepository implements IMedicalSalesRepRepository
                 headers.set("Authorization", token);
             }
             HttpEntity<Map<String, String>> request =
-                    new HttpEntity<>(Map.of("id", id.value()), headers);
+                    new HttpEntity<>(Map.of("medicalSalesRepId", id.value()), headers);
             ResponseEntity<MsrResponse> response = restTemplate.exchange(
                     baseUrl + "/api/v1/medicalsalesrep/get",
                     HttpMethod.GET,
@@ -64,6 +68,8 @@ public class HttpMedicalSalesRepRepository implements IMedicalSalesRepRepository
             }
             return Optional.of(toMedicalSalesRep(response.getBody()));
         } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        } catch (HttpClientErrorException e) {
             return Optional.empty();
         }
     }

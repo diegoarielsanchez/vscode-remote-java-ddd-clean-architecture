@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -33,12 +35,14 @@ import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
 @Service
 public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final String baseUrl;
 
     public HttpHealthCareProfRepository(
             @Value("${services.hcp.base-url:http://localhost:8087}") String baseUrl) {
         this.baseUrl = baseUrl;
+        this.restTemplate = new RestTemplate(
+                new HttpComponentsClientHttpRequestFactory(HttpClients.createDefault()));
     }
 
     @Override
@@ -65,6 +69,8 @@ public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
             }
             return Optional.of(toHealthCareProf(response.getBody()));
         } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        } catch (HttpClientErrorException e) {
             return Optional.empty();
         }
     }
