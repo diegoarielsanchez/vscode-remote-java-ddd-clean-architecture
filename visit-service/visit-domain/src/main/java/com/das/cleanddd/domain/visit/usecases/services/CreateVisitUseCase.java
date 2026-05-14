@@ -1,7 +1,5 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.time.LocalDateTime;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +11,7 @@ import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
@@ -79,7 +78,7 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
                 throw new DomainException("Medical Sales Representative not found or not active");
             }
 
-            LocalDateTime visitDateTime = inputDTO.visitDate().atStartOfDay();
+            VisitDateTime visitDateTime = new VisitDateTime(inputDTO.visitDate().atStartOfDay());
 
             if (visitRepository.existsByVisitKey(healthCareProfId, medicalSalesRepId, visitDateTime)) {
                 throw new DomainException("A visit already exists for this Health Care Professional, Medical Sales Representative and date.");

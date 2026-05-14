@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.entities;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,7 +13,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 public class VisitPlanFactory {
 
     public VisitPlan createVisitPlan(
-        LocalDateTime visitDateTime,
+        VisitDateTime visitDateTime,
         HealthCareProfId healthCareProfId,
         TextValueObject visitComments,
         Identifier visitSiteId,

@@ -19,7 +19,7 @@ public class SettlementMapper {
         return new SettlementOutputDTO(
                 settlement.settlementId().value(),
                 settlement.description(),
-                settlement.settlementDate(),
+                settlement.settlementDate().value(),
                 settlement.status().name(),
                 settlement.totalAmount(),
                 invoiceDTOs,
@@ -34,8 +34,8 @@ public class SettlementMapper {
         return new InvoiceOutputDTO(
                 invoice.invoiceId().value(),
                 invoice.invoiceNumber().value(),
-                invoice.issueDate(),
-                invoice.dueDate(),
+                invoice.issueDate().value(),
+                invoice.dueDate() != null ? invoice.dueDate().value() : null,
                 invoice.amount(),
                 invoice.status().name());
     }

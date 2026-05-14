@@ -26,7 +26,7 @@ class VisitTest {
     private Visit buildValid() throws BusinessValidationException {
         return new Visit(
             new VisitId(VISIT_ID),
-            VALID_DATE,
+            new VisitDateTime(VALID_DATE),
             new HealthCareProfId(HCP_ID),
             new TextValueObject("routine check") {},
             new Identifier(SITE_ID) {},
@@ -44,7 +44,7 @@ class VisitTest {
             Visit visit = buildValid();
 
             assertThat(visit.visitId().value()).isEqualTo(VISIT_ID);
-            assertThat(visit.visitDate()).isEqualTo(VALID_DATE);
+            assertThat(visit.visitDate().value()).isEqualTo(VALID_DATE);
             assertThat(visit.healthCareProfId().value()).isEqualTo(HCP_ID);
             assertThat(visit.medicalSalesRepId().value()).isEqualTo(MSR_ID);
             assertThat(visit.visitSideId().value()).isEqualTo(SITE_ID);
@@ -55,7 +55,7 @@ class VisitTest {
         void shouldAllowNullComments() throws BusinessValidationException {
             Visit visit = new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -82,7 +82,7 @@ class VisitTest {
         void shouldThrowWhenVisitDateIsInTheFuture() {
             assertThatThrownBy(() -> new Visit(
                 new VisitId(VISIT_ID),
-                LocalDateTime.now().plusDays(1),
+                new VisitDateTime(LocalDateTime.now().plusDays(1)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -96,7 +96,7 @@ class VisitTest {
         void shouldThrowWhenVisitDateIsMoreThanOneMonthAgo() {
             assertThatThrownBy(() -> new Visit(
                 new VisitId(VISIT_ID),
-                LocalDateTime.now().minusMonths(2),
+                new VisitDateTime(LocalDateTime.now().minusMonths(2)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -110,7 +110,7 @@ class VisitTest {
         void shouldThrowWhenMedicalSalesRepIdIsNull() {
             assertThatThrownBy(() -> new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -124,7 +124,7 @@ class VisitTest {
         void shouldThrowWhenHealthCareProfIdIsNull() {
             assertThatThrownBy(() -> new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 null,
                 null,
                 new Identifier(SITE_ID) {},
@@ -143,7 +143,7 @@ class VisitTest {
         void shouldReturnMorningForHourBeforeNoon() throws BusinessValidationException {
             Visit visit = new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(9),
+                new VisitDateTime(VALID_DATE.withHour(9)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -157,7 +157,7 @@ class VisitTest {
         void shouldReturnAfternoonForHourAtNoon() throws BusinessValidationException {
             Visit visit = new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(12),
+                new VisitDateTime(VALID_DATE.withHour(12)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -171,7 +171,7 @@ class VisitTest {
         void shouldReturnAfternoonForHourAfterNoon() throws BusinessValidationException {
             Visit visit = new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(15),
+                new VisitDateTime(VALID_DATE.withHour(15)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -220,7 +220,7 @@ class VisitTest {
             Visit v1 = buildValid();
             Visit v2 = new Visit(
                 new VisitId(VISIT_ID),
-                VALID_DATE.minusDays(1),
+                new VisitDateTime(VALID_DATE.minusDays(1)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
