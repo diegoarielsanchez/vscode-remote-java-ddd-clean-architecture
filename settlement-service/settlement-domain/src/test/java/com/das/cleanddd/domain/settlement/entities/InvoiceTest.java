@@ -181,4 +181,120 @@ class InvoiceTest {
             assertEquals(id, invoice.issue().invoiceId());
         }
     }
+
+    // ── invoiceFile property ──────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("InvoiceFile attachment")
+    class InvoiceFileAttachment {
+
+        private static final byte[]      FILE_BYTES    = new byte[]{1, 2, 3, 4, 5};
+        private static final InvoiceFile INVOICE_FILE  =
+                new InvoiceFile("INV-001.pdf", "application/pdf", FILE_BYTES);
+
+        @Test
+        @DisplayName("invoiceFile() should be null when invoice is created without a file")
+        void invoiceFileShouldBeNullByDefault() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+            assertNull(invoice.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("should store and return the InvoiceFile when provided at construction")
+        void shouldReturnInvoiceFileWhenProvidedAtConstruction() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
+            assertEquals(INVOICE_FILE, invoice.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("attachFile() should return a new invoice instance with the file attached")
+        void attachFileShouldReturnNewInstanceWithFile() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+
+            Invoice withFile = invoice.attachFile(INVOICE_FILE);
+
+            assertNotSame(invoice, withFile);
+            assertNull(invoice.invoiceFile());            // original is unchanged
+            assertEquals(INVOICE_FILE, withFile.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("attachFile() should preserve all other invoice fields")
+        void attachFileShouldPreserveOtherFields() throws BusinessValidationException {
+            InvoiceId id = InvoiceId.random();
+            Invoice invoice = new Invoice(
+                    id, INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+
+            Invoice withFile = invoice.attachFile(INVOICE_FILE);
+
+            assertEquals(id,              withFile.invoiceId());
+            assertEquals(INV_NUMBER,      withFile.invoiceNumber());
+            assertEquals(VALID_ISSUE_DATE, withFile.issueDate());
+            assertEquals(VALID_DUE_DATE,  withFile.dueDate());
+            assertEquals(AMOUNT,          withFile.amount());
+            assertEquals(Invoice.InvoiceStatus.DRAFT, withFile.status());
+        }
+
+        @Test
+        @DisplayName("attachFile(null) should throw BusinessValidationException")
+        void attachFileNullShouldThrow() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+            assertThrows(BusinessValidationException.class, () -> invoice.attachFile(null));
+        }
+
+        @Test
+        @DisplayName("issue() should carry the attached InvoiceFile to the new instance")
+        void issueShouldCarryInvoiceFile() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
+
+            Invoice issued = invoice.issue();
+
+            assertEquals(INVOICE_FILE, issued.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("pay() should carry the attached InvoiceFile to the new instance")
+        void payShouldCarryInvoiceFile() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
+
+            Invoice paid = invoice.issue().pay();
+
+            assertEquals(INVOICE_FILE, paid.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("cancel() should carry the attached InvoiceFile to the new instance")
+        void cancelShouldCarryInvoiceFile() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
+
+            Invoice cancelled = invoice.cancel();
+
+            assertEquals(INVOICE_FILE, cancelled.invoiceFile());
+        }
+
+        @Test
+        @DisplayName("attachFile() can replace an existing file with a new one")
+        void attachFileShouldReplaceExistingFile() throws BusinessValidationException {
+            Invoice invoice = new Invoice(
+                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
+
+            InvoiceFile newFile = new InvoiceFile("INV-001-v2.pdf", "application/pdf", new byte[]{9, 8, 7});
+            Invoice updated = invoice.attachFile(newFile);
+
+            assertEquals(newFile, updated.invoiceFile());
+            assertEquals(INVOICE_FILE, invoice.invoiceFile()); // original unchanged
+        }
+    }
 }

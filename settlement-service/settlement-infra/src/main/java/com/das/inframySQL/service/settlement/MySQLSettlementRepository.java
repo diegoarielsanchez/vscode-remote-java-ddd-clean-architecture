@@ -9,15 +9,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.settlement.entities.IInvoiceFileStorage;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
+import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
+import com.das.cleanddd.domain.settlement.entities.InvoiceFile;
 import com.das.cleanddd.domain.settlement.entities.InvoiceId;
+import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
-import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
-import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
@@ -27,6 +29,9 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
 
     @Autowired
     private SettlementJpaRepository jpaRepository;
+
+    @Autowired
+    private IInvoiceFileStorage fileStorage;
 
     @Override
     public void save(Settlement settlement) {
@@ -91,13 +96,27 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
     }
 
     private Invoice invoiceToDomain(InvoiceEntity ie) throws BusinessValidationException {
+        InvoiceFile invoiceFile = null;
+        if (ie.getInvoiceFileFileName() != null && ie.getInvoiceFileContentType() != null
+                && ie.getInvoiceFileHash() != null) {
+            InvoiceId invoiceId = new InvoiceId(ie.getId());
+            java.util.Optional<byte[]> content =
+                    fileStorage.loadContent(invoiceId, ie.getInvoiceFileFileName(), ie.getInvoiceFileHash());
+            if (content.isPresent()) {
+                invoiceFile = new InvoiceFile(
+                        ie.getInvoiceFileFileName(),
+                        ie.getInvoiceFileContentType(),
+                        content.get());
+            }
+        }
         return new Invoice(
                 new InvoiceId(ie.getId()),
                 new InvoiceNumber(ie.getInvoiceNumber()),
                 ie.getIssueDate(),
                 ie.getDueDate(),
                 ie.getAmount(),
-                InvoiceStatus.valueOf(ie.getStatus()));
+                InvoiceStatus.valueOf(ie.getStatus()),
+                invoiceFile);
     }
 
     private SettlementEntity toEntity(Settlement domain) {
@@ -125,6 +144,16 @@ public final class MySQLSettlementRepository implements ISettlementRepository {
         ie.setAmount(invoice.amount());
         ie.setStatus(invoice.status().name());
         ie.setSettlement(parent);
+
+        InvoiceFile file = invoice.invoiceFile();
+        if (file != null) {
+            fileStorage.store(invoice.invoiceId(), file);
+            ie.setInvoiceFileFileName(file.fileName());
+            ie.setInvoiceFileContentType(file.contentType());
+            ie.setInvoiceFileSizeInBytes(file.sizeInBytes());
+            ie.setInvoiceFileHash(file.sha256Hash());
+        }
+
         return ie;
     }
 }

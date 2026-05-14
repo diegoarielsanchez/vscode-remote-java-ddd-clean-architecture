@@ -13,6 +13,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
 - [Security](#security)
+  - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [Running Tests](#running-tests)
 
 ---
@@ -141,6 +142,7 @@ cp .env.example .env
 | `RABBITMQ_HOST` | All services | RabbitMQ hostname |
 | `RABBITMQ_USERNAME` | All services | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | All services | RabbitMQ password |
+| `INVOICE_FILE_STORAGE_PATH` | Settlement service | Absolute path where digital invoice files are stored on disk (default: `/var/settlement-service/invoice-files`) |
 
 ### Dev defaults (no `.env` needed)
 
@@ -485,6 +487,44 @@ All `/auth/login` attempts (success and failure) are logged at the `AUDIT` level
 ```bash
 mvn org.owasp:dependency-check-maven:check
 ```
+
+### Invoice File Integrity (SHA-256)
+
+The **Settlement Service** stores each invoice's digital file (e.g. a PDF) in two places:
+
+| What | Where |
+|---|---|
+| File metadata (`fileName`, `contentType`, `sizeInBytes`, `sha256Hash`) | MySQL — `invoices` table |
+| Binary content | Local file system — `$INVOICE_FILE_STORAGE_PATH/<invoiceId>/<fileName>` |
+
+A **SHA-256 digest** of the binary content is computed eagerly when an `InvoiceFile` value object is constructed and is persisted to MySQL alongside the other metadata.  When the file is later loaded from disk, the digest is recomputed and compared against the stored value.  A mismatch raises a `FileIntegrityException` immediately, before the bytes are returned to the domain.
+
+**Why SHA-256 instead of MD5 or SHA-1?**  MD5 and SHA-1 are broken for collision resistance and must not be used for integrity checks.  SHA-256 is mandated by NIST SP 800-107 and is available as a standard JVM algorithm with no extra dependencies.
+
+**Benefits:**
+
+- **Data integrity** — silent disk corruption or partial writes are detected on the next read.
+- **Tamper detection** — if someone modifies the file directly on the file system, the hash mismatch is caught before the corrupted bytes reach the domain layer (OWASP A08 — Software and Data Integrity).
+- **Idempotency signal** — callers can compare `sha256Hash()` values to detect whether two `InvoiceFile` instances carry identical content without reading all bytes.
+- **Audit trail** — the stored hash in MySQL provides a permanent, queryable fingerprint of the original file independent of the file system.
+
+**Architecture layering:**
+
+```
+domain-commons  FileValueObject      ← computes SHA-256 eagerly at construction
+                                        (generic — available to any bounded context)
+settlement-domain  InvoiceFile       ← extends FileValueObject; adds settlement-
+                                        specific rules (10 MB cap, extension, MIME)
+settlement-domain  IInvoiceFileStorage  ← output port; loadContent() accepts
+                                           expectedHash — verification is a
+                                           first-class contract obligation
+settlement-infra  LocalDiskInvoiceFileStorage  ← recomputes hash after reading
+                                                  bytes; throws FileIntegrityException
+                                                  on mismatch
+settlement-infra  InvoiceEntity      ← invoiceFileHash column (VARCHAR 64) in MySQL
+```
+
+The domain layer knows nothing about disk or hashing algorithms — it only defines the abstraction (`IInvoiceFileStorage`) and the exception type (`FileIntegrityException`).  All cryptographic I/O lives in the infrastructure layer.
 
 ---
 

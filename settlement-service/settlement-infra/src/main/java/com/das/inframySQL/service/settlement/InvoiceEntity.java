@@ -27,6 +27,18 @@ public class InvoiceEntity {
 
     private String status;
 
+    /** Original file name of the attached digital invoice (nullable). */
+    private String invoiceFileFileName;
+
+    /** MIME content type of the attached digital invoice (nullable). */
+    private String invoiceFileContentType;
+
+    /** Size in bytes of the attached digital invoice (nullable). */
+    private Long invoiceFileSizeInBytes;
+
+    /** SHA-256 hex digest of the attached digital invoice content (nullable). */
+    private String invoiceFileHash;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "settlement_id", nullable = false)
     private SettlementEntity settlement;
@@ -52,6 +64,18 @@ public class InvoiceEntity {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getInvoiceFileFileName() { return invoiceFileFileName; }
+    public void setInvoiceFileFileName(String invoiceFileFileName) { this.invoiceFileFileName = invoiceFileFileName; }
+
+    public String getInvoiceFileContentType() { return invoiceFileContentType; }
+    public void setInvoiceFileContentType(String invoiceFileContentType) { this.invoiceFileContentType = invoiceFileContentType; }
+
+    public Long getInvoiceFileSizeInBytes() { return invoiceFileSizeInBytes; }
+    public void setInvoiceFileSizeInBytes(Long invoiceFileSizeInBytes) { this.invoiceFileSizeInBytes = invoiceFileSizeInBytes; }
+
+    public String getInvoiceFileHash() { return invoiceFileHash; }
+    public void setInvoiceFileHash(String invoiceFileHash) { this.invoiceFileHash = invoiceFileHash; }
 
     public SettlementEntity getSettlement() { return settlement; }
     public void setSettlement(SettlementEntity settlement) { this.settlement = settlement; }
