@@ -14,6 +14,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [API Reference](#api-reference)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
+- [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
 - [Running Tests](#running-tests)
 
 ---
@@ -350,6 +351,7 @@ docker compose down
 | Healthcare Prof | 8087 | `healthcare-prof-service/hcp-application` | PostgreSQL `healthcare_db` |
 | Visit | 8088 | `visit-service/visit-application` | MySQL `visitdb` |
 | Settlement | 8089 | `settlement-service/settlement-application` | MySQL `settlementdb` |
+| RabbitMQ | 5672 / 15672 | external (user-managed) | — |
 
 ---
 
@@ -438,6 +440,7 @@ Authorization: Bearer <token>
 | `PUT` | `/api/v1/settlement/update` | Update a settlement |
 | `GET` | `/api/v1/settlement/get?id=<uuid>` | Get a settlement by ID |
 | `POST` | `/api/v1/settlement/list` | List settlements (with criteria filter) |
+| `POST` | `/api/v1/settlement/invoice/upload` | Upload invoice file (`multipart/form-data`) — params: `settlementId`, `invoiceId`, part: `file` |
 
 ---
 
@@ -525,6 +528,59 @@ settlement-infra  InvoiceEntity      ← invoiceFileHash column (VARCHAR 64) in 
 ```
 
 The domain layer knows nothing about disk or hashing algorithms — it only defines the abstraction (`IInvoiceFileStorage`) and the exception type (`FileIntegrityException`).  All cryptographic I/O lives in the infrastructure layer.
+
+---
+
+## RabbitMQ — Event-Driven Messaging
+
+RabbitMQ provides an optional **asynchronous messaging layer** between microservices. It decouples the Medical Sales Rep and Healthcare Prof services from the Visit Service, allowing the Visit Service to maintain local read-model snapshots of MSR and HCP data without making synchronous HTTP calls at query time.
+
+> **Note:** Publishing is disabled in the `dev` Spring profile for the MSR service (`@Profile("!dev")` on `MsrAmqpEventPublisher`). To enable event publishing, run with a profile other than `dev` (e.g. `prod`) and have a running RabbitMQ instance.
+
+### Message Topology
+
+**Publishers**
+
+| Exchange | Type | Published by | Routing keys |
+|---|---|---|---|
+| `msr.events` | Topic | MSR Service (`msr-infra/MsrAmqpEventPublisher`) | `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated` |
+| `hcp.events` | Topic | HCP Service (`hcp-infra/HcpAmqpEventPublisher`) | `hcp.created`, `hcp.updated`, `hcp.activated`, `hcp.deactivated` |
+
+**Consumers**
+
+| Queue | Bound exchange | Routing pattern | Consumed by |
+|---|---|---|---|
+| `visit-service.msr.queue` | `msr.events` | `msr.#` | Visit Service — `MsrSnapshotUpdater` |
+| `visit-service.hcp.queue` | `hcp.events` | `hcp.#` | Visit Service — `HcpSnapshotUpdater` |
+
+All queues and exchanges are **durable**. Messages are serialized as **JSON** (`Jackson2JsonMessageConverter`).
+
+### What the consumers do
+
+- **`MsrSnapshotUpdater`** — listens on `visit-service.msr.queue` and upserts a local `msr_snapshot` row in the Visit Service's MySQL database. `MSR_CREATED` / `MSR_UPDATED` events trigger a full upsert; `MSR_ACTIVATED` / `MSR_DEACTIVATED` events flip the `active` flag only.
+- **`HcpSnapshotUpdater`** — same pattern on `visit-service.hcp.queue`, keeping a local `hcp_snapshot` table current for HCP events.
+
+These local snapshots remove the synchronous HTTP dependency on MSR/HCP services when the Visit Service creates or queries visits.
+
+### Running RabbitMQ locally (Option A)
+
+The `docker run` command is shown in the [Option A — Run Locally](#option-a--run-locally-development) section. The management console is available at:
+
+```
+http://localhost:15672   (default credentials: guest / guest)
+```
+
+### RabbitMQ in Docker Compose (Option B)
+
+RabbitMQ is **not** bundled in `docker-compose.yml` — it is expected to be an externally managed service (e.g. a managed CloudAMQP instance or a dedicated Docker container on the same network). Set the three required env vars in `.env`:
+
+```
+RABBITMQ_HOST=<hostname>
+RABBITMQ_USERNAME=<username>
+RABBITMQ_PASSWORD=<password>
+```
+
+The MSR, HCP, and Visit services read these variables. The Settlement Service does not use RabbitMQ.
 
 ---
 

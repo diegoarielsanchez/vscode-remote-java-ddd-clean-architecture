@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,16 +14,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateSettlementInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.InvoiceOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementIDDto;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.UpdateSettlementInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.UploadInvoiceFileInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.services.SettlementUseCaseFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,12 +50,14 @@ public class SettlementController {
     private final UseCase<UpdateSettlementInputDTO, SettlementOutputDTO> updateSettlementUseCase;
     private final UseCase<SettlementIDDto, SettlementOutputDTO> getSettlementByIdUseCase;
     private final UseCaseOnlyOutput<List<SettlementOutputDTO>> listSettlementsUseCase;
+    private final UseCase<UploadInvoiceFileInputDTO, InvoiceOutputDTO> uploadInvoiceFileUseCase;
 
     public SettlementController(SettlementUseCaseFactory settlementUseCaseFactory) {
         this.createSettlementUseCase = settlementUseCaseFactory.getCreateSettlementUseCase();
         this.updateSettlementUseCase = settlementUseCaseFactory.getUpdateSettlementUseCase();
         this.getSettlementByIdUseCase = settlementUseCaseFactory.getSettlementByIdUseCase();
         this.listSettlementsUseCase = settlementUseCaseFactory.getListSettlementsUseCase();
+        this.uploadInvoiceFileUseCase = settlementUseCaseFactory.getUploadInvoiceFileUseCase();
     }
 
     @PostMapping("/create")
@@ -82,5 +90,22 @@ public class SettlementController {
     public ResponseEntity<Object> listSettlements() throws DomainException {
         log.info("POST /api/v1/settlement/list");
         return ResponseEntity.ok(listSettlementsUseCase.execute());
+    }
+
+    @PostMapping(value = "/invoice/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload invoice file")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<Object> uploadInvoiceFile(
+            @RequestParam("settlementId") String settlementId,
+            @RequestParam("invoiceId") String invoiceId,
+            @RequestPart("file") MultipartFile file) throws DomainException, java.io.IOException {
+        log.info("POST /api/v1/settlement/invoice/upload settlementId={} invoiceId={}", settlementId, invoiceId);
+        UploadInvoiceFileInputDTO inputDTO = new UploadInvoiceFileInputDTO(
+                settlementId,
+                invoiceId,
+                file.getOriginalFilename(),
+                file.getContentType(),
+                file.getBytes());
+        return ResponseEntity.ok(uploadInvoiceFileUseCase.execute(inputDTO));
     }
 }

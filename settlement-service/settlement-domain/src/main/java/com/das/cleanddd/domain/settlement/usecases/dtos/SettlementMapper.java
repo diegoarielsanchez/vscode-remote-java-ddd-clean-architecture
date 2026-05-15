@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.Invoice;
+import com.das.cleanddd.domain.settlement.entities.InvoiceId;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 
@@ -28,6 +29,14 @@ public class SettlementMapper {
 
     public List<SettlementOutputDTO> outputFromEntityList(List<Settlement> settlements) {
         return settlements.stream().map(this::outputFromEntity).toList();
+    }
+
+    public InvoiceOutputDTO invoiceOutputFromInvoiceId(Settlement settlement, InvoiceId invoiceId) {
+        return settlement.invoices().stream()
+                .filter(i -> i.invoiceId().equals(invoiceId))
+                .map(this::invoiceOutputFromEntity)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + invoiceId.value()));
     }
 
     private InvoiceOutputDTO invoiceOutputFromEntity(Invoice invoice) {

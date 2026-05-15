@@ -90,6 +90,16 @@ public final class Settlement extends AggregateRoot {
         _invoices.remove(invoice);
     }
 
+    public void attachFileToInvoice(InvoiceId invoiceId, InvoiceFile file) throws BusinessValidationException {
+        Invoice existing = _invoices.stream()
+                .filter(i -> i.invoiceId().equals(invoiceId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessValidationException("Invoice not found in this settlement."));
+        Invoice updated = existing.attachFile(file);
+        _invoices.remove(existing);
+        _invoices.add(updated);
+    }
+
     // ── State transition ──────────────────────────────────────────────────
 
     public Settlement close() throws BusinessValidationException {
