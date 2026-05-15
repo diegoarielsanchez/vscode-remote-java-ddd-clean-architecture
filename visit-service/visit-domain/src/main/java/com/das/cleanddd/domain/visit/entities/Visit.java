@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
+import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
@@ -24,6 +25,7 @@ public final class Visit extends AggregateRoot {
     private Identifier _visitSiteId;
     private final List<VisitItem> _visitItems = new ArrayList<>();
     //private final Set<ShoppingItem> shoppingItems = new LinkedHashSet<>();
+    private final List<LargeFileValueObject> _productPromoAttachments = new ArrayList<>();
 
     public Visit(VisitId visitId
         , LocalDateTime visitDate
@@ -70,6 +72,21 @@ public final class Visit extends AggregateRoot {
 
     public void removeItem(VisitItem visitItem) {
         _visitItems.remove(visitItem);
+    }
+
+    public void addProductPromoAttachment(LargeFileValueObject attachment) {
+        if (attachment == null) {
+            throw new IllegalArgumentException("Product promo attachment must not be null.");
+        }
+        _productPromoAttachments.add(attachment);
+    }
+
+    public void removeProductPromoAttachment(LargeFileValueObject attachment) {
+        _productPromoAttachments.remove(attachment);
+    }
+
+    public List<LargeFileValueObject> productPromoAttachments() {
+        return List.copyOf(_productPromoAttachments);
     }
 
     public Identifier visitId() {

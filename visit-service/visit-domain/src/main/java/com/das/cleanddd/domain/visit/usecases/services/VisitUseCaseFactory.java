@@ -8,8 +8,11 @@ import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.VisitFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
+import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
@@ -22,11 +25,13 @@ public class VisitUseCaseFactory {
     private final UpdateVisitUseCase updateVisitUseCase;
     private final GetVisitByIdUseCase getVisitByIdUseCase;
     private final ListVisitsUseCase listVisitsUseCase;
+    private final UploadProductPromoAttachmentsUseCase uploadProductPromoAttachmentsUseCase;
 
     public VisitUseCaseFactory(
         IVisitRepository visitRepository,
         IHealthCareProfValidator healthCareProfValidator,
-        IMedicalSalesRepValidator medicalSalesRepValidator
+        IMedicalSalesRepValidator medicalSalesRepValidator,
+        IProductPromoAttachmentStorage attachmentStorage
     ) {
         VisitMapper mapper = new VisitMapper();
         VisitFactory visitFactory = new VisitFactory();
@@ -45,6 +50,10 @@ public class VisitUseCaseFactory {
         );
         this.getVisitByIdUseCase = new GetVisitByIdUseCase(visitRepository, mapper);
         this.listVisitsUseCase = new ListVisitsUseCase(visitRepository, mapper);
+        this.uploadProductPromoAttachmentsUseCase = new UploadProductPromoAttachmentsUseCase(
+            visitRepository,
+            attachmentStorage
+        );
     }
 
     public UseCase<CreateVisitInputDTO, VisitOutputDTO> getCreateVisitUseCase() {
@@ -61,5 +70,9 @@ public class VisitUseCaseFactory {
 
     public UseCaseOnlyOutput<List<VisitOutputDTO>> getListVisitsUseCase() {
         return listVisitsUseCase;
+    }
+
+    public UseCase<UploadAttachmentsInputDTO, UploadAttachmentsOutputDTO> getUploadProductPromoAttachmentsUseCase() {
+        return uploadProductPromoAttachmentsUseCase;
     }
 }

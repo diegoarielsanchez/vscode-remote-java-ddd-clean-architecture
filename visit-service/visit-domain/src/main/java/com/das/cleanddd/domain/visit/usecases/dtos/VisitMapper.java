@@ -10,13 +10,17 @@ import com.das.cleanddd.domain.visit.entities.Visit;
 public class VisitMapper {
 
     public VisitOutputDTO outputFromEntity(Visit visit) {
+        List<AttachmentResultDTO> attachments = visit.productPromoAttachments().stream()
+            .map(a -> new AttachmentResultDTO(a.fileName(), null, a.sha256Hash()))
+            .toList();
         return new VisitOutputDTO(
             visit.visitId().value(),
             visit.visitDate(),
             visit.healthCareProfId() == null ? null : visit.healthCareProfId().value(),
             visit.visitComments() == null ? null : visit.visitComments().value(),
             visit.visitSideId() == null ? null : visit.visitSideId().value(),
-            visit.medicalSalesRepId() == null ? null : visit.medicalSalesRepId().value()
+            visit.medicalSalesRepId() == null ? null : visit.medicalSalesRepId().value(),
+            attachments
         );
     }
 
