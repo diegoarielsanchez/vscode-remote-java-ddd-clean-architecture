@@ -1,5 +1,6 @@
 package com.das.visit.application;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -101,20 +102,17 @@ public class VisitController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<Object> uploadProductPromoAttachments(
             @PathVariable String visitId,
-            @RequestPart("files") List<MultipartFile> files) throws DomainException {
+            @RequestPart("files") List<MultipartFile> files) throws DomainException, IOException {
         log.info("POST /api/v1/visit/{}/attachments", visitId);
 
         List<AttachmentDTO> attachmentDTOs = new ArrayList<>();
         for (MultipartFile file : files) {
-            try {
-                attachmentDTOs.add(new AttachmentDTO(
-                        file.getOriginalFilename(),
-                        file.getBytes(),
-                        file.getContentType()
-                ));
-            } catch (java.io.IOException e) {
-                throw new DomainException("Failed to read file: " + file.getOriginalFilename());
-            }
+            attachmentDTOs.add(new AttachmentDTO(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getSize(),
+                    file.getInputStream()
+            ));
         }
 
         UploadAttachmentsOutputDTO result = uploadProductPromoAttachmentsUseCase.execute(

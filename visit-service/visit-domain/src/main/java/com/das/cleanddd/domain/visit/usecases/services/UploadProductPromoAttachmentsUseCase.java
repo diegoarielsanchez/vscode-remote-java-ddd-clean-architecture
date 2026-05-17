@@ -46,19 +46,20 @@ public final class UploadProductPromoAttachmentsUseCase
         List<AttachmentResultDTO> results = new ArrayList<>();
 
         for (AttachmentDTO dto : inputDTO.attachments()) {
-            LargeFileValueObject metadata = LargeFileValueObject.of(
+            // The storage port streams the bytes, computes SHA-256, and returns metadata.
+            // No byte[] is ever materialised in heap memory.
+            LargeFileValueObject metadata = attachmentStorage.store(
+                    inputDTO.visitId(),
                     dto.fileName(),
                     dto.contentType(),
-                    dto.content().length,
-                    dto.content()
-            );
+                    dto.contentLength(),
+                    dto.content());
 
-            String storageRef = attachmentStorage.store(inputDTO.visitId(), metadata, dto.content());
             visit.addProductPromoAttachment(metadata);
 
             results.add(new AttachmentResultDTO(
                     metadata.fileName(),
-                    storageRef,
+                    metadata.sha256Hash(),  // storage reference is the hash for local-disk impl
                     metadata.sha256Hash()
             ));
         }

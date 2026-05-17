@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.visit.ports;
 
+import java.io.InputStream;
+
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
 
 /**
@@ -9,13 +11,21 @@ import com.das.cleanddd.domain.shared.LargeFileValueObject;
 public interface IProductPromoAttachmentStorage {
 
     /**
-     * Persists the raw bytes and returns a storage reference (e.g. a path or object key)
-     * that can later be used to retrieve or delete the file.
+     * Streams the content to storage and returns a metadata value object that
+     * includes the storage reference, computed SHA-256 hash, and byte count.
      *
-     * @param visitId   the ID of the visit this attachment belongs to
-     * @param metadata  value object carrying file name, content type, size and SHA-256 hash
-     * @param content   raw file bytes (not retained after this call returns)
-     * @return an opaque storage reference string
+     * <p>The implementation must read {@code content} exactly once, compute the
+     * SHA-256 digest while writing (e.g. via {@code DigestInputStream}), and
+     * build the returned {@link LargeFileValueObject} from those computed values.
+     * The raw bytes are never retained in memory.</p>
+     *
+     * @param visitId       the ID of the visit this attachment belongs to
+     * @param fileName      original file name (used for storage layout)
+     * @param contentType   MIME type of the file
+     * @param contentLength byte count reported by the caller; may be -1 if unknown
+     * @param content       stream of raw bytes — consumed and closed by this method
+     * @return a metadata-only {@link LargeFileValueObject} (no {@code byte[]} retained)
      */
-    String store(String visitId, LargeFileValueObject metadata, byte[] content);
+    LargeFileValueObject store(String visitId, String fileName, String contentType,
+                               long contentLength, InputStream content);
 }

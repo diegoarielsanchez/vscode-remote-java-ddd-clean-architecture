@@ -136,6 +136,27 @@ public abstract class LargeFileValueObject {
         return new LargeFileValueObject(fileName, contentType, sizeInBytes, hash) {};
     }
 
+    /**
+     * Creates a metadata-only instance from values that have already been computed
+     * externally — typically by a storage port that streamed the bytes through a
+     * {@code DigestInputStream} while writing them to disk or a blob store.
+     *
+     * <p>Use this factory when the raw bytes are never materialised in heap memory:
+     * the infrastructure layer computes the SHA-256 hash as it streams the content
+     * to storage, then hands back the digest together with the byte count, and the
+     * domain model is reconstructed from those values alone.</p>
+     *
+     * @param fileName    original file name; must not be blank.
+     * @param contentType MIME type; must not be blank.
+     * @param sizeInBytes actual number of bytes written; must be &gt; 0.
+     * @param sha256Hash  lowercase hex SHA-256 digest; must not be blank.
+     * @return a validated {@code LargeFileValueObject} holding only metadata.
+     */
+    public static LargeFileValueObject ofMetadata(String fileName, String contentType,
+                                                   long sizeInBytes, String sha256Hash) {
+        return new LargeFileValueObject(fileName, contentType, sizeInBytes, sha256Hash) {};
+    }
+
     // ── Queries ───────────────────────────────────────────────────────────
 
     /** Returns the original file name (e.g. {@code "photo.jpg"}). */
