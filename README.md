@@ -33,7 +33,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 ┌─────────▼──────┐  ┌────▼────────┐  ┌─▼──────────────┐  ┌▼────────────────────┐
 │  MSR Service   │  │ HCP Service │  │  Visit Service │  │  Settlement Service │
 │   (:8086)      │  │  (:8087)    │  │   (:8088)      │  │   (:8089)           │
-│  PostgreSQL    │  │  PostgreSQL │  │  MySQL         │  │  MySQL              │
+│  PostgreSQL    │  │  PostgreSQL │  │  SQL Server    │  │  MySQL              │
 └────────────────┘  └─────────────┘  └────────────────┘  └─────────────────────┘
                         ┌─────────────────────────┐
                         │  Identity Service(:8090) │
@@ -134,7 +134,7 @@ cp .env.example .env
 | `HCP_DB_URL` | HCP service | PostgreSQL JDBC URL for `healthcare_db` |
 | `HCP_PG_USERNAME` | HCP service | DB username |
 | `HCP_PG_PASSWORD` | HCP service | DB password |
-| `VISIT_DB_URL` | Visit service | MySQL JDBC URL for `visitdb` |
+| `VISIT_DB_URL` | Visit service | SQL Server JDBC URL for `visitdb` (e.g. `jdbc:sqlserver://localhost:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true`) |
 | `VISIT_DB_USERNAME` | Visit service | DB username |
 | `VISIT_DB_PASSWORD` | Visit service | DB password |
 | `SETTLEMENT_DB_URL` | Settlement service | MySQL JDBC URL for `settlementdb` |
@@ -153,7 +153,7 @@ The `application.properties` files ship with working dev defaults so services st
 |---|---|---|
 | MSR | PostgreSQL `localhost:5433/medicalsalesrep_db` | `root` / `river` |
 | HCP | PostgreSQL `localhost:5433/healthcare_db` | `root` / `river` |
-| Visit | MySQL `localhost:3306/visitdb` | `root` / (your MySQL root password) |
+| Visit | SQL Server `localhost:1433/visitdb` | `sa` / (set via `DB_PASSWORD` env var, e.g. `Riverplate1!`) |
 | Settlement | MySQL `localhost:3306/settlementdb` | `root` / (your MySQL root password) |
 
 ---
@@ -182,19 +182,34 @@ docker exec -it postgres-ddd-clean \
 docker start postgres-ddd-clean
 ```
 
-**MySQL** (shared container for Visit and Settlement):
+**Microsoft SQL Server** (Visit Service):
+
+```bash
+docker run -e "ACCEPT_EULA=Y" \
+           -e "MSSQL_SA_PASSWORD=Riverplate1!" \
+           -p 1433:1433 \
+           --name sqlserver_ddd_clean \
+           -d mcr.microsoft.com/mssql/server:2022-latest
+
+# Wait ~15 s for SQL Server to be ready, then create the database
+# (-No suppresses the TLS certificate warning on the 2022 image)
+docker exec -it sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No \
+  -Q "CREATE DATABASE visitdb"
+
+# To restart later
+docker start sqlserver_ddd_clean
+```
+
+**MySQL** (Settlement Service only):
 
 ```bash
 docker run -d --name mysql-ddd-clean \
   -p 3306:3306 \
   -e MYSQL_ROOT_PASSWORD=yourpassword \
-  -e MYSQL_DATABASE=visitdb \
+  -e MYSQL_DATABASE=settlementdb \
   -v mysql_data:/var/lib/mysql \
   mysql:8
-
-# Create the second database
-docker exec -it mysql-ddd-clean \
-  mysql -u root -pyourpassword -e "CREATE DATABASE IF NOT EXISTS settlementdb;"
 
 # To restart later
 docker start mysql-ddd-clean
@@ -256,8 +271,8 @@ mvn -pl medical-sales-rep-service/msr-application -am spring-boot:run
 # Healthcare Prof Service
 mvn -pl healthcare-prof-service/hcp-application -am spring-boot:run
 
-# Visit Service
-mvn -pl visit-service/visit-application -am spring-boot:run
+# Visit Service (DB_PASSWORD passes the SQL Server SA password)
+DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-boot:run --no-transfer-progress
 
 # Settlement Service
 mvn -pl settlement-service/settlement-application -am spring-boot:run
@@ -349,7 +364,7 @@ docker compose down
 | Identity Service | 8090 | `identity-service/identity-application` | — (in-memory) |
 | Medical Sales Rep | 8086 | `medical-sales-rep-service/msr-application` | PostgreSQL `medicalsalesrep_db` |
 | Healthcare Prof | 8087 | `healthcare-prof-service/hcp-application` | PostgreSQL `healthcare_db` |
-| Visit | 8088 | `visit-service/visit-application` | MySQL `visitdb` |
+| Visit | 8088 | `visit-service/visit-application` | SQL Server `visitdb` |
 | Settlement | 8089 | `settlement-service/settlement-application` | MySQL `settlementdb` |
 | RabbitMQ | 5672 / 15672 | external (user-managed) | — |
 

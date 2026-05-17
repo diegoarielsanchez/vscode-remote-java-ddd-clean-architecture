@@ -12,7 +12,7 @@
     <artifactId>visit-infra</artifactId>
     <name>visit-infra</name>
     <packaging>jar</packaging>
-    <description>Visit — infrastructure layer (MySQL JPA repositories)</description>
+    <description>Visit — infrastructure layer (SQL Server JPA repositories)</description>
 
     <dependencies>
         <dependency>
@@ -52,8 +52,8 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
