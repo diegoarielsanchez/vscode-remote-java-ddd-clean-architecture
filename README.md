@@ -16,6 +16,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
 - [Running Tests](#running-tests)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -180,20 +181,41 @@ docker exec -it postgres-ddd-clean \
 
 # To restart later
 docker start postgres-ddd-clean
+
+# To check Databases
+docker exec -it postgres-ddd-clean psql -U root -l
+# To check Tables into database
+docker exec -it postgres-ddd-clean psql -U root -d healthcare_db -c "\dt"
+docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db -c "\dt"
+# To check records into table
+docker exec -it postgres-ddd-clean psql -U root -d healthcare_db -c "SELECT * FROM health_care_profs LIMIT 10;"
+docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db -c "SELECT * FROM medical_sales_reps LIMIT 10;"
+
+
 ```
 
 **Microsoft SQL Server** (Visit Service):
 
 ```bash
-docker run -e "ACCEPT_EULA=Y" \
-           -e "MSSQL_SA_PASSWORD=Riverplate1!" \
-           -p 1433:1433 \
-           --name sqlserver_ddd_clean \
-           -d mcr.microsoft.com/mssql/server:2022-latest
+docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=Riverplate1!' -p 1433:1433 --name sqlserver_ddd_clean -v sqlvolume:/var/opt/mssql/data -d mcr.microsoft.com/mssql/server:2022-latest
 
-# Wait ~15 s for SQL Server to be ready, then create the database
+docker run -u 0 \
+  -e 'ACCEPT_EULA=Y' \
+  -e 'MSSQL_SA_PASSWORD=Riverplate1!' \
+  -p 1433:1433 \
+  --name sqlserver_ddd_clean \
+  -v sqlvolume:/var/opt/mssql/data \
+  -d mcr.microsoft.com/mssql/server:2022-latest
+
+# Wait for SQL Server to be ready (can take 30-60 s; loop retries every 5 s)
 # (-No suppresses the TLS certificate warning on the 2022 image)
-docker exec -it sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+until docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No -Q "SELECT 1" &>/dev/null; do
+  echo "Waiting for SQL Server to be ready..."; sleep 5
+done
+
+# Create the database
+docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No \
   -Q "CREATE DATABASE visitdb"
 
@@ -213,6 +235,13 @@ docker run -d --name mysql-ddd-clean \
 
 # To restart later
 docker start mysql-ddd-clean
+
+# To check databases
+docker exec -it mysql-ddd-clean mysql -u root -p -e "SHOW DATABASES;"
+# To check tables in database
+docker exec -it mysql-ddd-clean mysql -u root -p -e "SHOW TABLES FROM settlementdb;"
+
+
 ```
 
 **RabbitMQ**:
@@ -225,6 +254,59 @@ docker run -d --name rabbitmq \
 
 # Management UI: http://localhost:15672  (guest / guest)
 ```
+
+### 1b. Create databases (if they don't exist)
+
+If your containers are already running but the databases were never created, use the commands below. Each block is idempotent — safe to run even if the database already exists.
+
+**PostgreSQL — `healthcare_db` and `medicalsalesrep_db`**
+
+```bash
+# Create healthcare_db (skip if it already exists)
+docker exec -it postgres-ddd-clean \
+  psql -U root -d postgres \
+  -c "SELECT 1 FROM pg_database WHERE datname='healthcare_db'" | grep -q 1 \
+  || docker exec -it postgres-ddd-clean psql -U root -d postgres \
+     -c "CREATE DATABASE healthcare_db;"
+
+# Create medicalsalesrep_db (skip if it already exists)
+docker exec -it postgres-ddd-clean \
+  psql -U root -d postgres \
+  -c "SELECT 1 FROM pg_database WHERE datname='medicalsalesrep_db'" | grep -q 1 \
+  || docker exec -it postgres-ddd-clean psql -U root -d postgres \
+     -c "CREATE DATABASE medicalsalesrep_db;"
+
+# Verify
+docker exec -it postgres-ddd-clean psql -U root -l
+```
+
+**SQL Server — `visitdb`**
+
+```bash
+# Create visitdb if it doesn't exist
+docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No \
+  -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'visitdb') CREATE DATABASE visitdb"
+
+# Verify
+docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No \
+  -Q "SELECT name FROM sys.databases WHERE name = 'visitdb'"
+```
+
+**MySQL — `settlementdb`**
+
+```bash
+# Create settlementdb if it doesn't exist
+docker exec mysql-ddd-clean mysql -u root -p"yourpassword" \
+  -e "CREATE DATABASE IF NOT EXISTS settlementdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Verify
+docker exec mysql-ddd-clean mysql -u root -p"yourpassword" \
+  -e "SHOW DATABASES LIKE 'settlementdb';"
+```
+
+> **Tip:** Replace `yourpassword` with the password you set in `MYSQL_ROOT_PASSWORD` when you created the MySQL container.
 
 ### 2. Build all modules
 
@@ -262,23 +344,62 @@ mvn -pl identity-service/identity-application -am spring-boot:run
 # Auth endpoint: POST http://localhost:8090/auth/login
 ```
 
-**Terminals 4–7 — Microservices (any order)**
+**Terminal 4 — Medical Sales Rep Service**
 
 ```bash
-# Medical Sales Rep Service
 mvn -pl medical-sales-rep-service/msr-application -am spring-boot:run
+# Ready when: "Started MsrApplication" appears
+# Listens on: http://localhost:8086
+```
 
-# Healthcare Prof Service
+**Terminal 5 — Healthcare Prof Service**
+
+```bash
 mvn -pl healthcare-prof-service/hcp-application -am spring-boot:run
+# Ready when: "Started HcpApplication" appears
+# Listens on: http://localhost:8087
+```
 
-# Visit Service (DB_PASSWORD passes the SQL Server SA password)
+**Terminal 6 — Visit Service**
+
+> **Preparation:** Ensure the SQL Server container is running and `visitdb` exists (see step 1).
+> The `DB_PASSWORD` environment variable passes the SQL Server SA password.
+
+```bash
+# Start SQL Server if not already running
+docker start sqlserver_ddd_clean
+
+# Run the Visit Service
 DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-boot:run --no-transfer-progress
+# Ready when: "Started VisitApplication" appears
+# Listens on: http://localhost:8088
+```
 
-# Settlement Service
+**Terminal 7 — Settlement Service**
+
+```bash
 mvn -pl settlement-service/settlement-application -am spring-boot:run
+# Ready when: "Started SettlementApplication" appears
+# Listens on: http://localhost:8089
 ```
 
 All commands run from the repo root.
+
+> **Shortcut — start everything with one command**
+>
+> Instead of opening seven terminals, you can use the provided shell script which handles ordering and health-checks automatically:
+>
+> ```bash
+> # Make executable (first time only)
+> chmod +x start-all-services.sh
+>
+> # Run from the repo root
+> ./start-all-services.sh
+> ```
+>
+> The script starts Eureka Server first, waits for it to become healthy, then starts the API Gateway, waits for it, and finally launches all remaining microservices in parallel. Per-service output is written to `logs/<service-name>.log`.
+>
+> Alternatively, use the **VS Code task**: open the Command Palette (`Ctrl+Shift+P`) → **Tasks: Run Task** → **Run All Microservices (script)**.
 
 ### 4. Verify all services are registered
 
@@ -613,6 +734,73 @@ mvn -pl settlement-service/settlement-domain test
 ```
 
 Test reports are written to `<module>/target/surefire-reports/`.
+
+---
+
+## Troubleshooting
+
+### Dev Container: "Connection refused" to database containers
+
+When running inside a **VS Code Dev Container**, the Spring Boot services run inside a container themselves. Docker assigns dynamic IPs to sibling containers (SQL Server, MySQL, PostgreSQL) which change on every restart, so hardcoded IPs like `172.17.0.x` stop working.
+
+#### Permanent fix — user-defined Docker network
+
+Create a shared network once and connect all relevant containers to it. Docker then resolves container names as hostnames, no IPs needed.
+
+**Step 1 — Create the network**
+
+```bash
+docker network create ddd-clean-net
+```
+
+**Step 2 — Connect the database containers**
+
+```bash
+docker network connect ddd-clean-net sqlserver_ddd_clean
+docker network connect ddd-clean-net mysql-ddd-clean
+docker network connect ddd-clean-net postgres-ddd-clean   # if running
+```
+
+**Step 3 — Find and connect the dev container**
+
+```bash
+# Find your dev container name
+docker ps --format '{{.Names}}' | grep -i vscode
+
+# Connect it to the shared network
+docker network connect ddd-clean-net <your-devcontainer-name>
+```
+
+**Step 4 — Use container names in `application.properties`**
+
+Update each service's `spring.datasource.url` default to use the container name instead of an IP:
+
+| Service | Updated URL |
+|---|---|
+| Visit Service | `jdbc:sqlserver://sqlserver_ddd_clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true` |
+| Settlement Service | `jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true` |
+| MSR / HCP Services | `jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db` / `healthcare_db` |
+
+> The `docker network connect` commands survive container restarts — you only need to run them once per network. If you recreate a container (not just restart it), re-run the `connect` command for that container.
+
+#### Quick workaround — pass `DB_URL` explicitly at startup
+
+If you don't want to change `application.properties`, override the URL at runtime:
+
+```bash
+# Visit Service — find the current SQL Server IP first
+docker inspect sqlserver_ddd_clean --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+DB_URL='jdbc:sqlserver://<ip>:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true' \
+DB_PASSWORD='Riverplate1!' \
+mvn -pl visit-service/visit-application -am spring-boot:run --no-transfer-progress
+
+# Settlement Service — find the current MySQL IP first
+docker inspect mysql-ddd-clean --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+
+DB_URL='jdbc:mysql://<ip>:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true' \
+mvn -pl settlement-service/settlement-application -am spring-boot:run --no-transfer-progress
+```
 
 ---
 

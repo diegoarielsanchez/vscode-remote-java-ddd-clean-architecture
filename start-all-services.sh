@@ -34,8 +34,9 @@ wait_for_http() {
 start_service() {
   local name="$1"
   local pl="$2"
+  local extra_env="${3:-}"
   echo "Starting $name ..."
-  mvn -pl "$pl" -am spring-boot:run \
+  env $extra_env mvn -pl "$pl" -am spring-boot:run \
       --no-transfer-progress \
       > "$LOG_DIR/$name.log" 2>&1 &
   echo "  PID $! → $LOG_DIR/$name.log"
@@ -59,7 +60,7 @@ wait_for_http  "api-gateway" "http://localhost:8080/actuator/health" 90
 start_service "identity-application"  "identity-service/identity-application"
 start_service "msr-application"       "medical-sales-rep-service/msr-application"
 start_service "hcp-application"       "healthcare-prof-service/hcp-application"
-start_service "visit-application"     "visit-service/visit-application"
+start_service "visit-application"     "visit-service/visit-application" "DB_PASSWORD=Riverplate1!"
 start_service "settlement-application" "settlement-service/settlement-application"
 
 echo ""

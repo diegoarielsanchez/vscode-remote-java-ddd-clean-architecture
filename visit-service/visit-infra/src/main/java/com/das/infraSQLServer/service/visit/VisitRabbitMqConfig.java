@@ -85,6 +85,7 @@ public class VisitRabbitMqConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(visitJsonMessageConverter);
+        factory.setRecoveryInterval(60_000L); // retry broker reconnect every 60 s when unavailable
         return factory;
     }
 }
