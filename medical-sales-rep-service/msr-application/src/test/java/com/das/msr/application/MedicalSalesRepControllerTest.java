@@ -100,16 +100,21 @@ class MedicalSalesRepControllerTest {
     void create_returns201_withCreatedRepBody() throws Exception {
         var body = new CreateMedicalSalesRepInputDTO("Alice", "Smith", "alice@example.com");
 
-        mockMvc.perform(post(BASE_URL + "/create")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Alice"))
-                .andExpect(jsonPath("$.surname").value("Smith"))
-                .andExpect(jsonPath("$.email").value("alice@example.com"))
-                .andExpect(jsonPath("$.active").value(false))
-                .andExpect(jsonPath("$.id").isNotEmpty());
+        final MediaType application_JSON2 = MediaType.APPLICATION_JSON;
+        if (application_JSON2 != null) {
+                mockMvc.perform(post(BASE_URL + "/create")
+                                .header("Authorization", "Bearer " + authToken)
+                                .contentType(application_JSON2)
+                                .content(objectMapper.writeValueAsString(body)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.name").value("Alice"))
+                        .andExpect(jsonPath("$.surname").value("Smith"))
+                        .andExpect(jsonPath("$.email").value("alice@example.com"))
+                        .andExpect(jsonPath("$.active").value(false))
+                        .andExpect(jsonPath("$.id").isNotEmpty());
+        } else {
+                // TODO handle null value
+        }
     }
 
     @Test

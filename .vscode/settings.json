@@ -1,16 +1,23 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
     "cSpell.words": [
+        "amqp",
         "cleanddd",
         "dtos",
         "greetwithrecord",
+        "hamcrest",
         "healthcareprof",
+        "Hmac",
         "inframongodb",
+        "inframy",
         "javafaker",
         "jjwt",
         "jsonwebtoken",
+        "Jwts",
         "medicalsalesrep",
-        "springframework"
+        "msrtest",
+        "springframework",
+        "testuser"
     ],
     "java.compile.nullAnalysis.mode": "automatic",
     "maven.view": "hierarchical"

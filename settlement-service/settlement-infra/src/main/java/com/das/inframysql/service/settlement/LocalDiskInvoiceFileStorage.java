@@ -1,4 +1,4 @@
-package com.das.inframySQL.service.settlement;
+package com.das.inframysql.service.settlement;
 
 import java.io.IOException;
 import java.nio.file.Files;

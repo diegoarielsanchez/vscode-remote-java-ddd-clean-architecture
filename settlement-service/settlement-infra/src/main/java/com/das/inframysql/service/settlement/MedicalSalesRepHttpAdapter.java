@@ -1,4 +1,4 @@
-package com.das.inframySQL.service.settlement;
+package com.das.inframysql.service.settlement;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +37,9 @@ public class MedicalSalesRepHttpAdapter implements IMedicalSalesRepPort {
         try {
             ResponseEntity<MedicalSalesRepResponse> response =
                     restTemplate.getForEntity(url, MedicalSalesRepResponse.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return Boolean.TRUE.equals(response.getBody().active());
+            MedicalSalesRepResponse body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                return Boolean.TRUE.equals(body.active());
             }
             return false;
         } catch (HttpClientErrorException.NotFound e) {

@@ -1,4 +1,4 @@
-package com.das.inframySQL.service.settlement;
+package com.das.inframysql.service.settlement;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

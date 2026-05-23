@@ -29,7 +29,7 @@
 	"forwardPorts": [8085],
 
 	// Install MySQL client after container creation.
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y default-mysql-client",
+	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y default-mysql-client"
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"

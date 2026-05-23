@@ -54,8 +54,6 @@ public class VisitController {
     private final UseCase<VisitIDDto, VisitOutputDTO> getVisitByIdUseCase;
     private final UseCaseOnlyOutput<List<VisitOutputDTO>> listVisitsUseCase;
     private final UseCase<UploadAttachmentsInputDTO, UploadAttachmentsOutputDTO> uploadProductPromoAttachmentsUseCase;
-    private List<String> productPromoAttachments = new ArrayList<>();
-
     public VisitController(VisitUseCaseFactory visitUseCaseFactory) {
         this.createVisitUseCase = visitUseCaseFactory.getCreateVisitUseCase();
         this.updateVisitUseCase = visitUseCaseFactory.getUpdateVisitUseCase();
