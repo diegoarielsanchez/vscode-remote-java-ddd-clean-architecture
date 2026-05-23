@@ -797,6 +797,17 @@ DB_URL='jdbc:sqlserver://<ip>:1433;databaseName=visitdb;encrypt=false;trustServe
 DB_PASSWORD='Riverplate1!' \
 mvn -pl visit-service/visit-application -am spring-boot:run --no-transfer-progress
 
+# 1. Create shared network (once)
+docker network create ddd-clean-net
+
+# 2. Connect SQL Server (and other DB containers) to it
+docker network connect ddd-clean-net sqlserver_ddd_clean
+
+# 3. Find your dev container name and connect it
+docker ps --format '{{.Names}}' | grep -i vscode
+docker network connect ddd-clean-net <your-devcontainer-name>
+
+
 # Settlement Service — find the current MySQL IP first
 docker inspect mysql-ddd-clean --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
 
