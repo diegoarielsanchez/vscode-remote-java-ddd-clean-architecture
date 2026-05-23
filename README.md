@@ -252,6 +252,8 @@ docker run -d --name rabbitmq \
   -p 15672:15672 \
   rabbitmq:3-management
 
+
+
 # Management UI: http://localhost:15672  (guest / guest)
 ```
 
@@ -307,6 +309,9 @@ docker exec mysql-ddd-clean mysql -u root -p"yourpassword" \
 ```
 
 > **Tip:** Replace `yourpassword` with the password you set in `MYSQL_ROOT_PASSWORD` when you created the MySQL container.
+
+# Start SQL Server if not already running
+docker start sqlserver_ddd_clean
 
 ### 2. Build all modules
 
@@ -366,9 +371,6 @@ mvn -pl healthcare-prof-service/hcp-application -am spring-boot:run
 > The `DB_PASSWORD` environment variable passes the SQL Server SA password.
 
 ```bash
-# Start SQL Server if not already running
-docker start sqlserver_ddd_clean
-
 # Run the Visit Service
 DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-boot:run --no-transfer-progress
 # Ready when: "Started VisitApplication" appears

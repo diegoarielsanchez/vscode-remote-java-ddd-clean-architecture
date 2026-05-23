@@ -26,7 +26,8 @@
 	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [8085],
+	// 8761: Eureka Server, 8080: API Gateway, 8086-8090: microservices, 5173: UI (Vite)
+	"forwardPorts": [8761, 8080, 8086, 8087, 8088, 8089, 8090, 5173],
 
 	// Install MySQL client after container creation.
 	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y default-mysql-client"

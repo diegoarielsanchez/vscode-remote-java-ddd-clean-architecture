@@ -35,6 +35,9 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/error").permitAll()
+                // Allow internal service-to-service active-status lookups without a user token.
+                // The API gateway is the external auth boundary; this endpoint only reads data.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/medicalsalesrep/get").permitAll()
                 .requestMatchers("/api/**").hasRole("USER")
                 .anyRequest().authenticated()
             )

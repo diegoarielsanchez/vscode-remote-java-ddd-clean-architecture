@@ -3,10 +3,16 @@ package com.das.inframysql.service.settlement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
 
 import com.das.cleanddd.domain.settlement.entities.IMedicalSalesRepPort;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
@@ -33,10 +39,14 @@ public class MedicalSalesRepHttpAdapter implements IMedicalSalesRepPort {
 
     @Override
     public boolean existsAndIsActive(MedicalSalesRepId medicalSalesRepId) {
-        String url = msrServiceBaseUrl + "/api/v1/medicalsalesrep/" + medicalSalesRepId.value();
+        String url = msrServiceBaseUrl + "/api/v1/medicalsalesrep/get";
         try {
-            ResponseEntity<MedicalSalesRepResponse> response =
-                    restTemplate.getForEntity(url, MedicalSalesRepResponse.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> requestEntity =
+                    new HttpEntity<>(Map.of("medicalSalesRepId", medicalSalesRepId.value()), headers);
+            ResponseEntity<MedicalSalesRepResponse> response = restTemplate.exchange(
+                    url, HttpMethod.GET, requestEntity, MedicalSalesRepResponse.class);
             MedicalSalesRepResponse body = response.getBody();
             if (response.getStatusCode().is2xxSuccessful() && body != null) {
                 return Boolean.TRUE.equals(body.active());
