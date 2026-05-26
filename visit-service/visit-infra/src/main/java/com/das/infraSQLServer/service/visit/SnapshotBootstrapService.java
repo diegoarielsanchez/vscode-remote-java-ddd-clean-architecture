@@ -1,6 +1,7 @@
 package com.das.infraSQLServer.service.visit;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
+import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 
@@ -19,10 +21,8 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
  * Calls the HTTP (Option A) repositories to pre-populate the local
  * snapshot tables. If the upstream services are unavailable or the
  * call fails for any reason (e.g. missing JWT at startup), the error
- * is logged and the service continues — the snapshot will be populated
- * lazily on first access via the read-through fallback in
- * {@link SnapshotMsrRepository} / {@link SnapshotHcpRepository},
- * and kept current by {@link MsrSnapshotUpdater} / {@link HcpSnapshotUpdater}.
+ * is logged and the service continues. Snapshot tables are then kept
+ * current by {@link MsrSnapshotUpdater} / {@link HcpSnapshotUpdater}.
  */
 @Service
 public class SnapshotBootstrapService {
@@ -31,18 +31,18 @@ public class SnapshotBootstrapService {
 
     private final IMedicalSalesRepRepository httpMsrRepo;
     private final IHealthCareProfRepository httpHcpRepo;
-    private final SnapshotMsrRepository snapshotMsrRepo;
-    private final SnapshotHcpRepository snapshotHcpRepo;
+    private final MsrSnapshotJpaRepository msrSnapshotJpaRepo;
+    private final HcpSnapshotJpaRepository hcpSnapshotJpaRepo;
 
     public SnapshotBootstrapService(
             @Qualifier("httpMedicalSalesRepRepository") IMedicalSalesRepRepository httpMsrRepo,
             @Qualifier("httpHealthCareProfRepository") IHealthCareProfRepository httpHcpRepo,
-            SnapshotMsrRepository snapshotMsrRepo,
-            SnapshotHcpRepository snapshotHcpRepo) {
+            MsrSnapshotJpaRepository msrSnapshotJpaRepo,
+            HcpSnapshotJpaRepository hcpSnapshotJpaRepo) {
         this.httpMsrRepo = httpMsrRepo;
         this.httpHcpRepo = httpHcpRepo;
-        this.snapshotMsrRepo = snapshotMsrRepo;
-        this.snapshotHcpRepo = snapshotHcpRepo;
+        this.msrSnapshotJpaRepo = msrSnapshotJpaRepo;
+        this.hcpSnapshotJpaRepo = hcpSnapshotJpaRepo;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -61,8 +61,8 @@ public class SnapshotBootstrapService {
             int seeded = 0;
             for (MedicalSalesRep msr : msrList) {
                 // Only seed if not already present (events may have arrived first)
-                if (snapshotMsrRepo.findById(msr.getId()).isEmpty()) {
-                    snapshotMsrRepo.save(msr);
+                if (msr.getId() != null && msrSnapshotJpaRepo.findById(msr.getId().value()).isEmpty()) {
+                    msrSnapshotJpaRepo.save(toMsrSnapshotEntity(msr));
                     seeded++;
                 }
             }
@@ -82,8 +82,8 @@ public class SnapshotBootstrapService {
             }
             int seeded = 0;
             for (HealthCareProf hcp : hcpList) {
-                if (snapshotHcpRepo.findById(hcp.getId()).isEmpty()) {
-                    snapshotHcpRepo.save(hcp);
+                if (hcp.getId() != null && hcpSnapshotJpaRepo.findById(hcp.getId().value()).isEmpty()) {
+                    hcpSnapshotJpaRepo.save(toHcpSnapshotEntity(hcp));
                     seeded++;
                 }
             }
@@ -92,5 +92,28 @@ public class SnapshotBootstrapService {
             log.warn("HCP snapshot bootstrap failed — snapshot will populate on first access. Reason: {}",
                     e.getMessage());
         }
+    }
+
+    private MsrSnapshotEntity toMsrSnapshotEntity(MedicalSalesRep msr) {
+        MsrSnapshotEntity entity = new MsrSnapshotEntity();
+        entity.setId(msr.getId().value());
+        entity.setName(msr.getName() != null ? msr.getName().value() : null);
+        entity.setSurname(msr.getSurname() != null ? msr.getSurname().value() : null);
+        entity.setEmail(msr.getEmail() != null ? msr.getEmail().value() : null);
+        entity.setActive(msr.getActive() != null ? msr.getActive().value() : null);
+        return entity;
+    }
+
+    private HcpSnapshotEntity toHcpSnapshotEntity(HealthCareProf hcp) {
+        HcpSnapshotEntity entity = new HcpSnapshotEntity();
+        entity.setId(hcp.getId().value());
+        entity.setName(hcp.getName() != null ? hcp.getName().value() : null);
+        entity.setSurname(hcp.getSurname() != null ? hcp.getSurname().value() : null);
+        entity.setEmail(hcp.getEmail() != null ? hcp.getEmail().value() : null);
+        entity.setActive(hcp.getActive() != null ? hcp.getActive().value() : null);
+        if (hcp.getSpecialties() != null && !hcp.getSpecialties().isEmpty()) {
+            entity.setSpecialties(hcp.getSpecialties().stream().map(Specialty::code).collect(Collectors.joining(",")));
+        }
+        return entity;
     }
 }

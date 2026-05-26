@@ -1,26 +1,25 @@
 package com.das.infraSQLServer.service.visit;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
-import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 
 @Service
 public class HealthCareProfValidatorAdapter implements IHealthCareProfValidator {
 
-    @Autowired
-    private final IHealthCareProfRepository healthCareProfRepository;
+    private final HcpSnapshotJpaRepository hcpSnapshotJpaRepository;
 
-    public HealthCareProfValidatorAdapter(IHealthCareProfRepository healthCareProfRepository) {
-        this.healthCareProfRepository = healthCareProfRepository;
+    public HealthCareProfValidatorAdapter(HcpSnapshotJpaRepository hcpSnapshotJpaRepository) {
+        this.hcpSnapshotJpaRepository = hcpSnapshotJpaRepository;
     }
 
     @Override
     public boolean existsAndActive(String id) {
-        return healthCareProfRepository.findById(new HealthCareProfId(id))
-            .map(hcp -> Boolean.TRUE.equals(hcp.isActive()))
+        if (id == null || id.isBlank()) {
+            return false;
+        }
+        return hcpSnapshotJpaRepository.findById(id)
+            .map(hcp -> Boolean.TRUE.equals(hcp.getActive()))
             .orElse(false);
     }
 }
