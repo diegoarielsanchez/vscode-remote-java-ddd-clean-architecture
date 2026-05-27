@@ -36,7 +36,7 @@ class CreateHealthCareProfUseCaseTest {
     void setUp() {
         factory = new HealthCareProfFactory();
         mapper  = new HealthCareProfMapper();
-        useCase = new CreateHealthCareProfUseCase(repository, factory, mapper, publisher);
+        useCase = new CreateHealthCareProfUseCase(repository, mapper, publisher);
     }
 
     // ── happy path ───────────────────────────────────────────────────────────

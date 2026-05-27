@@ -25,6 +25,8 @@ public class VisitPlanEntity {
 
     private String medicalSalesRepId;
 
+    private Boolean active;
+
     public VisitPlanEntity() {}
 
     public String getId() { return id; }
@@ -44,4 +46,7 @@ public class VisitPlanEntity {
 
     public String getMedicalSalesRepId() { return medicalSalesRepId; }
     public void setMedicalSalesRepId(String medicalSalesRepId) { this.medicalSalesRepId = medicalSalesRepId; }
+
+    public Boolean getActive() { return active; }
+    public void setActive(Boolean active) { this.active = active; }
 }

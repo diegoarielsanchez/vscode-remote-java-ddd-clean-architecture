@@ -4,18 +4,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class AggregateRoot {
-    private List<DomainEvent> domainEvents = new ArrayList<>();
+public abstract class AggregateRoot<TEvent> {
+    private List<TEvent> domainEvents = new ArrayList<>();
 
-    final public List<DomainEvent> pullDomainEvents() {
-        List<DomainEvent> events = domainEvents;
+    public final List<TEvent> pullDomainEvents() {
+        List<TEvent> events = domainEvents;
 
         domainEvents = Collections.emptyList();
 
         return events;
     }
 
-    final protected void record(DomainEvent event) {
+    protected final void record(TEvent event) {
         domainEvents.add(event);
     }
 }

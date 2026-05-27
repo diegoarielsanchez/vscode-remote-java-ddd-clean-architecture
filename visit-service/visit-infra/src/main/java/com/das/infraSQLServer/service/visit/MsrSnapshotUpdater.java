@@ -15,9 +15,12 @@ public class MsrSnapshotUpdater {
     private static final Logger log = LoggerFactory.getLogger(MsrSnapshotUpdater.class);
 
     private final MsrSnapshotJpaRepository jpaRepo;
+    private final com.das.cleanddd.domain.visit.usecases.services.DeactivateVisitPlanService visitPlanDeactivationService;
 
-    public MsrSnapshotUpdater(MsrSnapshotJpaRepository jpaRepo) {
+    public MsrSnapshotUpdater(MsrSnapshotJpaRepository jpaRepo,
+                              com.das.cleanddd.domain.visit.usecases.services.DeactivateVisitPlanService visitPlanDeactivationService) {
         this.jpaRepo = jpaRepo;
+        this.visitPlanDeactivationService = visitPlanDeactivationService;
     }
 
     @RabbitListener(queues = "visit-service.msr.queue",
@@ -31,7 +34,10 @@ public class MsrSnapshotUpdater {
         switch (msg.eventType()) {
             case "MSR_CREATED", "MSR_UPDATED" -> upsert(msg);
             case "MSR_ACTIVATED"   -> updateActive(msg.id(), Boolean.TRUE);
-            case "MSR_DEACTIVATED" -> updateActive(msg.id(), Boolean.FALSE);
+            case "MSR_DEACTIVATED" -> {
+                updateActive(msg.id(), Boolean.FALSE);
+                visitPlanDeactivationService.deactivateByMedicalSalesRepId(msg.id());
+            }
             default -> log.warn("Unknown MSR event type: {}", msg.eventType());
         }
     }

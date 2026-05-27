@@ -50,6 +50,7 @@ class VisitPlanTest {
             assertThat(plan.medicalSalesRepId().value()).isEqualTo(MSR_ID);
             assertThat(plan.visitSideId().value()).isEqualTo(SITE_ID);
             assertThat(plan.visitComments().value()).isEqualTo("planned check");
+            assertThat(plan.isActive()).isTrue();
         }
 
         @Test
@@ -204,6 +205,15 @@ class VisitPlanTest {
             VisitItem item = new VisitItem();
             plan.addItem(item);
             plan.removeItem(item);
+        }
+
+        @Test
+        void shouldDeactivateVisitPlan() throws BusinessValidationException {
+            VisitPlan plan = buildValid();
+
+            plan.deactivate();
+
+            assertThat(plan.isActive()).isFalse();
         }
     }
 

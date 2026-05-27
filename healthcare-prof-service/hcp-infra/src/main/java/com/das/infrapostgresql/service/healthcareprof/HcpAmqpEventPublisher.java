@@ -2,6 +2,7 @@ package com.das.infrapostgresql.service.healthcareprof;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
@@ -11,6 +12,7 @@ import com.das.cleanddd.domain.healthcareprof.events.HcpDomainEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 
+@Profile("!dev")
 @Service
 public class HcpAmqpEventPublisher implements IHcpEventPublisher {
 

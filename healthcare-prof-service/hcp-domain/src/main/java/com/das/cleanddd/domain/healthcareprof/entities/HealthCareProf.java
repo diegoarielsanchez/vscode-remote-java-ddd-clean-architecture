@@ -3,6 +3,11 @@ package com.das.cleanddd.domain.healthcareprof.entities;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpDeactivatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpDomainEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
@@ -10,7 +15,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 
 
-public class HealthCareProf extends PersonJavaBean {
+public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
 
     public static final int MAX_SPECIALTIES = 7;
     public static final String ERROR_MESSAGE_MAX_SPECIALTIES = "Specialties cannot have more than 7 items";
@@ -73,7 +78,14 @@ public class HealthCareProf extends PersonJavaBean {
         return this._id;
     }
     public static HealthCareProf create(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, HealthCareProfActive active, List<Specialty> specialties) {
-        return new HealthCareProf(id, name, surname, email, active, specialties);
+        HealthCareProf healthCareProf = new HealthCareProf(id, name, surname, email, active, specialties);
+        healthCareProf.record(new HcpCreatedEvent(
+                healthCareProf.getId().toString(),
+                healthCareProf.getFirstName(),
+                healthCareProf.getLastName(),
+                healthCareProf.getEmail().toString(),
+                healthCareProf.isActive()));
+        return healthCareProf;
     }
 
     public static HealthCareProf create(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties) {
@@ -157,9 +169,31 @@ public class HealthCareProf extends PersonJavaBean {
         }
 
     public HealthCareProf setActivate() {
-        return this._active != null && this._active.value() ? this : new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties);
+        if (this._active != null && this._active.value()) {
+            return this;
+        }
+        HealthCareProf activated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties);
+        activated.record(new HcpActivatedEvent(activated.getId().toString(), activated.isActive()));
+        return activated;
     }
     public HealthCareProf setDeactivate() {
-        return this._active != null && !this._active.value() ? this : new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties);
+        if (this._active != null && !this._active.value()) {
+            return this;
+        }
+        HealthCareProf deactivated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties);
+        deactivated.record(new HcpDeactivatedEvent(deactivated.getId().toString(), deactivated.isActive()));
+        return deactivated;
     }
+
+    public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties) {
+        HealthCareProf updated = new HealthCareProf(this._id, name, surname, email, this._active, specialties);
+        updated.record(new HcpUpdatedEvent(
+                updated.getId().toString(),
+                updated.getFirstName(),
+                updated.getLastName(),
+                updated.getEmail().toString(),
+                updated.isActive()));
+        return updated;
+    }
+
 }

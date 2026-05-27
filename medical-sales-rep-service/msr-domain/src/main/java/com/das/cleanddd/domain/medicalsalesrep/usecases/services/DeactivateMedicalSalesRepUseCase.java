@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
-import com.das.cleanddd.domain.medicalsalesrep.events.MsrDeactivatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepIDDto;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
@@ -38,12 +37,7 @@ public class DeactivateMedicalSalesRepUseCase implements UseCaseOnlyInput<Medica
         if(Boolean.TRUE.equals(medicalSalesRep.get().isActive())) {
             MedicalSalesRep deactivated = medicalSalesRep.get().setDeactivate();
             repository.save(deactivated);
-            publisher.publish(new MsrDeactivatedEvent(
-                    deactivated.getId().value(),
-                    deactivated.getName().value(),
-                    deactivated.getSurname().value(),
-                    deactivated.getEmail().value(),
-                    deactivated.getActive().value()));
+            deactivated.pullDomainEvents().forEach(publisher::publish);
           }
     }
 }

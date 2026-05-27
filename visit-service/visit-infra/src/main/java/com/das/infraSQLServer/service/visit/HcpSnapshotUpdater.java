@@ -15,9 +15,12 @@ public class HcpSnapshotUpdater {
     private static final Logger log = LoggerFactory.getLogger(HcpSnapshotUpdater.class);
 
     private final HcpSnapshotJpaRepository jpaRepo;
+    private final com.das.cleanddd.domain.visit.usecases.services.DeactivateVisitPlanService visitPlanDeactivationService;
 
-    public HcpSnapshotUpdater(HcpSnapshotJpaRepository jpaRepo) {
+    public HcpSnapshotUpdater(HcpSnapshotJpaRepository jpaRepo,
+                              com.das.cleanddd.domain.visit.usecases.services.DeactivateVisitPlanService visitPlanDeactivationService) {
         this.jpaRepo = jpaRepo;
+        this.visitPlanDeactivationService = visitPlanDeactivationService;
     }
 
     @RabbitListener(queues = "visit-service.hcp.queue",
@@ -31,7 +34,10 @@ public class HcpSnapshotUpdater {
         switch (msg.eventType()) {
             case "HCP_CREATED", "HCP_UPDATED" -> upsert(msg);
             case "HCP_ACTIVATED"   -> updateActive(msg.id(), Boolean.TRUE);
-            case "HCP_DEACTIVATED" -> updateActive(msg.id(), Boolean.FALSE);
+            case "HCP_DEACTIVATED" -> {
+                updateActive(msg.id(), Boolean.FALSE);
+                visitPlanDeactivationService.deactivateByHealthCareProfId(msg.id());
+            }
             default -> log.warn("Unknown HCP event type: {}", msg.eventType());
         }
     }

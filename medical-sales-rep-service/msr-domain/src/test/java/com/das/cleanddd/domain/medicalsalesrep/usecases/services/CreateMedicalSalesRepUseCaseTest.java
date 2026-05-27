@@ -35,7 +35,7 @@ class CreateMedicalSalesRepUseCaseTest {
     void setUp() {
         factory = new MedicalSalesRepFactory();
         mapper  = new MedicalSalesRepMapper();
-        useCase = new CreateMedicalSalesRepUseCase(repository, factory, mapper, publisher);
+        useCase = new CreateMedicalSalesRepUseCase(repository, mapper, publisher);
     }
 
     // ── happy path ───────────────────────────────────────────────────────────

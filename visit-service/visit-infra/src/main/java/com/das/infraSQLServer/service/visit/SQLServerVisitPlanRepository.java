@@ -1,5 +1,6 @@
 package com.das.infraSQLServer.service.visit;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -20,8 +21,11 @@ import com.das.cleanddd.domain.visit.entities.VisitPlan;
 @Service
 public final class SQLServerVisitPlanRepository implements IVisitPlanRepository {
 
-    @Autowired
-    private VisitPlanJpaRepository visitPlanJpaRepository;
+    private final VisitPlanJpaRepository visitPlanJpaRepository;
+
+    public SQLServerVisitPlanRepository(VisitPlanJpaRepository visitPlanJpaRepository) {
+        this.visitPlanJpaRepository = visitPlanJpaRepository;
+    }
 
     @Override
     public void save(VisitPlan visitPlan) {
@@ -53,6 +57,32 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId) {
+        deactivateFuturePlans(plan -> medicalSalesRepId != null
+                && plan.getMedicalSalesRepId() != null
+                && medicalSalesRepId.equals(plan.getMedicalSalesRepId()));
+    }
+
+    @Override
+    public void deactivateFutureByHealthCareProfId(String healthCareProfId) {
+        deactivateFuturePlans(plan -> healthCareProfId != null
+                && plan.getHealthCareProfId() != null
+                && healthCareProfId.equals(plan.getHealthCareProfId()));
+    }
+
+    private void deactivateFuturePlans(java.util.function.Predicate<VisitPlanEntity> matchesDependency) {
+        LocalDate today = LocalDate.now();
+        visitPlanJpaRepository.findAll().stream()
+                .filter(matchesDependency)
+                .filter(plan -> plan.getVisitDateTime() != null)
+                .filter(plan -> plan.getVisitDateTime().toLocalDate().isAfter(today))
+                .forEach(plan -> {
+                    plan.setActive(Boolean.FALSE);
+                    visitPlanJpaRepository.save(plan);
+                });
+    }
+
     private VisitPlan toDomain(VisitPlanEntity entity) {
         String hcpId = entity.getHealthCareProfId();
         if (hcpId == null) {
@@ -79,7 +109,8 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
                     visitComments,
                     visitSiteId,
                     List.of(),
-                    new MedicalSalesRepId(msrId));
+                    new MedicalSalesRepId(msrId),
+                    entity.getActive() == null ? true : entity.getActive());
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Failed to reconstruct VisitPlan from database: " + e.getMessage(), e);
         }
@@ -96,6 +127,7 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
         entity.setVisitSiteId(visitPlan.visitSideId() != null ? visitPlan.visitSideId().value() : null);
         entity.setHealthCareProfId(visitPlan.healthCareProfId() != null ? visitPlan.healthCareProfId().value() : null);
         entity.setMedicalSalesRepId(visitPlan.medicalSalesRepId() != null ? visitPlan.medicalSalesRepId().value() : null);
+        entity.setActive(visitPlan.isActive());
         return entity;
     }
 }

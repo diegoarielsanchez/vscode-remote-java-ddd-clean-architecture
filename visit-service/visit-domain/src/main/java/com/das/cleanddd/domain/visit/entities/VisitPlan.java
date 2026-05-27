@@ -22,6 +22,7 @@ public final class VisitPlan extends AggregateRoot {
     private TextValueObject _visitComments;
     private MedicalSalesRepId _medicalSalesRepId;
     private Identifier _visitSiteId;
+    private boolean _active;
     private final List<VisitItem> _visitItems = new ArrayList<>();
 
     public VisitPlan(VisitId visitId
@@ -31,6 +32,17 @@ public final class VisitPlan extends AggregateRoot {
         , Identifier visitSiteId
         , List<VisitItem> visitItems
         , MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
+        this(visitId, visitDateTime, healthCareProfId, visitComments, visitSiteId, visitItems, medicalSalesRepId, true);
+    }
+
+    public VisitPlan(VisitId visitId
+        , LocalDateTime visitDateTime
+        , HealthCareProfId healthCareProfId
+        , TextValueObject visitComments
+        , Identifier visitSiteId
+        , List<VisitItem> visitItems
+        , MedicalSalesRepId medicalSalesRepId
+        , boolean active) throws BusinessValidationException {
 
         if (visitDateTime == null || visitDateTime.toLocalDate().isBefore(LocalDate.now())) {
             throw new BusinessValidationException("Visit date/time cannot be in the past.");
@@ -48,6 +60,7 @@ public final class VisitPlan extends AggregateRoot {
         this._visitComments     = visitComments;
         this._visitSiteId       = visitSiteId;
         this._medicalSalesRepId = medicalSalesRepId;
+        this._active            = active;
     }
 
     @SuppressWarnings("unused")
@@ -58,6 +71,7 @@ public final class VisitPlan extends AggregateRoot {
         _visitComments     = null;
         _visitSiteId       = null;
         _medicalSalesRepId = null;
+        _active            = true;
     }
 
     public void addItem(VisitItem visitItem) {
@@ -97,6 +111,14 @@ public final class VisitPlan extends AggregateRoot {
 
     public MedicalSalesRepId medicalSalesRepId() {
         return _medicalSalesRepId;
+    }
+
+    public boolean isActive() {
+        return _active;
+    }
+
+    public void deactivate() {
+        _active = false;
     }
 
     @Override

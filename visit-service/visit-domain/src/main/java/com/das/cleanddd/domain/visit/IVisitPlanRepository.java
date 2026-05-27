@@ -15,4 +15,8 @@ public interface IVisitPlanRepository {
     List<VisitPlan> matching(Criteria criteria);
 
     List<VisitPlan> searchAll();
+
+    void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId);
+
+    void deactivateFutureByHealthCareProfId(String healthCareProfId);
 }

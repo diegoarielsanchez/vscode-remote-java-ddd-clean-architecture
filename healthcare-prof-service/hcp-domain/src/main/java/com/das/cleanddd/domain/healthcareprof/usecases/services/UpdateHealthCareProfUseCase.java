@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfEmail;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfFactory;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfName;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
@@ -17,10 +16,8 @@ import com.das.cleanddd.domain.healthcareprof.entities.SpecialtyCatalog;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
-import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 @Service
@@ -29,18 +26,14 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
     @Autowired
     private final IHealthCareProfRepository _repository; 
     @Autowired
-    private final HealthCareProfFactory _factory;
-    @Autowired
     private final HealthCareProfMapper _mapper;
     private final IHcpEventPublisher _publisher;
 
     public UpdateHealthCareProfUseCase(IHealthCareProfRepository repository
-        , HealthCareProfFactory factory
         , HealthCareProfMapper mapper
         , IHcpEventPublisher publisher
         ) {
         this._repository = repository;
-        this._factory = factory;
         this._mapper = mapper;
         this._publisher = publisher;
     }
@@ -64,7 +57,6 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
             throw new DomainException("Specialties cannot be null or empty");
         }
         HealthCareProf entity;
-        HealthCareProf entityActivateStatus;
         try {
             HealthCareProfName name = new HealthCareProfName(inputDTO.name());
             HealthCareProfName surname = new HealthCareProfName(inputDTO.surname());
@@ -79,8 +71,6 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
                     }
                 })
                 .toList();
-            // Create a new HealthCareProf object using the factory
-            entity = _factory.recreateExistingHealthCareProf(id, name, surname, email, null, specialties);
         // fetch existing HealthCareProf from the repository
         Optional<HealthCareProf> existingHealthCareProf = _repository.findById(id);
         if (!existingHealthCareProf.isPresent()) {
@@ -93,24 +83,13 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
                 throw new DomainException("There is already a Health Care Professional with this email.");
             }
         }
-        // keep the existing HealthCareProf active status
-        if (Boolean.TRUE.equals(existingHealthCareProf.get().isActive())) {
-            entityActivateStatus = entity.setActivate();
-        } else {
-            entityActivateStatus = entity.setDeactivate();
-        }
+        entity = existingHealthCareProf.get().withUpdatedDetails(name, surname, email, specialties);
         // Update the existing HealthCareProf with the new values
-        _repository.save(entityActivateStatus);
-        // Publish domain event
-        _publisher.publish(new HcpUpdatedEvent(
-                entityActivateStatus.getId().toString(),
-                entityActivateStatus.getFirstName(),
-                entityActivateStatus.getLastName(),
-                entityActivateStatus.getEmail().toString(),
-                entityActivateStatus.isActive()));
+        _repository.save(entity);
+        entity.pullDomainEvents().forEach(_publisher::publish);
         // Convert response to output and return
-        return _mapper.outputFromEntity(entityActivateStatus);
-        } catch (BusinessException | IllegalArgumentException  e) {
+        return _mapper.outputFromEntity(entity);
+        } catch (IllegalArgumentException  e) {
             throw new DomainException(e.getMessage());
         }
     }

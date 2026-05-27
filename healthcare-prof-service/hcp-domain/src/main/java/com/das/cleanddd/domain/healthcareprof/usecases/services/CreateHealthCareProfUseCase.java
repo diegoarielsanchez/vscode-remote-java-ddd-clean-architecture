@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfEmail;
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfFactory;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfName;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
 import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
@@ -16,10 +15,8 @@ import com.das.cleanddd.domain.healthcareprof.entities.SpecialtyCatalog;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
-import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 //@RequiredArgsConstructor
@@ -29,18 +26,14 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
     @Autowired
     private final IHealthCareProfRepository repository; 
     @Autowired
-    private final HealthCareProfFactory factory;
-    @Autowired
     private final HealthCareProfMapper mapper;
     private final IHcpEventPublisher publisher;
     
     public CreateHealthCareProfUseCase(IHealthCareProfRepository repository
-        , HealthCareProfFactory factory
         , HealthCareProfMapper mapper
         , IHcpEventPublisher publisher
         ) {
         this.repository = repository;
-        this.factory = factory;
         this.mapper = mapper;
         this.publisher = publisher;
     }
@@ -86,19 +79,13 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
             throw new DomainException("There is already a Health Care Professional with this email.");
             }
             // Create a new HealthCareProf object using the factory
-            entity = factory.createHealthCareProf(name, surname, email, specialties);
+                entity = HealthCareProf.create(null, name, surname, email, null, specialties);
             // Create
             repository.save(entity);
-            // Publish domain event
-            publisher.publish(new HcpCreatedEvent(
-                    entity.getId().toString(),
-                    entity.getFirstName(),
-                    entity.getLastName(),
-                    entity.getEmail().toString(),
-                    entity.isActive()));
+                entity.pullDomainEvents().forEach(publisher::publish);
             // Convert response to output and return
             return mapper.outputFromEntity(entity);
-        } catch (BusinessException | IllegalArgumentException  e) {
+        } catch (IllegalArgumentException  e) {
             throw new DomainException(e.getMessage());
 
         }

@@ -8,5 +8,6 @@ public record VisitPlanOutputDTO(
     String healthCareProfId,
     String visitComments,
     String visitSiteId,
-    String medicalSalesRepId
+    String medicalSalesRepId,
+    boolean active
 ) {}
