@@ -3,10 +3,34 @@ package com.das.infraSQLServer.service.visit;
 import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface VisitPlanJpaRepository extends JpaRepository<VisitPlanEntity, String> {
+
+    @Transactional
+    @Modifying
+    @Query("UPDATE VisitPlanEntity v SET v.active = false " +
+           "WHERE v.healthCareProfId = :hcpId " +
+           "AND v.visitDateTime > :now " +
+           "AND v.active = true")
+    void deactivateFutureByHealthCareProfId(
+        @Param("hcpId") String hcpId,
+        @Param("now") LocalDateTime now
+    );
+
+    @Transactional
+    @Modifying
+    @Query("UPDATE VisitPlanEntity v SET v.active = false " +
+           "WHERE v.medicalSalesRepId = :msrId " +
+           "AND v.visitDateTime > :now " +
+           "AND v.active = true")
+    void deactivateFutureByMedicalSalesRepId(
+        @Param("msrId") String msrId,
+        @Param("now") LocalDateTime now
+    );
 
     @Query("SELECT CASE WHEN COUNT(v) > 0 THEN true ELSE false END FROM VisitPlanEntity v " +
            "WHERE v.healthCareProfId = :hcpId " +

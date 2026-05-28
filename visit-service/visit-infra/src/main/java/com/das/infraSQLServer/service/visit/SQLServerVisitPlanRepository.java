@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.Identifier;
@@ -60,16 +59,14 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
 
     @Override
     public void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId) {
-        deactivateFuturePlans(plan -> medicalSalesRepId != null
-                && plan.getMedicalSalesRepId() != null
-                && medicalSalesRepId.equals(plan.getMedicalSalesRepId()));
+        if (medicalSalesRepId == null || medicalSalesRepId.isBlank()) return;
+        visitPlanJpaRepository.deactivateFutureByMedicalSalesRepId(medicalSalesRepId, LocalDateTime.now());
     }
 
     @Override
     public void deactivateFutureByHealthCareProfId(String healthCareProfId) {
-        deactivateFuturePlans(plan -> healthCareProfId != null
-                && plan.getHealthCareProfId() != null
-                && healthCareProfId.equals(plan.getHealthCareProfId()));
+        if (healthCareProfId == null || healthCareProfId.isBlank()) return;
+        visitPlanJpaRepository.deactivateFutureByHealthCareProfId(healthCareProfId, LocalDateTime.now());
     }
 
     @Override
@@ -77,18 +74,6 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
         return visitPlanJpaRepository.existsDuplicateOnDay(startOfDay, endOfDay, healthCareProfId, medicalSalesRepId, excludeVisitPlanId);
-    }
-
-    private void deactivateFuturePlans(java.util.function.Predicate<VisitPlanEntity> matchesDependency) {
-        LocalDate today = LocalDate.now();
-        visitPlanJpaRepository.findAll().stream()
-                .filter(matchesDependency)
-                .filter(plan -> plan.getVisitDateTime() != null)
-                .filter(plan -> plan.getVisitDateTime().toLocalDate().isAfter(today))
-                .forEach(plan -> {
-                    plan.setActive(Boolean.FALSE);
-                    visitPlanJpaRepository.save(plan);
-                });
     }
 
     private VisitPlan toDomain(VisitPlanEntity entity) {
