@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,8 +14,7 @@ import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
-import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
-import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
+import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -27,21 +25,17 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
     @Autowired
     private final IVisitPlanRepository visitPlanRepository;
     @Autowired
-    private final IHealthCareProfValidator healthCareProfValidator;
-    @Autowired
-    private final IMedicalSalesRepValidator medicalSalesRepValidator;
+    private final VisitPlanFactory factory;
     @Autowired
     private final VisitPlanMapper mapper;
 
     public UpdateVisitPlanUseCase(
         IVisitPlanRepository visitPlanRepository,
-        IHealthCareProfValidator healthCareProfValidator,
-        IMedicalSalesRepValidator medicalSalesRepValidator,
+        VisitPlanFactory factory,
         VisitPlanMapper mapper
     ) {
         this.visitPlanRepository = visitPlanRepository;
-        this.healthCareProfValidator = healthCareProfValidator;
-        this.medicalSalesRepValidator = medicalSalesRepValidator;
+        this.factory = factory;
         this.mapper = mapper;
     }
 
@@ -74,13 +68,15 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
             }
 
             HealthCareProfId healthCareProfId = new HealthCareProfId(inputDTO.healthCareProfId());
-            if (!healthCareProfValidator.existsAndActive(inputDTO.healthCareProfId())) {
-                throw new DomainException("Health Care Professional not found or not active");
-            }
-
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
-            if (!medicalSalesRepValidator.existsAndActive(inputDTO.medicalSalesRepId())) {
-                throw new DomainException("Medical Sales Representative not found or not active");
+
+            if (visitPlanRepository.existsDuplicateOnDay(
+                    inputDTO.visitDateTime().toLocalDate(),
+                    inputDTO.healthCareProfId(),
+                    inputDTO.medicalSalesRepId(),
+                    inputDTO.id())) {
+                throw new DomainException(
+                    "A visit plan for this Healthcare Professional and Medical Sales Representative already exists on the same day.");
             }
 
             Identifier visitSiteId = new Identifier(inputDTO.visitSiteId()) {};
@@ -88,13 +84,12 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
                 ? null
                 : new TextValueObject(inputDTO.visitComments()) {};
 
-            VisitPlan updatedVisitPlan = new VisitPlan(
+            VisitPlan updatedVisitPlan = factory.buildForUpdate(
                 visitId,
                 inputDTO.visitDateTime(),
                 healthCareProfId,
                 comments,
                 visitSiteId,
-                List.of(),
                 medicalSalesRepId
             );
 

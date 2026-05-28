@@ -1,6 +1,7 @@
 package com.das.infraSQLServer.service.visit;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -69,6 +70,13 @@ public final class SQLServerVisitPlanRepository implements IVisitPlanRepository 
         deactivateFuturePlans(plan -> healthCareProfId != null
                 && plan.getHealthCareProfId() != null
                 && healthCareProfId.equals(plan.getHealthCareProfId()));
+    }
+
+    @Override
+    public boolean existsDuplicateOnDay(LocalDate date, String healthCareProfId, String medicalSalesRepId, String excludeVisitPlanId) {
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
+        return visitPlanJpaRepository.existsDuplicateOnDay(startOfDay, endOfDay, healthCareProfId, medicalSalesRepId, excludeVisitPlanId);
     }
 
     private void deactivateFuturePlans(java.util.function.Predicate<VisitPlanEntity> matchesDependency) {

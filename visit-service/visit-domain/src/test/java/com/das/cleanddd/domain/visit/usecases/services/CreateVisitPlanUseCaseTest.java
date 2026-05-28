@@ -44,9 +44,7 @@ class CreateVisitPlanUseCaseTest {
     void setUp() {
         useCase = new CreateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfValidator,
-            medicalSalesRepValidator,
-            new VisitPlanFactory(),
+            new VisitPlanFactory(healthCareProfValidator, medicalSalesRepValidator),
             new VisitPlanMapper()
         );
     }

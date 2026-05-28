@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.visit;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,4 +20,12 @@ public interface IVisitPlanRepository {
     void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId);
 
     void deactivateFutureByHealthCareProfId(String healthCareProfId);
+
+    /**
+     * Returns {@code true} if an active visit plan already exists for the given
+     * {@code healthCareProfId} and {@code medicalSalesRepId} on the given
+     * {@code date}, excluding the plan identified by {@code excludeVisitPlanId}
+     * (pass {@code null} when creating a new plan).
+     */
+    boolean existsDuplicateOnDay(LocalDate date, String healthCareProfId, String medicalSalesRepId, String excludeVisitPlanId);
 }
