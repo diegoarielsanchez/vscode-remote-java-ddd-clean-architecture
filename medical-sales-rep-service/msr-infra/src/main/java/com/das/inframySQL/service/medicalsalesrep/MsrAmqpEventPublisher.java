@@ -5,6 +5,7 @@ import java.time.Instant;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.medicalsalesrep.events.MsrActivatedEvent;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 @Primary
 @Service
+@Profile("!dev")
 public class MsrAmqpEventPublisher implements IMsrEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(MsrAmqpEventPublisher.class);

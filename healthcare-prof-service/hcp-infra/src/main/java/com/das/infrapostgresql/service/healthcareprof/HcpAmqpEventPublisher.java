@@ -4,6 +4,7 @@ import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
@@ -18,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 @Primary
 @Service
+@Profile("!dev")
 public class HcpAmqpEventPublisher implements IHcpEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(HcpAmqpEventPublisher.class);
