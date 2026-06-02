@@ -16,7 +16,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 public final class VisitPlan extends AggregateRoot {
 
     private VisitId _visitId;
-    private LocalDateTime _visitDateTime;
+    private VisitDateTime _visitDateTime;
     private HealthCareProfId _healthCareProfId;
     private TextValueObject _visitComments;
     private MedicalSalesRepId _medicalSalesRepId;
@@ -25,7 +25,7 @@ public final class VisitPlan extends AggregateRoot {
     private final List<VisitItem> _visitItems = new ArrayList<>();
 
     public VisitPlan(VisitId visitId
-        , LocalDateTime visitDateTime
+        , VisitDateTime visitDateTime
         , HealthCareProfId healthCareProfId
         , TextValueObject visitComments
         , Identifier visitSiteId
@@ -97,7 +97,7 @@ public final class VisitPlan extends AggregateRoot {
         return _visitComments;
     }
 
-    public LocalDateTime visitTimeDate() {
+    public VisitDateTime visitTimeDate() {
         return _visitDateTime;
     }
 
@@ -105,7 +105,7 @@ public final class VisitPlan extends AggregateRoot {
         if (_visitDateTime == null) {
             return null;
         }
-        return _visitDateTime.getHour() < 12 ? "MORNING" : "AFTERNOON";
+        return _visitDateTime.value().getHour() < 12 ? "MORNING" : "AFTERNOON";
     }
 
     public MedicalSalesRepId medicalSalesRepId() {

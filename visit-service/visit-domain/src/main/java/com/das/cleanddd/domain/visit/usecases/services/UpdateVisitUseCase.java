@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +14,7 @@ import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
@@ -57,7 +57,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
         if (inputDTO.visitDate() == null) {
             throw new DomainException("Visit date cannot be null");
         }
-        LocalDateTime visitDateTime = inputDTO.visitDate().atStartOfDay();
+        VisitDateTime visitDateTime = new VisitDateTime(inputDTO.visitDate().atStartOfDay());
         if (inputDTO.healthCareProfId() == null || inputDTO.healthCareProfId().isBlank()) {
             throw new DomainException("Health Care Professional id cannot be null or empty");
         }

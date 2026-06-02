@@ -15,7 +15,7 @@ public class VisitMapper {
             .toList();
         return new VisitOutputDTO(
             visit.visitId().value(),
-            visit.visitDate(),
+            visit.visitDate().value(),
             visit.healthCareProfId() == null ? null : visit.healthCareProfId().value(),
             visit.visitComments() == null ? null : visit.visitComments().value(),
             visit.visitSideId() == null ? null : visit.visitSideId().value(),

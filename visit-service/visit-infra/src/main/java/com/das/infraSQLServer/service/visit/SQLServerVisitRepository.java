@@ -1,6 +1,5 @@
 package com.das.infraSQLServer.service.visit;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -17,6 +16,7 @@ import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 
 @Primary
@@ -62,14 +62,14 @@ public final class SQLServerVisitRepository implements IVisitRepository {
     }
 
     @Override
-    public boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, LocalDateTime visitDate) {
+    public boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, VisitDateTime visitDate) {
         if (healthCareProfId == null || medicalSalesRepId == null || visitDate == null) {
             return false;
         }
         return visitJpaRepository.existsByVisitKey(
                 healthCareProfId.value(),
                 medicalSalesRepId.value(),
-                visitDate);
+                visitDate.value());
     }
 
     private Visit toDomain(VisitEntity entity) {
@@ -93,7 +93,7 @@ public final class SQLServerVisitRepository implements IVisitRepository {
         try {
             return new Visit(
                     new VisitId(entity.getId()),
-                    entity.getVisitDate(),
+                    new VisitDateTime(entity.getVisitDate()),
                     new HealthCareProfId(hcpId),
                     visitComments,
                     visitSiteId,
@@ -111,7 +111,7 @@ public final class SQLServerVisitRepository implements IVisitRepository {
         }
         VisitEntity entity = new VisitEntity();
         entity.setId(visit.visitId().value());
-        entity.setVisitDate(visit.visitDate());
+        entity.setVisitDate(visit.visitDate().value());
         entity.setVisitComments(visit.visitComments() != null ? visit.visitComments().value() : null);
         entity.setVisitSiteId(visit.visitSideId() != null ? visit.visitSideId().value() : null);
         entity.setHealthCareProfId(visit.healthCareProfId() != null ? visit.healthCareProfId().value() : null);

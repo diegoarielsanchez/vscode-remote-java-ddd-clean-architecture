@@ -1,7 +1,6 @@
 package com.das.cleanddd.domain.settlement.entities;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,14 +17,14 @@ public final class Settlement extends AggregateRoot {
 
     private final SettlementId         _settlementId;
     private final String               _description;
-    private final LocalDate            _settlementDate;
+    private final SettlementDate       _settlementDate;
     private SettlementStatus           _status;
     private final List<Invoice>        _invoices;
     private final MedicalSalesRepId    _medicalSalesRepId;
 
     public Settlement(SettlementId settlementId,
                       String description,
-                      LocalDate settlementDate,
+                      SettlementDate settlementDate,
                       SettlementStatus status,
                       List<Invoice> invoices,
                       MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
@@ -59,7 +58,7 @@ public final class Settlement extends AggregateRoot {
     }
 
     public static Settlement create(String description,
-                                    LocalDate settlementDate,
+                                    SettlementDate settlementDate,
                                     MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
         return new Settlement(SettlementId.random(), description, settlementDate, SettlementStatus.OPEN, null, medicalSalesRepId);
     }
@@ -67,8 +66,8 @@ public final class Settlement extends AggregateRoot {
     // ── Invoice membership ────────────────────────────────────────────────
 
     public Invoice addInvoice(InvoiceNumber invoiceNumber,
-                               LocalDate issueDate,
-                               LocalDate dueDate,
+                               IssueDate issueDate,
+                               DueDate dueDate,
                                BigDecimal amount) throws BusinessValidationException {
         if (_status == SettlementStatus.CLOSED) {
             throw new BusinessValidationException("Cannot add invoices to a CLOSED settlement.");
@@ -122,7 +121,7 @@ public final class Settlement extends AggregateRoot {
 
     public SettlementId settlementId()             { return _settlementId; }
     public String description()                    { return _description; }
-    public LocalDate settlementDate()              { return _settlementDate; }
+    public SettlementDate settlementDate()         { return _settlementDate; }
     public SettlementStatus status()               { return _status; }
     public List<Invoice> invoices()                { return Collections.unmodifiableList(_invoices); }
     public MedicalSalesRepId medicalSalesRepId()   { return _medicalSalesRepId; }

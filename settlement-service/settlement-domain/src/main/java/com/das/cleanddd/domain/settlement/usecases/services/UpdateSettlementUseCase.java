@@ -6,9 +6,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
+import com.das.cleanddd.domain.settlement.entities.DueDate;
+import com.das.cleanddd.domain.settlement.entities.IssueDate;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
+import com.das.cleanddd.domain.settlement.entities.SettlementDate;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
@@ -58,7 +61,7 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
             Settlement updated = new Settlement(
                     settlementId,
                     inputDTO.description(),
-                    inputDTO.settlementDate(),
+                    new SettlementDate(inputDTO.settlementDate()),
                     existing.get().status(),
                     null,
                     new MedicalSalesRepId(inputDTO.medicalSalesRepId()));
@@ -67,8 +70,8 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
                 for (CreateInvoiceInputDTO invoiceDTO : inputDTO.invoices()) {
                     updated.addInvoice(
                             new InvoiceNumber(invoiceDTO.invoiceNumber()),
-                            invoiceDTO.issueDate(),
-                            invoiceDTO.dueDate(),
+                            new IssueDate(invoiceDTO.issueDate()),
+                            invoiceDTO.dueDate() != null ? new DueDate(invoiceDTO.dueDate()) : null,
                             invoiceDTO.amount());
                 }
             }
