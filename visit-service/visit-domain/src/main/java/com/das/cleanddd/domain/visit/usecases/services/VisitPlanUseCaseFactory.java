@@ -30,18 +30,15 @@ public class VisitPlanUseCaseFactory {
         IMedicalSalesRepValidator medicalSalesRepValidator
     ) {
         VisitPlanMapper mapper = new VisitPlanMapper();
-        VisitPlanFactory visitPlanFactory = new VisitPlanFactory();
+        VisitPlanFactory visitPlanFactory = new VisitPlanFactory(healthCareProfValidator, medicalSalesRepValidator);
         this.createVisitPlanUseCase = new CreateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfValidator,
-            medicalSalesRepValidator,
             visitPlanFactory,
             mapper
         );
         this.updateVisitPlanUseCase = new UpdateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfValidator,
-            medicalSalesRepValidator,
+            visitPlanFactory,
             mapper
         );
         this.getVisitPlanByIdUseCase = new GetVisitPlanByIdUseCase(visitPlanRepository, mapper);

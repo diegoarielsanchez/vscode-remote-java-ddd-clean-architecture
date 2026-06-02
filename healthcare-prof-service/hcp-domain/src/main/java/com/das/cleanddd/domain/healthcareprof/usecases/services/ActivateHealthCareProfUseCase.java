@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
@@ -38,7 +37,7 @@ public class ActivateHealthCareProfUseCase implements UseCaseOnlyInput<HealthCar
         if(Boolean.FALSE.equals(entity.get().isActive())) {
             HealthCareProf activated = entity.get().setActivate();
             repository.save(activated);
-            publisher.publish(new HcpActivatedEvent(activated.getId().toString(), activated.isActive()));
+            activated.pullDomainEvents().forEach(publisher::publish);
           }
     }
 }

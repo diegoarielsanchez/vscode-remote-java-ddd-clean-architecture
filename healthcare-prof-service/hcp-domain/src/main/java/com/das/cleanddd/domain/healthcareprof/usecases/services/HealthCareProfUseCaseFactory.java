@@ -36,8 +36,8 @@ public class HealthCareProfUseCaseFactory {
     public HealthCareProfUseCaseFactory(IHealthCareProfRepository entityRepository, IHcpEventPublisher eventPublisher) {
 
         this._repository = entityRepository;
-        this.createHealthCareProfUseCase = new CreateHealthCareProfUseCase(this._repository, this._factory, this._mapper, eventPublisher);
-        this.updateHealthCareProfUseCase = new UpdateHealthCareProfUseCase(this._repository, this._factory, this._mapper, eventPublisher);
+        this.createHealthCareProfUseCase = new CreateHealthCareProfUseCase(this._repository, this._mapper, eventPublisher);
+        this.updateHealthCareProfUseCase = new UpdateHealthCareProfUseCase(this._repository, this._mapper, eventPublisher);
         this.activateHealthCareProfUseCase = new ActivateHealthCareProfUseCase(this._repository, eventPublisher);
         this.deactivateHealthCareProfUseCase = new DeactivateHealthCareProfUseCase(this._repository, eventPublisher);
         this.getHealthCareProfByIdUseCase = new GetHealthCareProfByIdUseCase(this._repository, this._mapper);

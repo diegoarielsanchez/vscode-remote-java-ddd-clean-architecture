@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-@Profile("!dev")
 @Configuration
+@Profile("!dev")
 public class MsrRabbitMqConfig {
 
     /** Durable topic exchange — created once, survives broker restarts. */

@@ -44,9 +44,7 @@ class CreateVisitPlanUseCaseTest {
     void setUp() {
         useCase = new CreateVisitPlanUseCase(
             visitPlanRepository,
-            healthCareProfValidator,
-            medicalSalesRepValidator,
-            new VisitPlanFactory(),
+            new VisitPlanFactory(healthCareProfValidator, medicalSalesRepValidator),
             new VisitPlanMapper()
         );
     }
@@ -209,11 +207,8 @@ class CreateVisitPlanUseCaseTest {
 
         @Test
         void shouldWrapIllegalArgumentExceptionInDomainException() {
-            when(healthCareProfValidator.existsAndActive(HCP_ID)).thenReturn(true);
-            when(medicalSalesRepValidator.existsAndActive(MSR_ID)).thenReturn(true);
-
             // visitDateTime in the past triggers BusinessValidationException inside the factory
-            // which eventually surfaces wrapped in DomainException via the catch block
+            // before participant validation, so no validator stubs are needed
             CreateVisitPlanInputDTO input = new CreateVisitPlanInputDTO(
                 LocalDateTime.now().minusDays(1), HCP_ID, null, SITE_ID, MSR_ID
             );

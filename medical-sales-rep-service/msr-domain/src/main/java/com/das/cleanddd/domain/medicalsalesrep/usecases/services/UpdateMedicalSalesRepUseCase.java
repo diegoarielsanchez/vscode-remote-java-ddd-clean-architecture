@@ -7,17 +7,14 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepEmail;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepFactory;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.UpdateMedicalSalesRepInputDTO;
-import com.das.cleanddd.domain.medicalsalesrep.events.MsrUpdatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 @Service
@@ -26,18 +23,14 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
     @Autowired
     private final IMedicalSalesRepRepository repository; 
     @Autowired
-    private final MedicalSalesRepFactory factory;
-    @Autowired
     private final MedicalSalesRepMapper mapper;
     private final IMsrEventPublisher publisher;
 
     public UpdateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
-        , MedicalSalesRepFactory factory
         , MedicalSalesRepMapper mapper
         , IMsrEventPublisher publisher
         ) {
         this.repository = repository;
-        this.factory = factory;
         this.mapper = mapper;
         this.publisher = publisher;
     }
@@ -58,14 +51,11 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
             throw new DomainException("Email cannot be null or empty");
         }
         MedicalSalesRep medicalSalesRep;
-        MedicalSalesRep medicalSalesRepActivateStatus;
         try {
             MedicalSalesRepName medicalSalesRepName = new MedicalSalesRepName(inputDTO.name());
             MedicalSalesRepName medicalSalesRepSurname = new MedicalSalesRepName(inputDTO.surname());
             MedicalSalesRepEmail medicalSalesRepEmail = new MedicalSalesRepEmail(inputDTO.email());
             MedicalSalesRepId id = new MedicalSalesRepId(inputDTO.id());
-            // Create a new MedicalSalesRep object using the factory
-            medicalSalesRep = factory.recreateExistingMedicalSalesRepresentative(id, medicalSalesRepName, medicalSalesRepSurname, medicalSalesRepEmail,null);
         // fetch existing MedicalSalesRep from the repository
         Optional<MedicalSalesRep> existingMedicalSalesRep = repository.findById(id);
         if (!existingMedicalSalesRep.isPresent()) {
@@ -78,23 +68,16 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
                 throw new DomainException("There is already a Medical Sales Representative with this email.");
             }
         }
-        // keep the existing MedicalSalesRep active status
-        if (Boolean.TRUE.equals(existingMedicalSalesRep.get().isActive())) {
-            medicalSalesRepActivateStatus = medicalSalesRep.setActivate();
-        } else {
-            medicalSalesRepActivateStatus = medicalSalesRep.setDeactivate();
-        }
+        medicalSalesRep = existingMedicalSalesRep.get().withUpdatedDetails(
+                medicalSalesRepName,
+                medicalSalesRepSurname,
+                medicalSalesRepEmail);
         // Update the existing MedicalSalesRep with the new values
-        repository.save(medicalSalesRepActivateStatus);
-        publisher.publish(new MsrUpdatedEvent(
-                medicalSalesRepActivateStatus.getId().value(),
-                medicalSalesRepActivateStatus.getName().value(),
-                medicalSalesRepActivateStatus.getSurname().value(),
-                medicalSalesRepActivateStatus.getEmail().value(),
-                medicalSalesRepActivateStatus.getActive().value()));
+        repository.save(medicalSalesRep);
+        medicalSalesRep.pullDomainEvents().forEach(publisher::publish);
         // Convert response to output and return
-        return mapper.outputFromEntity(medicalSalesRepActivateStatus);
-        } catch (BusinessException | IllegalArgumentException  e) {
+        return mapper.outputFromEntity(medicalSalesRep);
+        } catch (IllegalArgumentException  e) {
             throw new DomainException(e.getMessage());
         }
     }

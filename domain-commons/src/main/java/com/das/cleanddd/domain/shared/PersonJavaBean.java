@@ -14,7 +14,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
 
-public class PersonJavaBean implements Serializable {
+public class PersonJavaBean<TEvent> extends AggregateRoot<TEvent> implements Serializable {
 
     @Serial
     private static final long serialVersionUID = -3760445487636086034L;

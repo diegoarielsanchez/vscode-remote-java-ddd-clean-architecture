@@ -2,8 +2,10 @@ package com.das.inframySQL.service.medicalsalesrep;
 
 import java.time.Instant;
 
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.medicalsalesrep.events.MsrActivatedEvent;
@@ -13,16 +15,22 @@ import com.das.cleanddd.domain.medicalsalesrep.events.MsrDomainEvent;
 import com.das.cleanddd.domain.medicalsalesrep.events.MsrUpdatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 
-import org.springframework.context.annotation.Profile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-@Profile("!dev")
+@Primary
 @Service
+@Profile("!dev")
 public class MsrAmqpEventPublisher implements IMsrEventPublisher {
 
+    private static final Logger log = LoggerFactory.getLogger(MsrAmqpEventPublisher.class);
     static final String EXCHANGE = "msr.events";
 
-    @Autowired
-    private RabbitTemplate rabbitTemplate;
+    private final RabbitTemplate msrRabbitTemplate;
+
+    public MsrAmqpEventPublisher(RabbitTemplate msrRabbitTemplate) {
+        this.msrRabbitTemplate = msrRabbitTemplate;
+    }
 
     @Override
     public void publish(MsrDomainEvent event) {
@@ -49,6 +57,10 @@ public class MsrAmqpEventPublisher implements IMsrEventPublisher {
             }
         }
 
-        rabbitTemplate.convertAndSend(EXCHANGE, routingKey, payload);
+        try {
+            msrRabbitTemplate.convertAndSend(EXCHANGE, routingKey, payload);
+        } catch (AmqpException ex) {
+            log.error("Failed to publish MSR event type={} id={}: {}", payload.eventType(), event, ex.getMessage());
+        }
     }
 }

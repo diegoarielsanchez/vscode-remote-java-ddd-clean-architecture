@@ -34,8 +34,8 @@ public class MedicalSalesRepUseCaseFactory {
     public MedicalSalesRepUseCaseFactory(IMedicalSalesRepRepository medicalSalesRepRepository, IMsrEventPublisher eventPublisher) {
 
         this.medicalSalesRepRepository = medicalSalesRepRepository;
-        this.createMedicalSalesRepUseCase = new CreateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepFactory, this.medicalSalesRepMapper, eventPublisher);
-        this.updateMedicalSalesRepUseCase = new UpdateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepFactory, this.medicalSalesRepMapper, eventPublisher);
+        this.createMedicalSalesRepUseCase = new CreateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher);
+        this.updateMedicalSalesRepUseCase = new UpdateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher);
         this.activateMedicalSalesRepUseCase = new ActivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher);
         this.deactivateMedicalSalesRepUseCase = new DeactivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher);
         this.getMedicalSalesRepByIdUseCase = new GetMedicalSalesRepByIdUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper);

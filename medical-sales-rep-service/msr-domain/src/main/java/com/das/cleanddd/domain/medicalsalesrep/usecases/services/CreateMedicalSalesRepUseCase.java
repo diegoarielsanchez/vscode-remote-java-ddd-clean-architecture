@@ -7,16 +7,13 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepEmail;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepFactory;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.CreateMedicalSalesRepInputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
-import com.das.cleanddd.domain.medicalsalesrep.events.MsrCreatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 //@RequiredArgsConstructor
@@ -26,18 +23,14 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
     @Autowired
     private final IMedicalSalesRepRepository repository; 
     @Autowired
-    private final MedicalSalesRepFactory factory;
-    @Autowired
     private final MedicalSalesRepMapper mapper;
     private final IMsrEventPublisher publisher;
     
     public CreateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
-        , MedicalSalesRepFactory factory
         , MedicalSalesRepMapper mapper
         , IMsrEventPublisher publisher
         ) {
         this.repository = repository;
-        this.factory = factory;
         this.mapper = mapper;
         this.publisher = publisher;
     }
@@ -71,18 +64,13 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
             throw new DomainException("There is already a Medical Sales Representative with this email.");
             }
             // Create a new MedicalSalesRep object using the factory
-            medicalSalesRep = factory.createMedicalSalesRep(medicalSalesRepName, medicalSalesRepSurname, medicalSalesRepEmail);
+                medicalSalesRep = MedicalSalesRep.create(null, medicalSalesRepName, medicalSalesRepSurname, medicalSalesRepEmail, null);
             // Create
             repository.save(medicalSalesRep);
-            publisher.publish(new MsrCreatedEvent(
-                    medicalSalesRep.getId().value(),
-                    medicalSalesRep.getName().value(),
-                    medicalSalesRep.getSurname().value(),
-                    medicalSalesRep.getEmail().value(),
-                    medicalSalesRep.getActive().value()));
+                medicalSalesRep.pullDomainEvents().forEach(publisher::publish);
             // Convert response to output and return
             return mapper.outputFromEntity(medicalSalesRep);
-        } catch (BusinessException | IllegalArgumentException  e) {
+        } catch (IllegalArgumentException  e) {
             throw new DomainException(e.getMessage());
 
         }

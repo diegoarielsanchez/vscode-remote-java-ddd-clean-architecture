@@ -16,7 +16,8 @@ public class VisitPlanMapper {
             visitPlan.healthCareProfId() == null ? null : visitPlan.healthCareProfId().value(),
             visitPlan.visitComments() == null ? null : visitPlan.visitComments().value(),
             visitPlan.visitSideId() == null ? null : visitPlan.visitSideId().value(),
-            visitPlan.medicalSalesRepId() == null ? null : visitPlan.medicalSalesRepId().value()
+            visitPlan.medicalSalesRepId() == null ? null : visitPlan.medicalSalesRepId().value(),
+            visitPlan.isActive()
         );
     }
 

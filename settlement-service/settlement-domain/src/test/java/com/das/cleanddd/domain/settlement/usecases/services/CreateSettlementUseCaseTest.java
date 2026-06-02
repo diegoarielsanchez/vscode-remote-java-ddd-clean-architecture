@@ -2,7 +2,6 @@ package com.das.cleanddd.domain.settlement.usecases.services;
 
 import com.das.cleanddd.domain.settlement.entities.IMedicalSalesRepPort;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
-import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;

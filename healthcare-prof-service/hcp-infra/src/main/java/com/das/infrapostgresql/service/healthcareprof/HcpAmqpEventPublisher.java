@@ -1,7 +1,10 @@
 package com.das.infrapostgresql.service.healthcareprof;
 
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
@@ -11,9 +14,15 @@ import com.das.cleanddd.domain.healthcareprof.events.HcpDomainEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@Primary
 @Service
+@Profile("!dev")
 public class HcpAmqpEventPublisher implements IHcpEventPublisher {
 
+    private static final Logger log = LoggerFactory.getLogger(HcpAmqpEventPublisher.class);
     static final String EXCHANGE = "hcp.events";
 
     @Autowired
@@ -47,6 +56,19 @@ public class HcpAmqpEventPublisher implements IHcpEventPublisher {
             }
         }
 
-        hcpRabbitTemplate.convertAndSend(EXCHANGE, routingKey, payload);
+        try {
+            hcpRabbitTemplate.convertAndSend(EXCHANGE, routingKey, payload);
+        } catch (AmqpException ex) {
+            log.error("Failed to publish HCP event type={} id={}: {}", payload.eventType(), id(event), ex.getMessage());
+        }
+    }
+
+    private String id(HcpDomainEvent event) {
+        return switch (event) {
+            case HcpCreatedEvent e -> e.id();
+            case HcpUpdatedEvent e -> e.id();
+            case HcpActivatedEvent e -> e.id();
+            case HcpDeactivatedEvent e -> e.id();
+        };
     }
 }

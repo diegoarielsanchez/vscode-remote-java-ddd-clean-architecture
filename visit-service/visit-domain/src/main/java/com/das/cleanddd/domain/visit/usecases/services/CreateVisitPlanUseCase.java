@@ -1,7 +1,5 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -15,8 +13,6 @@ import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
-import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
-import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -27,24 +23,16 @@ public final class CreateVisitPlanUseCase implements UseCase<CreateVisitPlanInpu
     @Autowired
     private final IVisitPlanRepository visitPlanRepository;
     @Autowired
-    private final IHealthCareProfValidator healthCareProfValidator;
-    @Autowired
-    private final IMedicalSalesRepValidator medicalSalesRepValidator;
-    @Autowired
     private final VisitPlanFactory factory;
     @Autowired
     private final VisitPlanMapper mapper;
 
     public CreateVisitPlanUseCase(
         IVisitPlanRepository visitPlanRepository,
-        IHealthCareProfValidator healthCareProfValidator,
-        IMedicalSalesRepValidator medicalSalesRepValidator,
         VisitPlanFactory factory,
         VisitPlanMapper mapper
     ) {
         this.visitPlanRepository = visitPlanRepository;
-        this.healthCareProfValidator = healthCareProfValidator;
-        this.medicalSalesRepValidator = medicalSalesRepValidator;
         this.factory = factory;
         this.mapper = mapper;
     }
@@ -72,12 +60,13 @@ public final class CreateVisitPlanUseCase implements UseCase<CreateVisitPlanInpu
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
             Identifier visitSiteId = new Identifier(inputDTO.visitSiteId()) {};
 
-            if (!healthCareProfValidator.existsAndActive(inputDTO.healthCareProfId())) {
-                throw new DomainException("Health Care Professional not found or not active");
-            }
-
-            if (!medicalSalesRepValidator.existsAndActive(inputDTO.medicalSalesRepId())) {
-                throw new DomainException("Medical Sales Representative not found or not active");
+            if (visitPlanRepository.existsDuplicateOnDay(
+                    inputDTO.visitDateTime().toLocalDate(),
+                    inputDTO.healthCareProfId(),
+                    inputDTO.medicalSalesRepId(),
+                    null)) {
+                throw new DomainException(
+                    "A visit plan for this Healthcare Professional and Medical Sales Representative already exists on the same day.");
             }
 
             TextValueObject comments = inputDTO.visitComments() == null

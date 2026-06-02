@@ -1,26 +1,35 @@
 package com.das.visit.application;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
+import com.das.cleanddd.domain.visit.usecases.dtos.AttachmentDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.services.VisitUseCaseFactory;
@@ -44,12 +53,13 @@ public class VisitController {
     private final UseCase<UpdateVisitInputDTO, VisitOutputDTO> updateVisitUseCase;
     private final UseCase<VisitIDDto, VisitOutputDTO> getVisitByIdUseCase;
     private final UseCaseOnlyOutput<List<VisitOutputDTO>> listVisitsUseCase;
-
+    private final UseCase<UploadAttachmentsInputDTO, UploadAttachmentsOutputDTO> uploadProductPromoAttachmentsUseCase;
     public VisitController(VisitUseCaseFactory visitUseCaseFactory) {
         this.createVisitUseCase = visitUseCaseFactory.getCreateVisitUseCase();
         this.updateVisitUseCase = visitUseCaseFactory.getUpdateVisitUseCase();
         this.getVisitByIdUseCase = visitUseCaseFactory.getVisitByIdUseCase();
         this.listVisitsUseCase = visitUseCaseFactory.getListVisitsUseCase();
+        this.uploadProductPromoAttachmentsUseCase = visitUseCaseFactory.getUploadProductPromoAttachmentsUseCase();
     }
 
     @PostMapping("/create")
@@ -83,5 +93,28 @@ public class VisitController {
     public ResponseEntity<Object> listVisits() throws DomainException {
         log.info("POST /api/v1/visit/list");
         return ResponseEntity.ok(listVisitsUseCase.execute());
+    }
+
+    @PostMapping(value = "/{visitId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload product promo attachments for a visit")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<Object> uploadProductPromoAttachments(
+            @PathVariable String visitId,
+            @RequestPart("files") List<MultipartFile> files) throws DomainException, IOException {
+        log.info("POST /api/v1/visit/{}/attachments", visitId);
+
+        List<AttachmentDTO> attachmentDTOs = new ArrayList<>();
+        for (MultipartFile file : files) {
+            attachmentDTOs.add(new AttachmentDTO(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getSize(),
+                    file.getInputStream()
+            ));
+        }
+
+        UploadAttachmentsOutputDTO result = uploadProductPromoAttachmentsUseCase.execute(
+                new UploadAttachmentsInputDTO(visitId, attachmentDTOs));
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 }

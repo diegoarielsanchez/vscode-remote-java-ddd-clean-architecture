@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.das.cleanddd.domain.shared.Identifier;
+import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
@@ -22,6 +23,12 @@ class VisitTest {
 
     /** Yesterday at 10:00 — in the past and within 1 month window */
     private static final LocalDateTime VALID_DATE = LocalDateTime.now().minusDays(1).withHour(10);
+
+    /** Creates a minimal valid {@link LargeFileValueObject} with 4-byte PNG magic bytes. */
+    private static LargeFileValueObject buildAttachment(String fileName) {
+        byte[] content = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47}; // PNG magic bytes
+        return LargeFileValueObject.of(fileName, "image/png", content.length, content);
+    }
 
     private Visit buildValid() throws BusinessValidationException {
         return new Visit(
@@ -201,6 +208,82 @@ class VisitTest {
             VisitItem item = new VisitItem();
             visit.addItem(item);
             visit.removeItem(item); // should not throw
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    @Nested
+    class ProductPromoAttachments {
+
+        @Test
+        void shouldStartWithEmptyProductPromoAttachments() throws BusinessValidationException {
+            Visit visit = buildValid();
+            assertThat(visit.productPromoAttachments()).isEmpty();
+        }
+
+        @Test
+        void shouldAddOneAttachment() throws BusinessValidationException {
+            Visit visit = buildValid();
+            LargeFileValueObject attachment = buildAttachment("promo.png");
+
+            visit.addProductPromoAttachment(attachment);
+
+            assertThat(visit.productPromoAttachments()).hasSize(1);
+            assertThat(visit.productPromoAttachments().get(0).fileName()).isEqualTo("promo.png");
+            assertThat(visit.productPromoAttachments().get(0).contentType()).isEqualTo("image/png");
+        }
+
+        @Test
+        void shouldAddMultipleAttachments() throws BusinessValidationException {
+            Visit visit = buildValid();
+
+            visit.addProductPromoAttachment(buildAttachment("promo-a.png"));
+            visit.addProductPromoAttachment(buildAttachment("promo-b.png"));
+
+            assertThat(visit.productPromoAttachments()).hasSize(2);
+        }
+
+        @Test
+        void shouldRemoveAttachment() throws BusinessValidationException {
+            Visit visit = buildValid();
+            LargeFileValueObject attachment = buildAttachment("promo.png");
+            visit.addProductPromoAttachment(attachment);
+
+            visit.removeProductPromoAttachment(attachment);
+
+            assertThat(visit.productPromoAttachments()).isEmpty();
+        }
+
+        @Test
+        void shouldThrowWhenAddingNullAttachment() throws BusinessValidationException {
+            Visit visit = buildValid();
+
+            assertThatThrownBy(() -> visit.addProductPromoAttachment(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("null");
+        }
+
+        @Test
+        void shouldReturnUnmodifiableList() throws BusinessValidationException {
+            Visit visit = buildValid();
+            visit.addProductPromoAttachment(buildAttachment("promo.png"));
+
+            List<LargeFileValueObject> list = visit.productPromoAttachments();
+
+            assertThatThrownBy(() -> list.add(buildAttachment("extra.png")))
+                .isInstanceOf(UnsupportedOperationException.class);
+        }
+
+        @Test
+        void shouldPreserveSha256HashOnAttachment() throws BusinessValidationException {
+            Visit visit = buildValid();
+            LargeFileValueObject attachment = buildAttachment("promo.png");
+
+            visit.addProductPromoAttachment(attachment);
+
+            assertThat(visit.productPromoAttachments().get(0).sha256Hash())
+                .isNotBlank()
+                .hasSize(64); // SHA-256 hex = 64 chars
         }
     }
 

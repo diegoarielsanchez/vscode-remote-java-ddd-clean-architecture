@@ -1,5 +1,10 @@
 package com.das.cleanddd.domain.medicalsalesrep.entities;
 
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrActivatedEvent;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrCreatedEvent;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrDeactivatedEvent;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrDomainEvent;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrUpdatedEvent;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
@@ -7,7 +12,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 
 
-public class MedicalSalesRep extends PersonJavaBean {
+public class MedicalSalesRep extends PersonJavaBean<MsrDomainEvent> {
 
     private final MedicalSalesRepId _id;
     private final transient MedicalSalesRepEmail    _email;
@@ -50,7 +55,14 @@ public class MedicalSalesRep extends PersonJavaBean {
     }
 
     public static MedicalSalesRep create(MedicalSalesRepId id, MedicalSalesRepName name, MedicalSalesRepName surname, MedicalSalesRepEmail email, MedicalSalesRepActive active) {
-        return new MedicalSalesRep(id, name, surname, email, active);
+        MedicalSalesRep medicalSalesRep = new MedicalSalesRep(id, name, surname, email, active);
+        medicalSalesRep.record(new MsrCreatedEvent(
+                medicalSalesRep.getId().value(),
+                medicalSalesRep.getName().value(),
+                medicalSalesRep.getSurname().value(),
+                medicalSalesRep.getEmail().value(),
+                medicalSalesRep.getActive().value()));
+        return medicalSalesRep;
     }
  
     public void validate() throws BusinessException {
@@ -64,12 +76,42 @@ public class MedicalSalesRep extends PersonJavaBean {
 
 
     public MedicalSalesRep setActivate() {
-        return this._active != null && this._active.value() ? this : new MedicalSalesRep(this._id, new MedicalSalesRepName(this._firstName), new MedicalSalesRepName(this._lastName), this._email, new MedicalSalesRepActive(true));
+        if (this._active != null && this._active.value()) {
+            return this;
+        }
+        MedicalSalesRep activated = new MedicalSalesRep(this._id, new MedicalSalesRepName(this._firstName), new MedicalSalesRepName(this._lastName), this._email, new MedicalSalesRepActive(true));
+        activated.record(new MsrActivatedEvent(
+                activated.getId().value(),
+                activated.getName().value(),
+                activated.getSurname().value(),
+                activated.getEmail().value(),
+                activated.getActive().value()));
+        return activated;
     }
     public MedicalSalesRep setDeactivate() {
-        return this._active != null && !this._active.value() ? this : new MedicalSalesRep(this._id, new MedicalSalesRepName(this._firstName), new MedicalSalesRepName(this._lastName), this._email, new MedicalSalesRepActive(false));
+        if (this._active != null && !this._active.value()) {
+            return this;
+        }
+        MedicalSalesRep deactivated = new MedicalSalesRep(this._id, new MedicalSalesRepName(this._firstName), new MedicalSalesRepName(this._lastName), this._email, new MedicalSalesRepActive(false));
+        deactivated.record(new MsrDeactivatedEvent(
+                deactivated.getId().value(),
+                deactivated.getName().value(),
+                deactivated.getSurname().value(),
+                deactivated.getEmail().value(),
+                deactivated.getActive().value()));
+        return deactivated;
     }
 
+    public MedicalSalesRep withUpdatedDetails(MedicalSalesRepName name, MedicalSalesRepName surname, MedicalSalesRepEmail email) {
+        MedicalSalesRep updated = new MedicalSalesRep(this._id, name, surname, email, this._active);
+        updated.record(new MsrUpdatedEvent(
+                updated.getId().value(),
+                updated.getName().value(),
+                updated.getSurname().value(),
+                updated.getEmail().value(),
+                updated.getActive().value()));
+        return updated;
+    }
 
     public MedicalSalesRepId id() {
         return this._id;
