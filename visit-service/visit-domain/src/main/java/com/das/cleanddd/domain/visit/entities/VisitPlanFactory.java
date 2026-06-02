@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.visit.entities;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,9 @@ public class VisitPlanFactory {
         Identifier visitSiteId,
         MedicalSalesRepId medicalSalesRepId
     ) throws BusinessValidationException {
+        if (visitDateTime == null || visitDateTime.toLocalDate().isBefore(LocalDate.now())) {
+            throw new BusinessValidationException("Visit date/time cannot be in the past.");
+        }
         validateActiveParticipants(healthCareProfId, medicalSalesRepId);
         return new VisitPlan(
             new VisitId(UUID.randomUUID().toString()),
@@ -53,6 +57,9 @@ public class VisitPlanFactory {
         Identifier visitSiteId,
         MedicalSalesRepId medicalSalesRepId
     ) throws BusinessValidationException {
+        if (visitDateTime == null || visitDateTime.toLocalDate().isBefore(LocalDate.now())) {
+            throw new BusinessValidationException("Visit date/time cannot be in the past.");
+        }
         validateActiveParticipants(healthCareProfId, medicalSalesRepId);
         return new VisitPlan(
             visitId,

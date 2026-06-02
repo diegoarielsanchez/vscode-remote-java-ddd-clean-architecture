@@ -94,12 +94,13 @@ class VisitPlanTest {
                 List.of(),
                 new MedicalSalesRepId(MSR_ID)
             )).isInstanceOf(BusinessValidationException.class)
-              .hasMessageContaining("in the past");
+              .hasMessageContaining("required");
         }
 
         @Test
-        void shouldThrowWhenVisitDateTimeIsInThePast() {
-            assertThatThrownBy(() -> new VisitPlan(
+        void shouldAcceptVisitDateTimeInThePast() throws BusinessValidationException {
+            // past-date validation lives in VisitPlanFactory, not in the constructor
+            VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
                 LocalDateTime.now().minusDays(1),
                 new HealthCareProfId(HCP_ID),
@@ -107,8 +108,8 @@ class VisitPlanTest {
                 new Identifier(SITE_ID) {},
                 List.of(),
                 new MedicalSalesRepId(MSR_ID)
-            )).isInstanceOf(BusinessValidationException.class)
-              .hasMessageContaining("in the past");
+            );
+            assertThat(plan.visitTimeDate()).isBefore(LocalDateTime.now());
         }
 
         @Test

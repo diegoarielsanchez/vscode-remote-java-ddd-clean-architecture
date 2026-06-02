@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.entities;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,8 +43,8 @@ public final class VisitPlan extends AggregateRoot {
         , MedicalSalesRepId medicalSalesRepId
         , boolean active) throws BusinessValidationException {
 
-        if (visitDateTime == null || visitDateTime.toLocalDate().isBefore(LocalDate.now())) {
-            throw new BusinessValidationException("Visit date/time cannot be in the past.");
+        if (visitDateTime == null) {
+            throw new BusinessValidationException("Visit date/time is required.");
         }
         if (medicalSalesRepId == null) {
             throw new BusinessValidationException("Medical Sales Representative is required.");
