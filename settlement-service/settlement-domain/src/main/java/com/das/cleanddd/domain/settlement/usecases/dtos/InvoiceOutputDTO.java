@@ -9,5 +9,9 @@ public record InvoiceOutputDTO(
     LocalDate issueDate,
     LocalDate dueDate,
     BigDecimal amount,
-    String status
+    String status,
+    String fileName,
+    String contentType,
+    Long sizeInBytes,
+    String sha256Hash
 ) {}

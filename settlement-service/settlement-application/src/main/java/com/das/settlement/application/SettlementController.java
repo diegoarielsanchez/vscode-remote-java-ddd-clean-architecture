@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -28,7 +29,8 @@ import com.das.cleanddd.domain.settlement.usecases.dtos.InvoiceOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementIDDto;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.UpdateSettlementInputDTO;
-import com.das.cleanddd.domain.settlement.usecases.dtos.UploadInvoiceFileInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.AddInvoiceInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.RemoveInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.services.SettlementUseCaseFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,14 +52,16 @@ public class SettlementController {
     private final UseCase<UpdateSettlementInputDTO, SettlementOutputDTO> updateSettlementUseCase;
     private final UseCase<SettlementIDDto, SettlementOutputDTO> getSettlementByIdUseCase;
     private final UseCaseOnlyOutput<List<SettlementOutputDTO>> listSettlementsUseCase;
-    private final UseCase<UploadInvoiceFileInputDTO, InvoiceOutputDTO> uploadInvoiceFileUseCase;
+    private final UseCase<AddInvoiceInputDTO, InvoiceOutputDTO> addInvoiceUseCase;
+    private final UseCase<RemoveInvoiceInputDTO, SettlementOutputDTO> removeInvoiceUseCase;
 
     public SettlementController(SettlementUseCaseFactory settlementUseCaseFactory) {
         this.createSettlementUseCase = settlementUseCaseFactory.getCreateSettlementUseCase();
         this.updateSettlementUseCase = settlementUseCaseFactory.getUpdateSettlementUseCase();
         this.getSettlementByIdUseCase = settlementUseCaseFactory.getSettlementByIdUseCase();
         this.listSettlementsUseCase = settlementUseCaseFactory.getListSettlementsUseCase();
-        this.uploadInvoiceFileUseCase = settlementUseCaseFactory.getUploadInvoiceFileUseCase();
+        this.addInvoiceUseCase = settlementUseCaseFactory.getAddInvoiceUseCase();
+        this.removeInvoiceUseCase = settlementUseCaseFactory.getRemoveInvoiceUseCase();
     }
 
     @PostMapping("/create")
@@ -92,20 +96,35 @@ public class SettlementController {
         return ResponseEntity.ok(listSettlementsUseCase.execute());
     }
 
-    @PostMapping(value = "/invoice/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload invoice file")
-    @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> uploadInvoiceFile(
+    @PostMapping(value = "/invoice/add", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Add invoice with file")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<Object> addInvoice(
             @RequestParam("settlementId") String settlementId,
-            @RequestParam("invoiceId") String invoiceId,
+            @RequestParam("invoiceNumber") String invoiceNumber,
+            @RequestParam("issueDate") @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate issueDate,
+            @RequestParam(value = "dueDate", required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate dueDate,
+            @RequestParam("amount") java.math.BigDecimal amount,
             @RequestPart("file") MultipartFile file) throws DomainException, java.io.IOException {
-        log.info("POST /api/v1/settlement/invoice/upload settlementId={} invoiceId={}", settlementId, invoiceId);
-        UploadInvoiceFileInputDTO inputDTO = new UploadInvoiceFileInputDTO(
+        log.info("POST /api/v1/settlement/invoice/add settlementId={} invoiceNumber={}", settlementId, invoiceNumber);
+        AddInvoiceInputDTO inputDTO = new AddInvoiceInputDTO(
                 settlementId,
-                invoiceId,
+                invoiceNumber,
+                issueDate,
+                dueDate,
+                amount,
                 file.getOriginalFilename(),
                 file.getContentType(),
                 file.getBytes());
-        return ResponseEntity.ok(uploadInvoiceFileUseCase.execute(inputDTO));
+        return ResponseEntity.status(HttpStatus.CREATED).body(addInvoiceUseCase.execute(inputDTO));
+    }
+
+    @DeleteMapping("/invoice/remove")
+    @Operation(summary = "Remove invoice and its file")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<Object> removeInvoice(@Valid @RequestBody RemoveInvoiceInputDTO inputDTO) throws DomainException {
+        log.info("DELETE /api/v1/settlement/invoice/remove settlementId={} invoiceId={}",
+                inputDTO.settlementId(), inputDTO.invoiceId());
+        return ResponseEntity.ok(removeInvoiceUseCase.execute(inputDTO));
     }
 }
