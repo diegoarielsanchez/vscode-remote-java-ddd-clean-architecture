@@ -10,6 +10,7 @@
         "Hmac",
         "inframongodb",
         "inframy",
+        "inframysql",
         "javafaker",
         "jjwt",
         "jsonwebtoken",

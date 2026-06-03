@@ -37,15 +37,32 @@ public final class UploadInvoiceFileUseCase implements UseCase<UploadInvoiceFile
 
         InvoiceId invoiceId = new InvoiceId(input.invoiceId());
 
+        InvoiceFile file;
         try {
-            InvoiceFile file = new InvoiceFile(input.fileName(), input.contentType(), input.content());
-            fileStorage.store(invoiceId, file);
-            settlement.attachFileToInvoice(invoiceId, file);
+            file = new InvoiceFile(input.fileName(), input.contentType(), input.content());
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());
         }
 
-        repository.save(settlement);
+        // Step 1 — persist physical file first.
+        fileStorage.store(invoiceId, file);
+
+        // Step 2 — update domain state.
+        try {
+            settlement.attachFileToInvoice(invoiceId, file);
+        } catch (IllegalArgumentException e) {
+            fileStorage.delete(invoiceId, file.fileName());  // rollback physical file
+            throw new DomainException(e.getMessage());
+        }
+
+        // Step 3 — persist domain state in the database.
+        // If the DB write fails we roll back the physical file to keep storage consistent.
+        try {
+            repository.save(settlement);
+        } catch (RuntimeException e) {
+            fileStorage.delete(invoiceId, file.fileName());  // rollback physical file
+            throw new DomainException("Failed to persist invoice file metadata: " + e.getMessage());
+        }
 
         return mapper.invoiceOutputFromInvoiceId(settlement, invoiceId);
     }

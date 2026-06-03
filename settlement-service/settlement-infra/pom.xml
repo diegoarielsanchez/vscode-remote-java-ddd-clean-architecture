@@ -43,6 +43,14 @@
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
         </dependency>
+        <!-- MinIO SDK: S3-compatible object storage (dev via docker-compose.dev.yml,
+             production via AWS S3 / compatible endpoint).  Only activated when
+             spring.profiles.active includes 'minio'. -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.9</version>
+        </dependency>
     </dependencies>
 
     <build>

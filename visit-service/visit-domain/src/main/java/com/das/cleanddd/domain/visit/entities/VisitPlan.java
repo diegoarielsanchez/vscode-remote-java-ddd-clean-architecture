@@ -13,7 +13,7 @@ import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
 @Service
-public final class VisitPlan extends AggregateRoot {
+public final class VisitPlan extends AggregateRoot<Object> {
 
     private VisitId _visitId;
     private LocalDateTime _visitDateTime;
