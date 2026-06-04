@@ -5,10 +5,6 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepActive;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepEmail;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
-import com.das.infra.service.medicalsalesrep.MedicalSalesRepEntity;
-import com.das.infra.service.medicalsalesrep.MedicalSalesRepJpaRepository;
-import com.das.infra.service.medicalsalesrep.SQLMedicalSalesRepRepository;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

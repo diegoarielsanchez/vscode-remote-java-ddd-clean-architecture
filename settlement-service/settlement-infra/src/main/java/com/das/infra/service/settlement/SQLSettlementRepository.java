@@ -1,4 +1,4 @@
-package com.das.inframysql.service.settlement;
+package com.das.infra.service.settlement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +25,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
 @Primary
 @Service
-public final class MySQLSettlementRepository implements ISettlementRepository {
+public final class SQLSettlementRepository implements ISettlementRepository {
 
     @Autowired
     private SettlementJpaRepository jpaRepository;

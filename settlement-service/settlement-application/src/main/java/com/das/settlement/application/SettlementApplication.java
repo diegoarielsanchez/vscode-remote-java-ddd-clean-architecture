@@ -9,11 +9,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     scanBasePackages = {
         "com.das.settlement.application",
         "com.das.cleanddd.domain.settlement",
-        "com.das.inframysql.service.settlement"
+        "com.das.infra.service.settlement"
     }
 )
-@EnableJpaRepositories(basePackages = "com.das.inframysql.service.settlement")
-@EntityScan(basePackages = "com.das.inframysql.service.settlement")
+@EnableJpaRepositories(basePackages = "com.das.infra.service.settlement")
+@EntityScan(basePackages = "com.das.infra.service.settlement")
 public class SettlementApplication {
 
     public static void main(String[] args) {

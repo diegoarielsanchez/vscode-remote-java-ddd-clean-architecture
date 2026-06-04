@@ -17,6 +17,7 @@
         "jsonwebtoken",
         "Jwts",
         "medicalsalesrep",
+        "Msrs",
         "msrtest",
         "springframework",
         "testuser"

@@ -13,10 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.das.infra.service.visit.SQLVisitPlanRepository;
-import com.das.infra.service.visit.VisitPlanEntity;
-import com.das.infra.service.visit.VisitPlanJpaRepository;
-
 @ExtendWith(MockitoExtension.class)
 class SQLVisitPlanRepositoryTest {
 
