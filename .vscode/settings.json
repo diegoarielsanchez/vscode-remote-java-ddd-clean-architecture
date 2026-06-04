@@ -2,6 +2,7 @@
     "java.configuration.updateBuildConfiguration": "interactive",
     "cSpell.words": [
         "amqp",
+        "assertj",
         "cleanddd",
         "dtos",
         "greetwithrecord",

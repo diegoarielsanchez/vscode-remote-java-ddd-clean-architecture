@@ -20,7 +20,6 @@ import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
-import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;

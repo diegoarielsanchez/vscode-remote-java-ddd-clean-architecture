@@ -278,15 +278,10 @@ docker run -d \
   minio/minio server /data --console-address ":9001"
 
 # 2. Create the invoice-files bucket (run after MinIO is healthy)
-docker run --rm \
-  --network host \
-  minio/mc \
-  sh -c "
-    mc alias set local http://localhost:9000 minioadmin minioadmin &&
-    mc mb --ignore-existing local/invoice-files &&
-    mc anonymous set none local/invoice-files &&
-    echo 'Bucket invoice-files ready.'
-  "
+docker run --rm --network host minio/mc mc alias set local http://localhost:9000 minioadmin minioadmin && \
+docker run --rm --network host minio/mc mc mb --ignore-existing local/invoice-files && \
+docker run --rm --network host minio/mc mc anonymous set none local/invoice-files && \
+echo 'Bucket invoice-files ready.'
 
 # To restart later
 docker start minio-ddd-clean
@@ -308,8 +303,8 @@ docker start minio-ddd-clean
 open http://localhost:9001        # user: minioadmin / minioadmin
 
 # List buckets via mc client
-docker run --rm --network host minio/mc \
-  sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin && mc ls local"
+docker run --rm --network host minio/mc mc alias set local http://localhost:9000 minioadmin minioadmin && \
+docker run --rm --network host minio/mc mc ls local
 ```
 
 #### To activate `MinioInvoiceFileStorage` in the Spring Boot app instead of local disk

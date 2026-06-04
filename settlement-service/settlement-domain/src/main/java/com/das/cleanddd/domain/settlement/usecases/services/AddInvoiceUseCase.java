@@ -1,8 +1,5 @@
 package com.das.cleanddd.domain.settlement.usecases.services;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-
 import com.das.cleanddd.domain.settlement.entities.IInvoiceFileStorage;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
