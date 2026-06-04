@@ -4,6 +4,10 @@ import com.das.identity.domain.exceptions.AuthenticationDomainException;
 import com.das.identity.domain.usecases.IdentityUseCaseFactory;
 import com.das.identity.domain.usecases.dtos.LoginInputDTO;
 import com.das.identity.domain.usecases.dtos.LoginOutputDTO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -27,6 +31,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/auth")
+@Tag(name = "Authentication", description = "Issues JWT bearer tokens")
 public class AuthController {
 
     private static final Logger auditLog = LoggerFactory.getLogger("AUDIT");
@@ -45,6 +50,11 @@ public class AuthController {
      *                {error}                   on failure (401)
      */
     @PostMapping("/login")
+    @Operation(summary = "Authenticate user and obtain a JWT token")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Authentication successful — returns JWT token"),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials")
+    })
     public ResponseEntity<?> login(@Valid @RequestBody LoginInputDTO input,
                                    HttpServletRequest request) {
         String ip = resolveClientIp(request);

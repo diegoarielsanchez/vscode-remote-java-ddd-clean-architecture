@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @OpenAPIDefinition(
     info = @Info(
-        title = "Medical Sales Rep Service API",
+        title = "Healthcare Professional Service API",
         version = "v1",
-        description = "Microservice for managing Medical Sales Representatives"
+        description = "Microservice for managing Healthcare Professionals"
     ),
     security = @SecurityRequirement(name = "bearerAuth")
 )

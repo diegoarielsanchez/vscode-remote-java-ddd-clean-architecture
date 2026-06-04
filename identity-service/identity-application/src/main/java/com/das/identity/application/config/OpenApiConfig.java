@@ -1,8 +1,7 @@
-package com.das.settlement.application.config;
+package com.das.identity.application.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
@@ -10,11 +9,10 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @OpenAPIDefinition(
     info = @Info(
-        title = "Settlement Service API",
+        title = "Identity Service API",
         version = "v1",
-        description = "Microservice for managing Settlements and Invoices"
-    ),
-    security = @SecurityRequirement(name = "bearerAuth")
+        description = "Microservice for authentication — issues JWT tokens"
+    )
 )
 @SecurityScheme(
     name = "bearerAuth",

@@ -12,6 +12,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
+- [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
@@ -655,6 +656,36 @@ Authorization: Bearer <token>
 | `GET` | `/api/v1/settlement/get?id=<uuid>` | Get a settlement by ID |
 | `POST` | `/api/v1/settlement/list` | List settlements (with criteria filter) |
 | `POST` | `/api/v1/settlement/invoice/upload` | Upload invoice file (`multipart/form-data`) — params: `settlementId`, `invoiceId`, part: `file` |
+
+---
+
+## Swagger UI
+
+Each microservice exposes an interactive Swagger UI (powered by **springdoc-openapi**) when running in `dev` mode. Use it to explore endpoints, read request/response schemas, and execute calls directly from the browser.
+
+> **Dev only:** Swagger UI is disabled when `SPRING_PROFILES_ACTIVE=prod` (Docker Compose / production deployments).
+
+### Direct access (per service)
+
+| Service | Swagger UI | OpenAPI JSON |
+|---|---|---|
+| Identity Service | http://localhost:8090/swagger-ui/index.html | http://localhost:8090/v3/api-docs |
+| Medical Sales Rep | http://localhost:8086/swagger-ui/index.html | http://localhost:8086/v3/api-docs |
+| Healthcare Prof | http://localhost:8087/swagger-ui/index.html | http://localhost:8087/v3/api-docs |
+| Visit | http://localhost:8088/swagger-ui/index.html | http://localhost:8088/v3/api-docs |
+| Settlement | http://localhost:8089/swagger-ui/index.html | http://localhost:8089/v3/api-docs |
+
+### How to authenticate in Swagger UI
+
+1. Obtain a JWT token from the Identity Service (see [Authentication](#authentication--identity-service-auth) above).
+2. Open the Swagger UI of the target service.
+3. Click **Authorize** (lock icon, top right).
+4. Enter `Bearer <your-token>` in the **bearerAuth** field and click **Authorize**.
+5. All subsequent requests from the UI will include the token automatically.
+
+### API Gateway proxy
+
+The API Gateway does **not** proxy Swagger UI paths. Access each service's Swagger UI directly on its own port as shown in the table above.
 
 ---
 
