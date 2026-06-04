@@ -9,11 +9,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     scanBasePackages = {
         "com.das.msr.application",
         "com.das.cleanddd.domain.medicalsalesrep",
-        "com.das.inframySQL.service.medicalsalesrep"
+        "com.das.infra.service.medicalsalesrep"
     }
 )
-@EnableJpaRepositories(basePackages = "com.das.inframySQL.service.medicalsalesrep")
-@EntityScan(basePackages = "com.das.inframySQL.service.medicalsalesrep")
+@EnableJpaRepositories(basePackages = "com.das.infra.service.medicalsalesrep")
+@EntityScan(basePackages = "com.das.infra.service.medicalsalesrep")
 public class MsrApplication {
 
     public static void main(String[] args) {

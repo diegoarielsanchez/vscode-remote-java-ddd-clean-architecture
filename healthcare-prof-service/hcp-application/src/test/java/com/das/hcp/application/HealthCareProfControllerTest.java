@@ -3,7 +3,7 @@ package com.das.hcp.application;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
-import com.das.infrapostgresql.service.healthcareprof.HealthCareProfJpaRepository;
+import com.das.infra.service.healthcareprof.HealthCareProfJpaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;

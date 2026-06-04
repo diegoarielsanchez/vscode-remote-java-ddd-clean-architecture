@@ -9,11 +9,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     scanBasePackages = {
         "com.das.visit.application",
         "com.das.cleanddd.domain.visit",
-        "com.das.infraSQLServer.service.visit"
+        "com.das.infra.service.visit"
     }
 )
-@EnableJpaRepositories(basePackages = "com.das.infraSQLServer.service.visit")
-@EntityScan(basePackages = "com.das.infraSQLServer.service.visit")
+@EnableJpaRepositories(basePackages = "com.das.infra.service.visit")
+@EntityScan(basePackages = "com.das.infra.service.visit")
 public class VisitApplication {
 
     public static void main(String[] args) {

@@ -7,7 +7,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
-import com.das.infraSQLServer.service.visit.VisitJpaRepository;
+import com.das.infra.service.visit.VisitJpaRepository;
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
