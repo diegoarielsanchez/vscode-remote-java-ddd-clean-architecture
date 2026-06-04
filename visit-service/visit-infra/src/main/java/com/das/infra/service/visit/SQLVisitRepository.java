@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.Identifier;
@@ -57,6 +58,13 @@ public final class SQLVisitRepository implements IVisitRepository {
     @Override
     public List<Visit> searchAll() {
         return visitJpaRepository.findAll().stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Visit> searchAll(int page, int pageSize) {
+        return visitJpaRepository.findAll(PageRequest.of(page - 1, pageSize)).stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }

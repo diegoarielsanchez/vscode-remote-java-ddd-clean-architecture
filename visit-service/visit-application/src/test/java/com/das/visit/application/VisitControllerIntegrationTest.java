@@ -6,7 +6,6 @@ import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
-import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
 import com.das.infra.service.visit.VisitJpaRepository;
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -191,10 +190,8 @@ class VisitControllerIntegrationTest {
     void getVisitById_returns200_withBody() throws Exception {
         String id = createAndGetId();
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new VisitIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.healthCareProfId").value(HCP_ID));
@@ -202,10 +199,8 @@ class VisitControllerIntegrationTest {
 
     @Test
     void getVisitById_returns400_whenNotFound() throws Exception {
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new VisitIDDto("nonexistent-id"))))
+        mockMvc.perform(get(BASE_URL + "/nonexistent-id")
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isBadRequest());
     }
 

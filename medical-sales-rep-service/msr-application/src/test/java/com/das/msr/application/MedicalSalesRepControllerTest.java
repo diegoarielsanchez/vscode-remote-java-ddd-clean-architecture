@@ -176,10 +176,8 @@ class MedicalSalesRepControllerTest {
                 .andExpect(status().isOk());
 
         // Verify the active flag was flipped
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(true));
     }
@@ -205,10 +203,8 @@ class MedicalSalesRepControllerTest {
                 .andExpect(status().isOk());
 
         // Verify the active flag was cleared
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }
@@ -219,10 +215,8 @@ class MedicalSalesRepControllerTest {
     void get_returns200_withCorrectRepData() throws Exception {
         String id = createAndGetId("Eve", "Green", "eve@example.com");
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.name").value("Eve"))
@@ -232,12 +226,10 @@ class MedicalSalesRepControllerTest {
 
     @Test
     void get_returns400_whenRepNotFound() throws Exception {
-        var body = new MedicalSalesRepIDDto(java.util.UUID.randomUUID().toString());
+        String nonExistentId = java.util.UUID.randomUUID().toString();
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
+        mockMvc.perform(get(BASE_URL + "/" + nonExistentId)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isBadRequest());
     }
 

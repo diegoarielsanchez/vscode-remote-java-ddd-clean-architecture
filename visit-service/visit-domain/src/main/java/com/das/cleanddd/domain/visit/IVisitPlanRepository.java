@@ -17,6 +17,8 @@ public interface IVisitPlanRepository {
 
     List<VisitPlan> searchAll();
 
+    List<VisitPlan> searchAll(int page, int pageSize);
+
     void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId);
 
     void deactivateFutureByHealthCareProfId(String healthCareProfId);

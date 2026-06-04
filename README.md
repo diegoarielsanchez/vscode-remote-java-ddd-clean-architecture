@@ -376,7 +376,7 @@ docker exec mysql-ddd-clean mysql -u root -p"yourpassword" \
 
 > **Tip:** Replace `yourpassword` with the password you set in `MYSQL_ROOT_PASSWORD` when you created the MySQL container.
 
-# Start SQL Server if not already running
+** Start SQL Server if not already running **
 docker start sqlserver_ddd_clean
 
 ### 2. Build all modules

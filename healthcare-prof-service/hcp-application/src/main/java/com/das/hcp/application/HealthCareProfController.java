@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -84,11 +85,11 @@ public class HealthCareProfController {
         deactivateHealthCareProfUseCase.execute(inputDTO);
     }
 
-    @GetMapping("/get")
+    @GetMapping("/{id}")
     @Operation(summary = "Get health care professional by ID")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> getHealthCareProfByID(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        return ResponseEntity.ok(getGetHealthCareProfByIdUseCase.execute(inputDTO));
+    public ResponseEntity<Object> getHealthCareProfByID(@PathVariable String id) throws DomainException {
+        return ResponseEntity.ok(getGetHealthCareProfByIdUseCase.execute(new HealthCareProfIDDto(id)));
     }
 
     @PostMapping("/list")
@@ -100,6 +101,7 @@ public class HealthCareProfController {
         @RequestParam(required = false, defaultValue = "1") int page,
         @RequestParam(required = false, defaultValue = "10") int pageSize
     ) throws DomainException {
+        pageSize = Math.min(pageSize, 100);
         HealthCareProfNamesInputDTO inputDTO = new HealthCareProfNamesInputDTO(firstName, lastName, page, pageSize);
         return ResponseEntity.ok(findHealthCareProfByNameUseCase.execute(inputDTO));
     }

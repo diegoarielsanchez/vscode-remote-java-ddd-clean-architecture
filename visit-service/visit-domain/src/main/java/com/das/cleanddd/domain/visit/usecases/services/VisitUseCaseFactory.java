@@ -3,7 +3,6 @@ package com.das.cleanddd.domain.visit.usecases.services;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.VisitFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
@@ -11,6 +10,7 @@ import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitsInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
@@ -68,7 +68,7 @@ public class VisitUseCaseFactory {
         return getVisitByIdUseCase;
     }
 
-    public UseCaseOnlyOutput<List<VisitOutputDTO>> getListVisitsUseCase() {
+    public UseCase<ListVisitsInputDTO, List<VisitOutputDTO>> getListVisitsUseCase() {
         return listVisitsUseCase;
     }
 

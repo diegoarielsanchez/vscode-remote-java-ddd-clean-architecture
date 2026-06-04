@@ -17,16 +17,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.usecases.dtos.AttachmentDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitsInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsOutputDTO;
@@ -47,12 +48,14 @@ import jakarta.validation.Valid;
 public class VisitController {
 
     private static final Logger log = LoggerFactory.getLogger(VisitController.class);
+    private static final java.util.Set<String> ALLOWED_EXTENSIONS =
+            java.util.Set.of(".pdf", ".xlsx", ".docx", ".txt");
 
     @Autowired
     private final UseCase<CreateVisitInputDTO, VisitOutputDTO> createVisitUseCase;
     private final UseCase<UpdateVisitInputDTO, VisitOutputDTO> updateVisitUseCase;
     private final UseCase<VisitIDDto, VisitOutputDTO> getVisitByIdUseCase;
-    private final UseCaseOnlyOutput<List<VisitOutputDTO>> listVisitsUseCase;
+    private final UseCase<ListVisitsInputDTO, List<VisitOutputDTO>> listVisitsUseCase;
     private final UseCase<UploadAttachmentsInputDTO, UploadAttachmentsOutputDTO> uploadProductPromoAttachmentsUseCase;
     public VisitController(VisitUseCaseFactory visitUseCaseFactory) {
         this.createVisitUseCase = visitUseCaseFactory.getCreateVisitUseCase();
@@ -79,20 +82,23 @@ public class VisitController {
         return ResponseEntity.ok(updateVisitUseCase.execute(inputDTO));
     }
 
-    @GetMapping("/get")
+    @GetMapping("/{id}")
     @Operation(summary = "Get visit by ID")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> getVisitById(@Valid @RequestBody VisitIDDto inputDTO) throws DomainException {
-        log.info("GET /api/v1/visit/get");
-        return ResponseEntity.ok(getVisitByIdUseCase.execute(inputDTO));
+    public ResponseEntity<Object> getVisitById(@PathVariable String id) throws DomainException {
+        log.info("GET /api/v1/visit/{}", sanitize(id));
+        return ResponseEntity.ok(getVisitByIdUseCase.execute(new VisitIDDto(id)));
     }
 
     @PostMapping("/list")
     @Operation(summary = "List visits")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> listVisits() throws DomainException {
+    public ResponseEntity<Object> listVisits(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "10") int pageSize) throws DomainException {
         log.info("POST /api/v1/visit/list");
-        return ResponseEntity.ok(listVisitsUseCase.execute());
+        pageSize = Math.min(pageSize, 100);
+        return ResponseEntity.ok(listVisitsUseCase.execute(new ListVisitsInputDTO(page, pageSize)));
     }
 
     @PostMapping(value = "/{visitId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -101,10 +107,18 @@ public class VisitController {
     public ResponseEntity<Object> uploadProductPromoAttachments(
             @PathVariable String visitId,
             @RequestPart("files") List<MultipartFile> files) throws DomainException, IOException {
-        log.info("POST /api/v1/visit/{}/attachments", visitId);
+        log.info("POST /api/v1/visit/{}/attachments", sanitize(visitId));
 
         List<AttachmentDTO> attachmentDTOs = new ArrayList<>();
         for (MultipartFile file : files) {
+            String originalFilename = file.getOriginalFilename();
+            String ext = (originalFilename != null && originalFilename.contains("."))
+                    ? originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase()
+                    : "";
+            if (!ALLOWED_EXTENSIONS.contains(ext)) {
+                throw new InvalidInputException(
+                        "Unsupported file type '" + ext + "'. Allowed: .pdf, .xlsx, .docx, .txt");
+            }
             attachmentDTOs.add(new AttachmentDTO(
                     file.getOriginalFilename(),
                     file.getContentType(),
@@ -116,5 +130,10 @@ public class VisitController {
         UploadAttachmentsOutputDTO result = uploadProductPromoAttachmentsUseCase.execute(
                 new UploadAttachmentsInputDTO(visitId, attachmentDTOs));
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    /** Strips log-injection characters from user-supplied values (OWASP A09). */
+    private static String sanitize(String value) {
+        return value == null ? "" : value.replaceAll("[\r\n\t]", "_");
     }
 }

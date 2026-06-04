@@ -50,6 +50,15 @@ public final class VisitRepository implements IVisitRepository {
     }
 
     @Override
+    public synchronized List<Visit> searchAll(int page, int pageSize) {
+        List<Visit> all = new ArrayList<>(visits.values());
+        int fromIndex = Math.max(0, (page - 1) * pageSize);
+        if (fromIndex >= all.size()) return new ArrayList<>();
+        int toIndex = Math.min(fromIndex + pageSize, all.size());
+        return all.subList(fromIndex, toIndex);
+    }
+
+    @Override
     public synchronized boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, LocalDateTime visitDate) {
         if (healthCareProfId == null || medicalSalesRepId == null || visitDate == null) {
             return false;

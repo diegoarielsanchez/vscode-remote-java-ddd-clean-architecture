@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.Identifier;
@@ -53,6 +54,13 @@ public final class SQLVisitPlanRepository implements IVisitPlanRepository {
     @Override
     public List<VisitPlan> searchAll() {
         return visitPlanJpaRepository.findAll().stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<VisitPlan> searchAll(int page, int pageSize) {
+        return visitPlanJpaRepository.findAll(PageRequest.of(page - 1, pageSize)).stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }

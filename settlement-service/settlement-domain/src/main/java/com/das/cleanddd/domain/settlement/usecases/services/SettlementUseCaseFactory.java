@@ -14,9 +14,9 @@ import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.UpdateSettlementInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.AddInvoiceInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.ListSettlementsInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.RemoveInvoiceInputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 
 @Service
 public class SettlementUseCaseFactory {
@@ -52,7 +52,7 @@ public class SettlementUseCaseFactory {
         return getSettlementByIdUseCase;
     }
 
-    public UseCaseOnlyOutput<List<SettlementOutputDTO>> getListSettlementsUseCase() {
+    public UseCase<ListSettlementsInputDTO, List<SettlementOutputDTO>> getListSettlementsUseCase() {
         return listSettlementsUseCase;
     }
 
