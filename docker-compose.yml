@@ -13,6 +13,8 @@ networks:
   backend:
     driver: bridge
     internal: true      # no route to/from the Docker host on this network
+  ddd-clean-net:
+    external: true      # pre-existing network where rabbitmq-ddd-clean runs
 
 services:
 
@@ -63,7 +65,7 @@ services:
     build:
       context: .
       dockerfile: medical-sales-rep-service/msr-application/Dockerfile
-    networks: [backend]             # not reachable from host — gateway only
+    networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
@@ -71,7 +73,7 @@ services:
       PG_USERNAME: ${MSR_PG_USERNAME}
       PG_PASSWORD: ${MSR_PG_PASSWORD}
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     depends_on:
@@ -85,7 +87,7 @@ services:
     build:
       context: .
       dockerfile: healthcare-prof-service/hcp-application/Dockerfile
-    networks: [backend]
+    networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
@@ -93,7 +95,7 @@ services:
       PG_USERNAME: ${HCP_PG_USERNAME}
       PG_PASSWORD: ${HCP_PG_PASSWORD}
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     depends_on:
@@ -106,7 +108,7 @@ services:
     build:
       context: .
       dockerfile: visit-service/visit-application/Dockerfile
-    networks: [backend]
+    networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
@@ -116,7 +118,7 @@ services:
       MSR_BASE_URL: http://medical-sales-rep-service:8086
       HCP_BASE_URL: http://healthcare-prof-service:8087
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
-      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     depends_on:
