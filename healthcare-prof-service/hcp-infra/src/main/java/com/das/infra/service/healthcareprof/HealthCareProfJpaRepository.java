@@ -11,7 +11,7 @@ public interface HealthCareProfJpaRepository extends JpaRepository<HealthCarePro
 
     Optional<HealthCareProfEntity> findByEmail(String email);
 
-    @Query("SELECT e FROM HealthCareProfEntity e WHERE (:name IS NOT NULL AND e.name = :name) OR (:surname IS NOT NULL AND e.surname = :surname)")
+    @Query("SELECT e FROM HealthCareProfEntity e WHERE (:name IS NULL OR e.name = :name) AND (:surname IS NULL OR e.surname = :surname)")
     List<HealthCareProfEntity> findByNameOrSurname(@Param("name") String name, @Param("surname") String surname);
 
     @Query("SELECT DISTINCT e FROM HealthCareProfEntity e JOIN e.specialties s WHERE s LIKE CONCAT(:code, '|%') OR s = :code")

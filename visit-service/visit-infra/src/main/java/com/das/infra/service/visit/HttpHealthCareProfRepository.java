@@ -2,7 +2,6 @@ package com.das.infra.service.visit;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.http.HttpEntity;
@@ -53,10 +52,9 @@ public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
             if (token != null) {
                 headers.set("Authorization", token);
             }
-            HttpEntity<Map<String, String>> request =
-                    new HttpEntity<>(Map.of("id", id.value()), headers);
+            HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<HcpResponse> response = restTemplate.exchange(
-                    BASE_URL + "/api/v1/healthcareprof/get",
+                    BASE_URL + "/api/v1/healthcareprof/" + id.value(),
                     HttpMethod.GET,
                     request,
                     HcpResponse.class);

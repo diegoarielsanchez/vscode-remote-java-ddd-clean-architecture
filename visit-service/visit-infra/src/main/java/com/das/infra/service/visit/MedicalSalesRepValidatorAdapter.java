@@ -4,27 +4,42 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
-import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 
+/**
+ * Infra adapter that implements {@link IMedicalSalesRepValidator} by calling
+ * the msr-service's minimal active-status endpoint.
+ *
+ * <p>Only a boolean is transferred — no PII — keeping the visit service
+ * decoupled from the MSR bounded context (OWASP data minimisation, DDD ACL).
+ * The endpoint is permitAll() on the MSR side so no user JWT is forwarded,
+ * preventing credential coupling between microservices.
+ *
+ * <p>A local {@link MsrSnapshotEntity} stores the last-known active flag as
+ * a resilience fallback when the MSR service is temporarily unavailable.
+ */
 @Service
 public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidator {
 
     private static final Logger log = LoggerFactory.getLogger(MedicalSalesRepValidatorAdapter.class);
 
+    private static final String MSR_BASE_URL = "http://medical-sales-rep-service";
+
     private final MsrSnapshotJpaRepository msrSnapshotJpaRepository;
-    private final IMedicalSalesRepRepository httpMsrRepository;
+    private final RestTemplate restTemplate;
 
     public MedicalSalesRepValidatorAdapter(
             MsrSnapshotJpaRepository msrSnapshotJpaRepository,
-            @Qualifier("httpMedicalSalesRepRepository") IMedicalSalesRepRepository httpMsrRepository) {
+            RestTemplate loadBalancedRestTemplate) {
         this.msrSnapshotJpaRepository = msrSnapshotJpaRepository;
-        this.httpMsrRepository = httpMsrRepository;
+        this.restTemplate = loadBalancedRestTemplate;
     }
 
     @Override
@@ -32,28 +47,32 @@ public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidato
         if (id == null || id.isBlank()) {
             return false;
         }
-
-        // Always check the authoritative source first so stale snapshots never
-        // allow an inactive MSR to be used in a new or updated VisitPlan.
         try {
-            Optional<MedicalSalesRep> msr = httpMsrRepository.findById(new MedicalSalesRepId(id));
-            if (msr.isEmpty()) {
-                return false;
-            }
-            boolean active = Boolean.TRUE.equals(
-                    msr.get().getActive() != null ? msr.get().getActive().value() : null);
+            ResponseEntity<ActiveStatusResponse> response = restTemplate.exchange(
+                    MSR_BASE_URL + "/api/v1/medicalsalesrep/{id}/active-status",
+                    HttpMethod.GET,
+                    HttpEntity.EMPTY,
+                    ActiveStatusResponse.class,
+                    id);
+            boolean active = response.getStatusCode().is2xxSuccessful()
+                    && response.getBody() != null
+                    && response.getBody().active();
 
-            // Keep the local snapshot in sync with the authoritative result.
+            // Keep the local snapshot's active flag in sync for the fallback path.
             MsrSnapshotEntity entity = msrSnapshotJpaRepository.findById(id).orElse(new MsrSnapshotEntity());
             entity.setId(id);
-            entity.setName(msr.get().getName() != null ? msr.get().getName().value() : null);
-            entity.setSurname(msr.get().getSurname() != null ? msr.get().getSurname().value() : null);
-            entity.setEmail(msr.get().getEmail() != null ? msr.get().getEmail().value() : null);
             entity.setActive(active);
             msrSnapshotJpaRepository.save(entity);
-            log.info("MSR existence check via HTTP: id={} active={}", id, active);
+            log.info("MSR active-status check via HTTP: id={} active={}", id, active);
 
             return active;
+        } catch (HttpClientErrorException.NotFound e) {
+            log.debug("MSR not found: {}", id);
+            return false;
+        } catch (HttpClientErrorException.Forbidden | HttpClientErrorException.Unauthorized e) {
+            log.error("Access denied when checking MSR active status for id {} — check inter-service security config: {}",
+                    id, e.getStatusCode());
+            return false;
         } catch (Exception e) {
             // HTTP call failed — fall back to the local snapshot to avoid blocking
             // writes when the MSR service is temporarily unavailable.
@@ -65,4 +84,6 @@ public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidato
             return false;
         }
     }
+
+    private record ActiveStatusResponse(boolean active) {}
 }

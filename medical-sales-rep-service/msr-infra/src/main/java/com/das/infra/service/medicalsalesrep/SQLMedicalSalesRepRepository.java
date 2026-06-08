@@ -46,8 +46,8 @@ public final class SQLMedicalSalesRepRepository implements IMedicalSalesRepRepos
 
     @Override
     public List<MedicalSalesRep> findByName(MedicalSalesRepName name, MedicalSalesRepName surname, int page, int pageSize) {
-        String nameValue = (name != null && !name.value().isBlank()) ? name.value() : null;
-        String surnameValue = (surname != null && !surname.value().isBlank()) ? surname.value() : null;
+        String nameValue = (name != null && !name.value().isBlank()) ? name.value() : "";
+        String surnameValue = (surname != null && !surname.value().isBlank()) ? surname.value() : "";
         List<MedicalSalesRepEntity> entities = jpaRepository.findByNameOrSurname(nameValue, surnameValue);
         return entities.stream()
                 .map(this::toDomain)

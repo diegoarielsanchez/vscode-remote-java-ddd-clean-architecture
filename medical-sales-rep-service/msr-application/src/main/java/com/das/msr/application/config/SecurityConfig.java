@@ -42,8 +42,9 @@ public class SecurityConfig {
                 }
                 authz.requestMatchers("/error").permitAll();
                 // Allow internal service-to-service active-status lookups without a user token.
-                // The API gateway is the external auth boundary; this endpoint only reads data.
-                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/medicalsalesrep/get").permitAll();
+                // Only the boolean active field is exposed — no PII. The API Gateway is the
+                // external auth boundary; peer services must not be forced to carry a user JWT.
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/medicalsalesrep/*/active-status").permitAll();
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

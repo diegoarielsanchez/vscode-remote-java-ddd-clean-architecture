@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
@@ -20,7 +21,7 @@ import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 
 @Service
-public final class SQLVisitPlanRepository implements IVisitPlanRepository {
+public class SQLVisitPlanRepository implements IVisitPlanRepository {
 
     private final VisitPlanJpaRepository visitPlanJpaRepository;
 
@@ -66,33 +67,17 @@ public final class SQLVisitPlanRepository implements IVisitPlanRepository {
     }
 
     @Override
+    @Transactional
     public void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId) {
         if (medicalSalesRepId == null || medicalSalesRepId.isBlank()) return;
-        LocalDateTime now = LocalDateTime.now();
-        visitPlanJpaRepository.findAll().stream()
-                .filter(e -> medicalSalesRepId.equals(e.getMedicalSalesRepId())
-                        && e.getVisitDateTime() != null
-                        && e.getVisitDateTime().isAfter(now)
-                        && Boolean.TRUE.equals(e.getActive()))
-                .forEach(e -> {
-                    e.setActive(false);
-                    visitPlanJpaRepository.save(e);
-                });
+        visitPlanJpaRepository.deactivateFutureByMedicalSalesRepId(medicalSalesRepId, LocalDateTime.now());
     }
 
     @Override
+    @Transactional
     public void deactivateFutureByHealthCareProfId(String healthCareProfId) {
         if (healthCareProfId == null || healthCareProfId.isBlank()) return;
-        LocalDateTime now = LocalDateTime.now();
-        visitPlanJpaRepository.findAll().stream()
-                .filter(e -> healthCareProfId.equals(e.getHealthCareProfId())
-                        && e.getVisitDateTime() != null
-                        && e.getVisitDateTime().isAfter(now)
-                        && Boolean.TRUE.equals(e.getActive()))
-                .forEach(e -> {
-                    e.setActive(false);
-                    visitPlanJpaRepository.save(e);
-                });
+        visitPlanJpaRepository.deactivateFutureByHealthCareProfId(healthCareProfId, LocalDateTime.now());
     }
 
     @Override

@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 public interface VisitPlanJpaRepository extends JpaRepository<VisitPlanEntity, String> {
 
     @Transactional
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE VisitPlanEntity v SET v.active = false " +
            "WHERE v.healthCareProfId = :hcpId " +
            "AND v.visitDateTime > :now " +
@@ -22,7 +22,7 @@ public interface VisitPlanJpaRepository extends JpaRepository<VisitPlanEntity, S
     );
 
     @Transactional
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE VisitPlanEntity v SET v.active = false " +
            "WHERE v.medicalSalesRepId = :msrId " +
            "AND v.visitDateTime > :now " +

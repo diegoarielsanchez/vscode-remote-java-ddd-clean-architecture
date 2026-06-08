@@ -91,12 +91,28 @@ public class MedicalSalesRepController {
         return ResponseEntity.ok(getGetMedicalSalesRepByIdUseCase.execute(new MedicalSalesRepIDDto(id)));
     }
 
+    /**
+     * Minimal endpoint for internal service-to-service checks.
+     * Returns only the active status (no PII) — intentionally unauthenticated
+     * so peer microservices do not need a user JWT to validate rep eligibility.
+     * The API Gateway is the external auth boundary.
+     */
+    @GetMapping("/{id}/active-status")
+    @Operation(summary = "Check if a medical sales rep exists and is active (internal use)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<ActiveStatusResponse> getActiveStatus(@PathVariable String id) throws DomainException {
+        MedicalSalesRepOutputDTO rep = getGetMedicalSalesRepByIdUseCase.execute(new MedicalSalesRepIDDto(id));
+        return ResponseEntity.ok(new ActiveStatusResponse(Boolean.TRUE.equals(rep.active())));
+    }
+
+    public record ActiveStatusResponse(boolean active) {}
+
     @PostMapping("/list")
     @Operation(summary = "List medical sales representatives by name")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> findMedicalSalesRepByName(
-        @RequestParam(required = false, defaultValue = "") String firstName,
-        @RequestParam(required = false, defaultValue = "") String lastName,
+        @RequestParam(name = "firstName", required = false, defaultValue = "") String firstName,
+        @RequestParam(name = "lastName", required = false, defaultValue = "") String lastName,
         @RequestParam(required = false, defaultValue = "1") int page,
         @RequestParam(required = false, defaultValue = "10") int pageSize
     ) throws DomainException {

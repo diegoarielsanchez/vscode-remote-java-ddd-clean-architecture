@@ -40,6 +40,10 @@ public class SecurityConfig {
                     authz.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll();
                 }
                 authz.requestMatchers("/error").permitAll();
+                // Allow internal service-to-service active-status lookups without a user token.
+                // Only the boolean active field is exposed — no PII. The API Gateway is the
+                // external auth boundary; peer services must not be forced to carry a user JWT.
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/healthcareprof/*/active-status").permitAll();
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })
