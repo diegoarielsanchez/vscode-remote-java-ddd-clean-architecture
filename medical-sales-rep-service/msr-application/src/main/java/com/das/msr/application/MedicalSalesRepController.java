@@ -70,18 +70,18 @@ public class MedicalSalesRepController {
         return ResponseEntity.ok(updateMedicalSalesRepUseCase.execute(inputDTO));
     }
 
-    @PostMapping("/activate")
+    @PostMapping("/{id}/activate")
     @Operation(summary = "Activate medical sales representative")
     @ResponseStatus(HttpStatus.OK)
-    public void activateMedicalSalesRep(@Valid @RequestBody MedicalSalesRepIDDto inputDTO) throws DomainException {
-        activateMedicalSalesRepUseCase.execute(inputDTO);
+    public void activateMedicalSalesRep(@PathVariable String id) throws DomainException {
+        activateMedicalSalesRepUseCase.execute(new MedicalSalesRepIDDto(id));
     }
 
-    @PostMapping("/deactivate")
+    @PostMapping("/{id}/deactivate")
     @Operation(summary = "Deactivate medical sales representative")
     @ResponseStatus(HttpStatus.OK)
-    public void deactivateMedicalSalesRep(@Valid @RequestBody MedicalSalesRepIDDto inputDTO) throws DomainException {
-        deactivateMedicalSalesRepUseCase.execute(inputDTO);
+    public void deactivateMedicalSalesRep(@PathVariable String id) throws DomainException {
+        deactivateMedicalSalesRepUseCase.execute(new MedicalSalesRepIDDto(id));
     }
 
     @GetMapping("/{id}")

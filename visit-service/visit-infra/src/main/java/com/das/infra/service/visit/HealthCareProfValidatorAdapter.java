@@ -54,9 +54,10 @@ public class HealthCareProfValidatorAdapter implements IHealthCareProfValidator 
                     HttpEntity.EMPTY,
                     ActiveStatusResponse.class,
                     id);
+            ActiveStatusResponse body = response.getBody();
             boolean active = response.getStatusCode().is2xxSuccessful()
-                    && response.getBody() != null
-                    && response.getBody().active();
+                    && body != null
+                    && body.active();
 
             // Keep the local snapshot's active flag in sync for the fallback path.
             HcpSnapshotEntity entity = hcpSnapshotJpaRepository.findById(id).orElse(new HcpSnapshotEntity());

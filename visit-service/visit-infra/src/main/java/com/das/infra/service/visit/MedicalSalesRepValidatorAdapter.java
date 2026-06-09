@@ -55,8 +55,9 @@ public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidato
                     ActiveStatusResponse.class,
                     id);
             boolean active = response.getStatusCode().is2xxSuccessful()
-                    && response.getBody() != null
-                    && response.getBody().active();
+                    && Optional.ofNullable(response.getBody())
+                            .map(ActiveStatusResponse::active)
+                            .orElse(false);
 
             // Keep the local snapshot's active flag in sync for the fallback path.
             MsrSnapshotEntity entity = msrSnapshotJpaRepository.findById(id).orElse(new MsrSnapshotEntity());

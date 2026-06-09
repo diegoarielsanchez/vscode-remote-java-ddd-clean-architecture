@@ -71,18 +71,18 @@ public class HealthCareProfController {
         return ResponseEntity.ok(updateHealthCareProfUseCase.execute(inputDTO));
     }
 
-    @PostMapping("/activate")
+    @PostMapping("/{id}/activate")
     @Operation(summary = "Activate health care professional")
     @ResponseStatus(HttpStatus.OK)
-    public void activateHealthCareProf(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        activateHealthCareProfUseCase.execute(inputDTO);
+    public void activateHealthCareProf(@PathVariable String id) throws DomainException {
+        activateHealthCareProfUseCase.execute(new HealthCareProfIDDto(id));
     }
 
-    @PostMapping("/deactivate")
+    @PostMapping("/{id}/deactivate")
     @Operation(summary = "Deactivate health care professional")
     @ResponseStatus(HttpStatus.OK)
-    public void deactivateHealthCareProf(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        deactivateHealthCareProfUseCase.execute(inputDTO);
+    public void deactivateHealthCareProf(@PathVariable String id) throws DomainException {
+        deactivateHealthCareProfUseCase.execute(new HealthCareProfIDDto(id));
     }
 
     @GetMapping("/{id}")

@@ -70,14 +70,32 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
     @Transactional
     public void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId) {
         if (medicalSalesRepId == null || medicalSalesRepId.isBlank()) return;
-        visitPlanJpaRepository.deactivateFutureByMedicalSalesRepId(medicalSalesRepId, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        visitPlanJpaRepository.findAll().stream()
+                .filter(e -> medicalSalesRepId.equals(e.getMedicalSalesRepId())
+                        && e.getVisitDateTime() != null
+                        && e.getVisitDateTime().isAfter(now)
+                        && Boolean.TRUE.equals(e.getActive()))
+                .forEach(e -> {
+                    e.setActive(false);
+                    visitPlanJpaRepository.save(e);
+                });
     }
 
     @Override
     @Transactional
     public void deactivateFutureByHealthCareProfId(String healthCareProfId) {
         if (healthCareProfId == null || healthCareProfId.isBlank()) return;
-        visitPlanJpaRepository.deactivateFutureByHealthCareProfId(healthCareProfId, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        visitPlanJpaRepository.findAll().stream()
+                .filter(e -> healthCareProfId.equals(e.getHealthCareProfId())
+                        && e.getVisitDateTime() != null
+                        && e.getVisitDateTime().isAfter(now)
+                        && Boolean.TRUE.equals(e.getActive()))
+                .forEach(e -> {
+                    e.setActive(false);
+                    visitPlanJpaRepository.save(e);
+                });
     }
 
     @Override
