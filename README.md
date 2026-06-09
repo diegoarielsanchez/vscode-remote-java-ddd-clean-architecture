@@ -319,6 +319,13 @@ MINIO_ACCESS_KEY=minioadmin \
 MINIO_SECRET_KEY=minioadmin \
 MINIO_BUCKET=invoice-files \
 mvn -pl settlement-service/settlement-application -am spring-boot:run
+
+SPRING_PROFILES_ACTIVE=dev,minio \
+MINIO_ENDPOINT=http://172.17.0.1:9000 \
+MINIO_ACCESS_KEY=minioadmin \
+MINIO_SECRET_KEY=minioadmin \
+MINIO_BUCKET=invoice-files \
+java -jar settlement-service/settlement-application/target/settlement-application-*.jar
 ```
 
 Without `minio` in the active profiles, `LocalDiskInvoiceFileStorage` is used and MinIO is not needed.

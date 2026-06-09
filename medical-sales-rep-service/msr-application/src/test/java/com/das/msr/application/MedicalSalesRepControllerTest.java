@@ -169,7 +169,7 @@ class MedicalSalesRepControllerTest {
     void activate_returns200_andRepBecomesActive() throws Exception {
         String id = createAndGetId("Carol", "White", "carol@example.com");
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
@@ -189,14 +189,14 @@ class MedicalSalesRepControllerTest {
         String id = createAndGetId("Dave", "Brown", "dave@example.com");
 
         // Activate first (MSRs are created inactive)
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
 
         // Then deactivate
-        mockMvc.perform(post(BASE_URL + "/deactivate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/deactivate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))

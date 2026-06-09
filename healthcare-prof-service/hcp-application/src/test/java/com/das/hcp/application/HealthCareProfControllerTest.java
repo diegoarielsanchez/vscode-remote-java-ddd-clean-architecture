@@ -147,7 +147,7 @@ class HealthCareProfControllerTest {
     void activate_returns200_andProfBecomesActive() throws Exception {
         String id = createAndGetId("Carol", "White", "carol@example.com", List.of("CARD"));
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
@@ -163,13 +163,13 @@ class HealthCareProfControllerTest {
     void deactivate_returns200_andProfBecomesInactive() throws Exception {
         String id = createAndGetId("Dave", "Brown", "dave@example.com", List.of("CARD"));
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post(BASE_URL + "/deactivate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/deactivate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))

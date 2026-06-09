@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Settlement Aggregate Root")
 class SettlementTest {
 
-    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(61);
+    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(30);
     private static final LocalDate VALID_DUE_DATE   = VALID_ISSUE_DATE.plusDays(30);
     private static final LocalDate SETTLEMENT_DATE  = LocalDate.now();
 

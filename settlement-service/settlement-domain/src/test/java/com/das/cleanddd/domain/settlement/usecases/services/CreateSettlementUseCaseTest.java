@@ -36,8 +36,8 @@ class CreateSettlementUseCaseTest {
     private SettlementMapper mapper;
     private CreateSettlementUseCase useCase;
 
-    // Invoice issue date must be at least 60 days in the past
-    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(61);
+    // Invoice issue date must be within the last 60 days
+    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(30);
     private static final LocalDate SETTLEMENT_DATE  = LocalDate.now();
     private static final String    MSR_ID           = "123e4567-e89b-12d3-a456-426614174000";
 
