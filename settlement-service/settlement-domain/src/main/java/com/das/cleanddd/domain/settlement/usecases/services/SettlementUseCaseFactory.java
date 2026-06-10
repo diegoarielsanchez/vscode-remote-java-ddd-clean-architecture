@@ -13,9 +13,10 @@ import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementIDDto;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementOutputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.UpdateSettlementInputDTO;
-import com.das.cleanddd.domain.settlement.usecases.dtos.UploadInvoiceFileInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.AddInvoiceInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.ListSettlementsInputDTO;
+import com.das.cleanddd.domain.settlement.usecases.dtos.RemoveInvoiceInputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 
 @Service
 public class SettlementUseCaseFactory {
@@ -24,7 +25,8 @@ public class SettlementUseCaseFactory {
     private final UpdateSettlementUseCase updateSettlementUseCase;
     private final GetSettlementByIdUseCase getSettlementByIdUseCase;
     private final ListSettlementsUseCase listSettlementsUseCase;
-    private final UploadInvoiceFileUseCase uploadInvoiceFileUseCase;
+    private final AddInvoiceUseCase addInvoiceUseCase;
+    private final RemoveInvoiceUseCase removeInvoiceUseCase;
 
     public SettlementUseCaseFactory(ISettlementRepository settlementRepository,
                                      IMedicalSalesRepPort medicalSalesRepPort,
@@ -34,7 +36,8 @@ public class SettlementUseCaseFactory {
         this.updateSettlementUseCase = new UpdateSettlementUseCase(settlementRepository, mapper);
         this.getSettlementByIdUseCase = new GetSettlementByIdUseCase(settlementRepository, mapper);
         this.listSettlementsUseCase = new ListSettlementsUseCase(settlementRepository, mapper);
-        this.uploadInvoiceFileUseCase = new UploadInvoiceFileUseCase(settlementRepository, fileStorage, mapper);
+        this.addInvoiceUseCase = new AddInvoiceUseCase(settlementRepository, fileStorage, mapper);
+        this.removeInvoiceUseCase = new RemoveInvoiceUseCase(settlementRepository, fileStorage, mapper);
     }
 
     public UseCase<CreateSettlementInputDTO, SettlementOutputDTO> getCreateSettlementUseCase() {
@@ -49,11 +52,15 @@ public class SettlementUseCaseFactory {
         return getSettlementByIdUseCase;
     }
 
-    public UseCaseOnlyOutput<List<SettlementOutputDTO>> getListSettlementsUseCase() {
+    public UseCase<ListSettlementsInputDTO, List<SettlementOutputDTO>> getListSettlementsUseCase() {
         return listSettlementsUseCase;
     }
 
-    public UseCase<UploadInvoiceFileInputDTO, InvoiceOutputDTO> getUploadInvoiceFileUseCase() {
-        return uploadInvoiceFileUseCase;
+    public UseCase<AddInvoiceInputDTO, InvoiceOutputDTO> getAddInvoiceUseCase() {
+        return addInvoiceUseCase;
+    }
+
+    public UseCase<RemoveInvoiceInputDTO, SettlementOutputDTO> getRemoveInvoiceUseCase() {
+        return removeInvoiceUseCase;
     }
 }

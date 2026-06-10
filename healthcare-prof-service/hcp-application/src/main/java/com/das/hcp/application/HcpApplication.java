@@ -9,11 +9,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     scanBasePackages = {
         "com.das.hcp.application",
         "com.das.cleanddd.domain.healthcareprof",
-        "com.das.infrapostgresql.service.healthcareprof"
+        "com.das.infra.service.healthcareprof"
     }
 )
-@EnableJpaRepositories(basePackages = "com.das.infrapostgresql.service.healthcareprof")
-@EntityScan(basePackages = "com.das.infrapostgresql.service.healthcareprof")
+@EnableJpaRepositories(basePackages = "com.das.infra.service.healthcareprof")
+@EntityScan(basePackages = "com.das.infra.service.healthcareprof")
 public class HcpApplication {
 
     public static void main(String[] args) {

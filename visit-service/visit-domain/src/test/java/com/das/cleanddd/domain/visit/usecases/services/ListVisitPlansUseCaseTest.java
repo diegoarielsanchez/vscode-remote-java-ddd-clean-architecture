@@ -2,6 +2,7 @@ package com.das.cleanddd.domain.visit.usecases.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
+import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
 
@@ -60,18 +62,18 @@ class ListVisitPlansUseCaseTest {
 
         @Test
         void shouldThrowWhenRepositoryReturnsEmptyList() {
-            when(visitPlanRepository.searchAll()).thenReturn(Collections.emptyList());
+            when(visitPlanRepository.searchAll(anyInt(), anyInt())).thenReturn(Collections.emptyList());
 
-            assertThatThrownBy(() -> useCase.execute())
+            assertThatThrownBy(() -> useCase.execute(new ListVisitPlansInputDTO(1, 10)))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("No visit plans found");
         }
 
         @Test
         void shouldThrowWhenRepositoryReturnsNull() {
-            when(visitPlanRepository.searchAll()).thenReturn(null);
+            when(visitPlanRepository.searchAll(anyInt(), anyInt())).thenReturn(null);
 
-            assertThatThrownBy(() -> useCase.execute())
+            assertThatThrownBy(() -> useCase.execute(new ListVisitPlansInputDTO(1, 10)))
                 .isInstanceOf(DomainException.class);
         }
     }
@@ -81,9 +83,9 @@ class ListVisitPlansUseCaseTest {
 
         @Test
         void shouldReturnMappedListWhenPlansExist() throws Exception {
-            when(visitPlanRepository.searchAll()).thenReturn(List.of(buildPlan()));
+            when(visitPlanRepository.searchAll(anyInt(), anyInt())).thenReturn(List.of(buildPlan()));
 
-            List<VisitPlanOutputDTO> result = useCase.execute();
+            List<VisitPlanOutputDTO> result = useCase.execute(new ListVisitPlansInputDTO(1, 10));
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0).id()).isEqualTo(PLAN_ID);
@@ -91,11 +93,11 @@ class ListVisitPlansUseCaseTest {
 
         @Test
         void shouldReturnAllVisitPlans() throws Exception {
-            when(visitPlanRepository.searchAll()).thenReturn(
+            when(visitPlanRepository.searchAll(anyInt(), anyInt())).thenReturn(
                 List.of(buildPlan(), buildPlan())
             );
 
-            List<VisitPlanOutputDTO> result = useCase.execute();
+            List<VisitPlanOutputDTO> result = useCase.execute(new ListVisitPlansInputDTO(1, 10));
 
             assertThat(result).hasSize(2);
         }

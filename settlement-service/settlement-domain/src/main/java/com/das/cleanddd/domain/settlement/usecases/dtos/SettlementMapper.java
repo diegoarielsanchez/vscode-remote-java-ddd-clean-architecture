@@ -40,12 +40,17 @@ public class SettlementMapper {
     }
 
     private InvoiceOutputDTO invoiceOutputFromEntity(Invoice invoice) {
+        var file = invoice.invoiceFile();
         return new InvoiceOutputDTO(
                 invoice.invoiceId().value(),
                 invoice.invoiceNumber().value(),
                 invoice.issueDate().value(),
                 invoice.dueDate() != null ? invoice.dueDate().value() : null,
                 invoice.amount(),
-                invoice.status().name());
+                invoice.status().name(),
+                file != null ? file.fileName()   : null,
+                file != null ? file.contentType() : null,
+                file != null ? file.sizeInBytes() : null,
+                file != null ? file.sha256Hash()  : null);
     }
 }

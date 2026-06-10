@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -69,36 +70,53 @@ public class MedicalSalesRepController {
         return ResponseEntity.ok(updateMedicalSalesRepUseCase.execute(inputDTO));
     }
 
-    @PostMapping("/activate")
+    @PostMapping("/{id}/activate")
     @Operation(summary = "Activate medical sales representative")
     @ResponseStatus(HttpStatus.OK)
-    public void activateMedicalSalesRep(@Valid @RequestBody MedicalSalesRepIDDto inputDTO) throws DomainException {
-        activateMedicalSalesRepUseCase.execute(inputDTO);
+    public void activateMedicalSalesRep(@PathVariable String id) throws DomainException {
+        activateMedicalSalesRepUseCase.execute(new MedicalSalesRepIDDto(id));
     }
 
-    @PostMapping("/deactivate")
+    @PostMapping("/{id}/deactivate")
     @Operation(summary = "Deactivate medical sales representative")
     @ResponseStatus(HttpStatus.OK)
-    public void deactivateMedicalSalesRep(@Valid @RequestBody MedicalSalesRepIDDto inputDTO) throws DomainException {
-        deactivateMedicalSalesRepUseCase.execute(inputDTO);
+    public void deactivateMedicalSalesRep(@PathVariable String id) throws DomainException {
+        deactivateMedicalSalesRepUseCase.execute(new MedicalSalesRepIDDto(id));
     }
 
-    @GetMapping("/get")
+    @GetMapping("/{id}")
     @Operation(summary = "Get medical sales representative by ID")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> getMedicalSalesRepByID(@Valid @RequestBody MedicalSalesRepIDDto inputDTO) throws DomainException {
-        return ResponseEntity.ok(getGetMedicalSalesRepByIdUseCase.execute(inputDTO));
+    public ResponseEntity<Object> getMedicalSalesRepByID(@PathVariable String id) throws DomainException {
+        return ResponseEntity.ok(getGetMedicalSalesRepByIdUseCase.execute(new MedicalSalesRepIDDto(id)));
     }
+
+    /**
+     * Minimal endpoint for internal service-to-service checks.
+     * Returns only the active status (no PII) — intentionally unauthenticated
+     * so peer microservices do not need a user JWT to validate rep eligibility.
+     * The API Gateway is the external auth boundary.
+     */
+    @GetMapping("/{id}/active-status")
+    @Operation(summary = "Check if a medical sales rep exists and is active (internal use)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<ActiveStatusResponse> getActiveStatus(@PathVariable String id) throws DomainException {
+        MedicalSalesRepOutputDTO rep = getGetMedicalSalesRepByIdUseCase.execute(new MedicalSalesRepIDDto(id));
+        return ResponseEntity.ok(new ActiveStatusResponse(Boolean.TRUE.equals(rep.active())));
+    }
+
+    public record ActiveStatusResponse(boolean active) {}
 
     @PostMapping("/list")
     @Operation(summary = "List medical sales representatives by name")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> findMedicalSalesRepByName(
-        @RequestParam(required = false, defaultValue = "") String firstName,
-        @RequestParam(required = false, defaultValue = "") String lastName,
+        @RequestParam(name = "firstName", required = false, defaultValue = "") String firstName,
+        @RequestParam(name = "lastName", required = false, defaultValue = "") String lastName,
         @RequestParam(required = false, defaultValue = "1") int page,
         @RequestParam(required = false, defaultValue = "10") int pageSize
     ) throws DomainException {
+        pageSize = Math.min(pageSize, 100);
         MedicalSalesRepNamesInputDTO inputDTO = new MedicalSalesRepNamesInputDTO(firstName, lastName, page, pageSize);
         return ResponseEntity.ok(findMedicalSalesRepByNameUseCase.execute(inputDTO));
     }

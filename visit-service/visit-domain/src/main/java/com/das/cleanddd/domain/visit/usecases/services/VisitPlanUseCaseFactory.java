@@ -5,13 +5,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -57,7 +57,7 @@ public class VisitPlanUseCaseFactory {
         return getVisitPlanByIdUseCase;
     }
 
-    public UseCaseOnlyOutput<List<VisitPlanOutputDTO>> getListVisitPlansUseCase() {
+    public UseCase<ListVisitPlansInputDTO, List<VisitPlanOutputDTO>> getListVisitPlansUseCase() {
         return listVisitPlansUseCase;
     }
 }

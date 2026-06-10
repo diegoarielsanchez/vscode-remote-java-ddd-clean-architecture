@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Invoice Entity")
 class InvoiceTest {
 
-    // Issue date must be at least 60 days in the past
-    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(61);
+    // Issue date must be within the last 60 days
+    private static final LocalDate VALID_ISSUE_DATE = LocalDate.now().minusDays(30);
     private static final LocalDate VALID_DUE_DATE   = VALID_ISSUE_DATE.plusDays(30);
     private static final BigDecimal AMOUNT          = new BigDecimal("1500.00");
     private static final InvoiceNumber INV_NUMBER   = new InvoiceNumber("A000100000001");
@@ -65,11 +65,11 @@ class InvoiceTest {
         }
 
         @Test
-        @DisplayName("should throw when issue date is too recent (less than 60 days ago)")
+        @DisplayName("should throw when issue date is too old (more than 60 days ago)")
         void shouldThrowWhenIssueDateTooRecent() {
             assertThrows(BusinessValidationException.class,
                     () -> new Invoice(null, INV_NUMBER,
-                            new IssueDate(LocalDate.now().minusDays(30)), new DueDate(VALID_DUE_DATE), AMOUNT, null));
+                            LocalDate.now().minusDays(61), null, AMOUNT, null));
         }
 
         @Test

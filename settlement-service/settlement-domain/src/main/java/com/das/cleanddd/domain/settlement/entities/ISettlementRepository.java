@@ -13,5 +13,7 @@ public interface ISettlementRepository {
 
     List<Settlement> searchAll();
 
+    List<Settlement> searchAll(int page, int pageSize);
+
     List<Settlement> matching(Criteria criteria);
 }

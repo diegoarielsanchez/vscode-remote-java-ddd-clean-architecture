@@ -1,6 +1,7 @@
 package com.das.hcp.application.config;
 
 import com.das.hcp.application.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,6 +24,9 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    @Value("${springdoc.swagger-ui.enabled:true}")
+    private boolean swaggerEnabled;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
@@ -30,13 +34,19 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/error").permitAll()
-                .requestMatchers("/api/**").hasRole("USER")
-                .anyRequest().authenticated()
-            )
+            .authorizeHttpRequests(authz -> {
+                authz.requestMatchers("/actuator/health", "/actuator/info").permitAll();
+                if (swaggerEnabled) {
+                    authz.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll();
+                }
+                authz.requestMatchers("/error").permitAll();
+                // Allow internal service-to-service active-status lookups without a user token.
+                // Only the boolean active field is exposed — no PII. The API Gateway is the
+                // external auth boundary; peer services must not be forced to carry a user JWT.
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/healthcareprof/*/active-status").permitAll();
+                authz.requestMatchers("/api/**").hasRole("USER");
+                authz.anyRequest().authenticated();
+            })
             .headers(headers -> headers
                 .httpStrictTransportSecurity(hsts -> hsts.maxAgeInSeconds(31536000).includeSubDomains(true))
                 .frameOptions(fo -> fo.deny())
@@ -54,7 +64,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of("https://*.yourdomain.com", "http://localhost:*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -12,6 +12,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
+- [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
@@ -145,6 +146,10 @@ cp .env.example .env
 | `RABBITMQ_USERNAME` | All services | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | All services | RabbitMQ password |
 | `INVOICE_FILE_STORAGE_PATH` | Settlement service | Absolute path where digital invoice files are stored on disk (default: `/var/settlement-service/invoice-files`) |
+| `MINIO_ENDPOINT` | Settlement service (`minio` profile) | MinIO / S3 endpoint URL (e.g. `http://localhost:9000`) |
+| `MINIO_ACCESS_KEY` | Settlement service (`minio` profile) | MinIO access key (default dev: `minioadmin`) |
+| `MINIO_SECRET_KEY` | Settlement service (`minio` profile) | MinIO secret key (default dev: `minioadmin`) |
+| `MINIO_BUCKET` | Settlement service (`minio` profile) | Bucket name for invoice files (default: `invoice-files`) |
 
 ### Dev defaults (no `.env` needed)
 
@@ -257,6 +262,74 @@ docker run -d --name rabbitmq \
 # Management UI: http://localhost:15672  (guest / guest)
 ```
 
+**MinIO** (Settlement Service — S3-compatible invoice file storage, optional):
+
+> Required only when you activate the `minio` Spring profile. Without it the Settlement Service uses the built-in local-disk adapter and writes files to `INVOICE_FILE_STORAGE_PATH` on the host — no extra container needed.
+
+```bash
+# 1. Start MinIO
+docker run -d \
+  --name minio-ddd-clean \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  -e MINIO_ROOT_USER=minioadmin \
+  -e MINIO_ROOT_PASSWORD=minioadmin \
+  -v minio-data:/data \
+  --restart unless-stopped \
+  minio/minio server /data --console-address ":9001"
+
+# 2. Create the invoice-files bucket (run after MinIO is healthy)
+docker run --rm --network host minio/mc mc alias set local http://localhost:9000 minioadmin minioadmin && \
+docker run --rm --network host minio/mc mc mb --ignore-existing local/invoice-files && \
+docker run --rm --network host minio/mc mc anonymous set none local/invoice-files && \
+echo 'Bucket invoice-files ready.'
+
+# To restart later
+docker start minio-ddd-clean
+
+# Management console: http://localhost:9001  (minioadmin / minioadmin)
+# S3 API:            http://localhost:9000
+```
+
+> **Dev container note:** if running inside a VS Code Dev Container, connect `minio-ddd-clean` to the shared network (see [Troubleshooting](#dev-container-connection-refused-to-database-containers)):
+> ```bash
+> docker network connect ddd-clean-net minio-ddd-clean
+> ```
+> Then set `MINIO_ENDPOINT=http://minio-ddd-clean:9000` when starting the Settlement Service.
+
+#### Verify it's running
+
+```bash
+# MinIO web console (browser)
+open http://localhost:9001        # user: minioadmin / minioadmin
+
+# List buckets via mc client
+docker run --rm --network host minio/mc mc alias set local http://localhost:9000 minioadmin minioadmin && \
+docker run --rm --network host minio/mc mc ls local
+```
+
+#### To activate `MinioInvoiceFileStorage` in the Spring Boot app instead of local disk
+
+Set the `minio` Spring profile alongside the existing profile when starting the Settlement Service:
+
+```bash
+SPRING_PROFILES_ACTIVE=dev,minio \
+MINIO_ENDPOINT=http://localhost:9000 \
+MINIO_ACCESS_KEY=minioadmin \
+MINIO_SECRET_KEY=minioadmin \
+MINIO_BUCKET=invoice-files \
+mvn -pl settlement-service/settlement-application -am spring-boot:run
+
+SPRING_PROFILES_ACTIVE=dev,minio \
+MINIO_ENDPOINT=http://172.17.0.1:9000 \
+MINIO_ACCESS_KEY=minioadmin \
+MINIO_SECRET_KEY=minioadmin \
+MINIO_BUCKET=invoice-files \
+java -jar settlement-service/settlement-application/target/settlement-application-*.jar
+```
+
+Without `minio` in the active profiles, `LocalDiskInvoiceFileStorage` is used and MinIO is not needed.
+
 ### 1b. Create databases (if they don't exist)
 
 If your containers are already running but the databases were never created, use the commands below. Each block is idempotent — safe to run even if the database already exists.
@@ -310,7 +383,7 @@ docker exec mysql-ddd-clean mysql -u root -p"yourpassword" \
 
 > **Tip:** Replace `yourpassword` with the password you set in `MYSQL_ROOT_PASSWORD` when you created the MySQL container.
 
-# Start SQL Server if not already running
+** Start SQL Server if not already running **
 docker start sqlserver_ddd_clean
 
 ### 2. Build all modules
@@ -380,10 +453,21 @@ DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-bo
 **Terminal 7 — Settlement Service**
 
 ```bash
+# Default — local-disk file storage (no extra container needed)
 mvn -pl settlement-service/settlement-application -am spring-boot:run
 # Ready when: "Started SettlementApplication" appears
 # Listens on: http://localhost:8089
 ```
+
+> **Optional — activate MinIO file storage** (requires `minio-ddd-clean` container running, see step 1):
+> ```bash
+> SPRING_PROFILES_ACTIVE=dev,minio \
+> MINIO_ENDPOINT=http://localhost:9000 \
+> MINIO_ACCESS_KEY=minioadmin \
+> MINIO_SECRET_KEY=minioadmin \
+> MINIO_BUCKET=invoice-files \
+> mvn -pl settlement-service/settlement-application -am spring-boot:run
+> ```
 
 All commands run from the repo root.
 
@@ -582,6 +666,36 @@ Authorization: Bearer <token>
 
 ---
 
+## Swagger UI
+
+Each microservice exposes an interactive Swagger UI (powered by **springdoc-openapi**) when running in `dev` mode. Use it to explore endpoints, read request/response schemas, and execute calls directly from the browser.
+
+> **Dev only:** Swagger UI is disabled when `SPRING_PROFILES_ACTIVE=prod` (Docker Compose / production deployments).
+
+### Direct access (per service)
+
+| Service | Swagger UI | OpenAPI JSON |
+|---|---|---|
+| Identity Service | http://localhost:8090/swagger-ui/index.html | http://localhost:8090/v3/api-docs |
+| Medical Sales Rep | http://localhost:8086/swagger-ui/index.html | http://localhost:8086/v3/api-docs |
+| Healthcare Prof | http://localhost:8087/swagger-ui/index.html | http://localhost:8087/v3/api-docs |
+| Visit | http://localhost:8088/swagger-ui/index.html | http://localhost:8088/v3/api-docs |
+| Settlement | http://localhost:8089/swagger-ui/index.html | http://localhost:8089/v3/api-docs |
+
+### How to authenticate in Swagger UI
+
+1. Obtain a JWT token from the Identity Service (see [Authentication](#authentication--identity-service-auth) above).
+2. Open the Swagger UI of the target service.
+3. Click **Authorize** (lock icon, top right).
+4. Enter `Bearer <your-token>` in the **bearerAuth** field and click **Authorize**.
+5. All subsequent requests from the UI will include the token automatically.
+
+### API Gateway proxy
+
+The API Gateway does **not** proxy Swagger UI paths. Access each service's Swagger UI directly on its own port as shown in the table above.
+
+---
+
 ## Security
 
 ### Authentication & Authorization
@@ -761,6 +875,7 @@ docker network create ddd-clean-net
 docker network connect ddd-clean-net sqlserver_ddd_clean
 docker network connect ddd-clean-net mysql-ddd-clean
 docker network connect ddd-clean-net postgres-ddd-clean   # if running
+docker network connect ddd-clean-net minio-ddd-clean      # if using MinIO profile
 ```
 
 **Step 3 — Find and connect the dev container**

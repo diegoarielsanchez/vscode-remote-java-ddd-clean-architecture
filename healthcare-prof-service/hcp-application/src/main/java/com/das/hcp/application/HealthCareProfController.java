@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -70,36 +71,53 @@ public class HealthCareProfController {
         return ResponseEntity.ok(updateHealthCareProfUseCase.execute(inputDTO));
     }
 
-    @PostMapping("/activate")
+    @PostMapping("/{id}/activate")
     @Operation(summary = "Activate health care professional")
     @ResponseStatus(HttpStatus.OK)
-    public void activateHealthCareProf(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        activateHealthCareProfUseCase.execute(inputDTO);
+    public void activateHealthCareProf(@PathVariable String id) throws DomainException {
+        activateHealthCareProfUseCase.execute(new HealthCareProfIDDto(id));
     }
 
-    @PostMapping("/deactivate")
+    @PostMapping("/{id}/deactivate")
     @Operation(summary = "Deactivate health care professional")
     @ResponseStatus(HttpStatus.OK)
-    public void deactivateHealthCareProf(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        deactivateHealthCareProfUseCase.execute(inputDTO);
+    public void deactivateHealthCareProf(@PathVariable String id) throws DomainException {
+        deactivateHealthCareProfUseCase.execute(new HealthCareProfIDDto(id));
     }
 
-    @GetMapping("/get")
+    @GetMapping("/{id}")
     @Operation(summary = "Get health care professional by ID")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> getHealthCareProfByID(@Valid @RequestBody HealthCareProfIDDto inputDTO) throws DomainException {
-        return ResponseEntity.ok(getGetHealthCareProfByIdUseCase.execute(inputDTO));
+    public ResponseEntity<Object> getHealthCareProfByID(@PathVariable String id) throws DomainException {
+        return ResponseEntity.ok(getGetHealthCareProfByIdUseCase.execute(new HealthCareProfIDDto(id)));
     }
+
+    /**
+     * Minimal endpoint for internal service-to-service checks.
+     * Returns only the active status (no PII) — intentionally unauthenticated
+     * so peer microservices do not need a user JWT to validate HCP eligibility.
+     * The API Gateway is the external auth boundary.
+     */
+    @GetMapping("/{id}/active-status")
+    @Operation(summary = "Check if a health care professional exists and is active (internal use)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<ActiveStatusResponse> getActiveStatus(@PathVariable String id) throws DomainException {
+        HealthCareProfOutputDTO hcp = getGetHealthCareProfByIdUseCase.execute(new HealthCareProfIDDto(id));
+        return ResponseEntity.ok(new ActiveStatusResponse(Boolean.TRUE.equals(hcp.active())));
+    }
+
+    public record ActiveStatusResponse(boolean active) {}
 
     @PostMapping("/list")
     @Operation(summary = "List health care professionals by name")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> findHealthCareProfByName(
-        @RequestParam(required = false, defaultValue = "") String firstName,
-        @RequestParam(required = false, defaultValue = "") String lastName,
+        @RequestParam(name = "firstName", required = false, defaultValue = "") String firstName,
+        @RequestParam(name = "lastName", required = false, defaultValue = "") String lastName,
         @RequestParam(required = false, defaultValue = "1") int page,
         @RequestParam(required = false, defaultValue = "10") int pageSize
     ) throws DomainException {
+        pageSize = Math.min(pageSize, 100);
         HealthCareProfNamesInputDTO inputDTO = new HealthCareProfNamesInputDTO(firstName, lastName, page, pageSize);
         return ResponseEntity.ok(findHealthCareProfByNameUseCase.execute(inputDTO));
     }

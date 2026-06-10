@@ -9,17 +9,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.das.cleanddd.domain.shared.UseCase;
-import com.das.cleanddd.domain.shared.UseCaseOnlyOutput;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -43,7 +45,7 @@ public class VisitPlanController {
     private final UseCase<CreateVisitPlanInputDTO, VisitPlanOutputDTO> createVisitPlanUseCase;
     private final UseCase<UpdateVisitPlanInputDTO, VisitPlanOutputDTO> updateVisitPlanUseCase;
     private final UseCase<VisitPlanIDDto, VisitPlanOutputDTO> getVisitPlanByIdUseCase;
-    private final UseCaseOnlyOutput<List<VisitPlanOutputDTO>> listVisitPlansUseCase;
+    private final UseCase<ListVisitPlansInputDTO, List<VisitPlanOutputDTO>> listVisitPlansUseCase;
 
     public VisitPlanController(VisitPlanUseCaseFactory visitPlanUseCaseFactory) {
         this.createVisitPlanUseCase = visitPlanUseCaseFactory.getCreateVisitPlanUseCase();
@@ -68,19 +70,27 @@ public class VisitPlanController {
         return ResponseEntity.ok(updateVisitPlanUseCase.execute(inputDTO));
     }
 
-    @GetMapping("/get")
+    @GetMapping("/{id}")
     @Operation(summary = "Get visit plan by ID")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> getVisitPlanById(@Valid @RequestBody VisitPlanIDDto inputDTO) throws DomainException {
-        log.info("GET /api/v1/visitplan/get");
-        return ResponseEntity.ok(getVisitPlanByIdUseCase.execute(inputDTO));
+    public ResponseEntity<Object> getVisitPlanById(@PathVariable String id) throws DomainException {
+        log.info("GET /api/v1/visitplan/{}", sanitize(id));
+        return ResponseEntity.ok(getVisitPlanByIdUseCase.execute(new VisitPlanIDDto(id)));
     }
 
     @PostMapping("/list")
     @Operation(summary = "List visit plans")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> listVisitPlans() throws DomainException {
+    public ResponseEntity<Object> listVisitPlans(
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "10") int pageSize) throws DomainException {
         log.info("POST /api/v1/visitplan/list");
-        return ResponseEntity.ok(listVisitPlansUseCase.execute());
+        pageSize = Math.min(pageSize, 100);
+        return ResponseEntity.ok(listVisitPlansUseCase.execute(new ListVisitPlansInputDTO(page, pageSize)));
+    }
+
+    /** Strips log-injection characters from user-supplied values (OWASP A09). */
+    private static String sanitize(String value) {
+        return value == null ? "" : value.replaceAll("[\r\n\t]", "_");
     }
 }

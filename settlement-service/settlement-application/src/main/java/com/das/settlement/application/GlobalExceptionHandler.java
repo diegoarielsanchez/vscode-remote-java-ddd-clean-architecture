@@ -20,9 +20,13 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorMainResponse> handleResourceNotFoundException(ResourceNotFoundException ex) {
@@ -95,6 +99,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorMainResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         ErrorMainResponse errorResponse = new ErrorMainResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage());
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ResponseEntity<ErrorMainResponse> handleGenericException(Exception ex) {
+        log.error("Unhandled exception", ex);
+        ErrorMainResponse errorResponse = new ErrorMainResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred.");
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

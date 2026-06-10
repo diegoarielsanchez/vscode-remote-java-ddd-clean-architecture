@@ -39,7 +39,10 @@ public final class Invoice {
         if (issueDate == null) {
             throw new BusinessValidationException("Issue date is required.");
         }
-        if (dueDate != null && dueDate.value().isBefore(issueDate.value())) {
+        if (issueDate.isBefore(LocalDate.now().minusDays(60))) {
+            throw new BusinessValidationException("Issue date must be within the last 60 days.");
+        }
+        if (dueDate != null && dueDate.isBefore(issueDate)) {
             throw new BusinessValidationException("Due date cannot be before issue date.");
         }
         if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {

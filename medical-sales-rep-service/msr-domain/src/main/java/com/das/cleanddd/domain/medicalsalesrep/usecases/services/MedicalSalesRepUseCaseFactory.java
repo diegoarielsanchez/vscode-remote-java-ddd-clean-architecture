@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepFactory;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.CreateMedicalSalesRepInputDTO;
@@ -20,7 +19,6 @@ import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
 public class MedicalSalesRepUseCaseFactory {
 
     private final IMedicalSalesRepRepository medicalSalesRepRepository;
-    private final MedicalSalesRepFactory medicalSalesRepFactory = new MedicalSalesRepFactory();
     private final MedicalSalesRepMapper medicalSalesRepMapper = new MedicalSalesRepMapper();
     
     private final CreateMedicalSalesRepUseCase createMedicalSalesRepUseCase;

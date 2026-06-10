@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfFactory;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
@@ -21,7 +20,6 @@ import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
 public class HealthCareProfUseCaseFactory {
 
     private final IHealthCareProfRepository _repository;
-    private final HealthCareProfFactory _factory = new HealthCareProfFactory();
     private final HealthCareProfMapper _mapper = new HealthCareProfMapper();
     
     private final CreateHealthCareProfUseCase createHealthCareProfUseCase;

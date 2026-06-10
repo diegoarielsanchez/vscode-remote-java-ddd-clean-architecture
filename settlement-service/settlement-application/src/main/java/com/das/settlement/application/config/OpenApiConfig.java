@@ -6,13 +6,15 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
+@Profile("!prod")
 @Configuration
 @OpenAPIDefinition(
     info = @Info(
-        title = "Medical Sales Rep Service API",
+        title = "Settlement Service API",
         version = "v1",
-        description = "Microservice for managing Medical Sales Representatives"
+        description = "Microservice for managing Settlements and Invoices"
     ),
     security = @SecurityRequirement(name = "bearerAuth")
 )

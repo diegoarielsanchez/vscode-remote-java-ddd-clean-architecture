@@ -3,7 +3,7 @@ package com.das.hcp.application;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
-import com.das.infrapostgresql.service.healthcareprof.HealthCareProfJpaRepository;
+import com.das.infra.service.healthcareprof.HealthCareProfJpaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;
@@ -147,16 +147,14 @@ class HealthCareProfControllerTest {
     void activate_returns200_andProfBecomesActive() throws Exception {
         String id = createAndGetId("Carol", "White", "carol@example.com", List.of("CARD"));
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(true));
     }
@@ -165,22 +163,20 @@ class HealthCareProfControllerTest {
     void deactivate_returns200_andProfBecomesInactive() throws Exception {
         String id = createAndGetId("Dave", "Brown", "dave@example.com", List.of("CARD"));
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post(BASE_URL + "/deactivate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/deactivate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }
@@ -189,10 +185,8 @@ class HealthCareProfControllerTest {
     void get_returns200_withCorrectProfData() throws Exception {
         String id = createAndGetId("Eve", "Green", "eve@example.com", List.of("CARD", "DERM"));
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new HealthCareProfIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.name").value("Eve"))
@@ -203,12 +197,10 @@ class HealthCareProfControllerTest {
 
     @Test
     void get_returns400_whenProfNotFound() throws Exception {
-        var body = new HealthCareProfIDDto(java.util.UUID.randomUUID().toString());
+        String nonExistentId = java.util.UUID.randomUUID().toString();
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
+        mockMvc.perform(get(BASE_URL + "/" + nonExistentId)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isBadRequest());
     }
 

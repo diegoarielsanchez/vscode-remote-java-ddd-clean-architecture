@@ -2,6 +2,7 @@
     "java.configuration.updateBuildConfiguration": "interactive",
     "cSpell.words": [
         "amqp",
+        "assertj",
         "cleanddd",
         "dtos",
         "greetwithrecord",
@@ -10,11 +11,13 @@
         "Hmac",
         "inframongodb",
         "inframy",
+        "inframysql",
         "javafaker",
         "jjwt",
         "jsonwebtoken",
         "Jwts",
         "medicalsalesrep",
+        "Msrs",
         "msrtest",
         "springframework",
         "testuser"

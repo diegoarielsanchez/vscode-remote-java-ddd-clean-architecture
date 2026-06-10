@@ -9,7 +9,7 @@ import java.util.Objects;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
-public final class Settlement extends AggregateRoot {
+public final class Settlement extends AggregateRoot<Object> {
 
     public enum SettlementStatus {
         OPEN, CLOSED

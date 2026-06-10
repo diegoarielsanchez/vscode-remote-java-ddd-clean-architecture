@@ -28,13 +28,12 @@ class CreateHealthCareProfUseCaseTest {
     @Mock private IHealthCareProfRepository repository;
     @Mock private IHcpEventPublisher publisher;
 
-    private HealthCareProfFactory factory;
     private HealthCareProfMapper mapper;
     private CreateHealthCareProfUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        factory = new HealthCareProfFactory();
+        new HealthCareProfFactory();
         mapper  = new HealthCareProfMapper();
         useCase = new CreateHealthCareProfUseCase(repository, mapper, publisher);
     }

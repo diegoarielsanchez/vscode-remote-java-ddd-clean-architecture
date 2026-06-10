@@ -27,13 +27,12 @@ class CreateMedicalSalesRepUseCaseTest {
     @Mock private IMedicalSalesRepRepository repository;
     @Mock private IMsrEventPublisher publisher;
 
-    private MedicalSalesRepFactory factory;
     private MedicalSalesRepMapper mapper;
     private CreateMedicalSalesRepUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        factory = new MedicalSalesRepFactory();
+        new MedicalSalesRepFactory();
         mapper  = new MedicalSalesRepMapper();
         useCase = new CreateMedicalSalesRepUseCase(repository, mapper, publisher);
     }

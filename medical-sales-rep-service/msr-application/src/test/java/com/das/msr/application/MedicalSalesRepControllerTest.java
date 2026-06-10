@@ -3,7 +3,7 @@ package com.das.msr.application;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.CreateMedicalSalesRepInputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepIDDto;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.UpdateMedicalSalesRepInputDTO;
-import com.das.inframySQL.service.medicalsalesrep.MedicalSalesRepJpaRepository;
+import com.das.infra.service.medicalsalesrep.MedicalSalesRepJpaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;
@@ -169,17 +169,15 @@ class MedicalSalesRepControllerTest {
     void activate_returns200_andRepBecomesActive() throws Exception {
         String id = createAndGetId("Carol", "White", "carol@example.com");
 
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
 
         // Verify the active flag was flipped
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(true));
     }
@@ -191,24 +189,22 @@ class MedicalSalesRepControllerTest {
         String id = createAndGetId("Dave", "Brown", "dave@example.com");
 
         // Activate first (MSRs are created inactive)
-        mockMvc.perform(post(BASE_URL + "/activate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
 
         // Then deactivate
-        mockMvc.perform(post(BASE_URL + "/deactivate")
+        mockMvc.perform(post(BASE_URL + "/" + id + "/deactivate")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
 
         // Verify the active flag was cleared
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }
@@ -219,10 +215,8 @@ class MedicalSalesRepControllerTest {
     void get_returns200_withCorrectRepData() throws Exception {
         String id = createAndGetId("Eve", "Green", "eve@example.com");
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.name").value("Eve"))
@@ -232,12 +226,10 @@ class MedicalSalesRepControllerTest {
 
     @Test
     void get_returns400_whenRepNotFound() throws Exception {
-        var body = new MedicalSalesRepIDDto(java.util.UUID.randomUUID().toString());
+        String nonExistentId = java.util.UUID.randomUUID().toString();
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
+        mockMvc.perform(get(BASE_URL + "/" + nonExistentId)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isBadRequest());
     }
 

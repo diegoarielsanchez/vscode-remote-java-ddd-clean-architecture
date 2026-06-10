@@ -6,8 +6,7 @@ import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
-import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
-import com.das.infraSQLServer.service.visit.VisitPlanJpaRepository;
+import com.das.infra.service.visit.VisitPlanJpaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;
@@ -184,10 +183,8 @@ class VisitPlanControllerIntegrationTest {
     void getVisitPlanById_returns200_withBody() throws Exception {
         String id = createAndGetId();
 
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new VisitPlanIDDto(id))))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.healthCareProfId").value(HCP_ID));
@@ -195,10 +192,8 @@ class VisitPlanControllerIntegrationTest {
 
     @Test
     void getVisitPlanById_returns400_whenNotFound() throws Exception {
-        mockMvc.perform(get(BASE_URL + "/get")
-                        .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new VisitPlanIDDto("nonexistent-id"))))
+        mockMvc.perform(get(BASE_URL + "/nonexistent-id")
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isBadRequest());
     }
 

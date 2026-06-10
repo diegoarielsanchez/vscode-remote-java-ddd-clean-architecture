@@ -20,15 +20,14 @@ import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
-import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
-import com.das.infraSQLServer.service.visit.HcpEventMessage;
-import com.das.infraSQLServer.service.visit.HcpSnapshotUpdater;
-import com.das.infraSQLServer.service.visit.MsrEventMessage;
-import com.das.infraSQLServer.service.visit.MsrSnapshotUpdater;
-import com.das.infraSQLServer.service.visit.VisitPlanJpaRepository;
+import com.das.infra.service.visit.HcpEventMessage;
+import com.das.infra.service.visit.HcpSnapshotUpdater;
+import com.das.infra.service.visit.MsrEventMessage;
+import com.das.infra.service.visit.MsrSnapshotUpdater;
+import com.das.infra.service.visit.VisitPlanJpaRepository;
 
 /**
  * Verifies that upstream deactivation events deactivate future VisitPlans.
