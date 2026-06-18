@@ -37,6 +37,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- In-memory database for @DataJpaTest slices -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Apache HttpClient 5: allows RestTemplate.exchange() to send a body
              on GET requests (Java HttpURLConnection silently drops GET bodies) -->
         <dependency>
