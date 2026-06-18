@@ -24,6 +24,8 @@
         <msr-domain.version>1.0.0-SNAPSHOT</msr-domain.version>
         <hcp-domain.version>1.0.0-SNAPSHOT</hcp-domain.version>
         <spring-cloud.version>2024.0.1</spring-cloud.version>
+        <spotbugs.version>4.9.3</spotbugs.version>
+        <findsecbugs.version>1.13.0</findsecbugs.version>
     </properties>
 
     <parent>
@@ -72,6 +74,25 @@
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.github.spotbugs</groupId>
+                    <artifactId>spotbugs-maven-plugin</artifactId>
+                    <version>${spotbugs.version}</version>
+                    <configuration>
+                        <plugins>
+                            <plugin>
+                                <groupId>com.h3xstream.findsecbugs</groupId>
+                                <artifactId>findsecbugs-plugin</artifactId>
+                                <version>${findsecbugs.version}</version>
+                            </plugin>
+                        </plugins>
+                        <failOnError>true</failOnError>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

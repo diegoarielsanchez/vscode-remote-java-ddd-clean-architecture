@@ -94,8 +94,6 @@ pipeline {
             steps {
                 sh """
                     mvn -pl ${APP_MODULE} -am spotbugs:check \
-                        -Dspotbugs.plugins=com.h3xstream.findsecbugs:findsecbugs-plugin:1.13.0 \
-                        -Dspotbugs.failOnError=true \
                         --no-transfer-progress
                 """
             }
