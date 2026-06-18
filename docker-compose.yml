@@ -126,6 +126,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Identity Service ──────────────────────────────────────────────────────
+  identity-service:
+    build:
+      context: .
+      dockerfile: identity-service/identity-application/Dockerfile
+    networks: [backend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ── Settlement Service ─────────────────────────────────────────────────────
   settlement-service:
     build:

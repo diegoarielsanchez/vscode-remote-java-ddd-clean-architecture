@@ -10,12 +10,29 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Configuration](#configuration)
 - [Option A — Run Locally (Development)](#option-a--run-locally-development)
 - [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
+  - [1. Fill in secrets](#1-fill-in-secrets)
+  - [2. Create the external Docker network](#2-create-the-external-docker-network)
+  - [3. Build and start](#3-build-and-start)
+  - [4. Check status](#4-check-status)
+  - [5. Verify all services registered with Eureka](#5-verify-all-services-registered-with-eureka)
+  - [6. Obtain a JWT token](#6-obtain-a-jwt-token)
+  - [7. Dev override — MinIO file storage (optional)](#7-dev-override--minio-file-storage-optional)
+  - [8. Stop](#8-stop)
+  - [9. Rebuild a single service](#9-rebuild-a-single-service)
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
 - [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
+- [CI with Jenkins](#ci-with-jenkins)
+  - [1. Install required plugins](#1-install-required-plugins)
+  - [2. Configure tools](#2-configure-tools)
+  - [3. Create a Pipeline job for each service](#3-create-a-pipeline-job-for-each-service)
+  - [4. Pipeline stages](#4-pipeline-stages)
+  - [5. OWASP controls summary](#5-owasp-controls-summary)
+  - [6. Push to a container registry (optional)](#6-push-to-a-container-registry-optional)
+  - [7. Docker image scan with Trivy (optional)](#7-docker-image-scan-with-trivy-optional)
 - [Running Tests](#running-tests)
 - [Troubleshooting](#troubleshooting)
 
@@ -527,11 +544,23 @@ cp .env.example .env
 # Edit .env — replace every "change-me" value with a real secret
 ```
 
-### 2. Build and start
+### 2. Create the external Docker network
+
+Several services (`msr`, `hcp`, `visit`) join a pre-existing network called `ddd-clean-net` to reach a RabbitMQ container that lives outside of Compose. Create it once on the Docker host:
+
+```bash
+docker network create ddd-clean-net
+```
+
+> If this network already exists (e.g. created by another Compose project) the command returns an error you can safely ignore.
+
+### 3. Build and start
 
 ```bash
 docker compose up -d --build
 ```
+
+The `--build` flag compiles every service JAR inside Docker (multi-stage build) — required on first run and after any code change.
 
 This starts:
 
@@ -546,18 +575,73 @@ This starts:
 | `settlement-service` | none | `prod` |
 
 > In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
+>
+> Services with `depends_on: service_healthy` wait for Eureka to pass its healthcheck before starting, so the stack comes up in the correct order automatically.
 
-### 3. Check status
+### 4. Check status
 
 ```bash
+# Show running containers and their state
 docker compose ps
+
+# Follow logs for all services
+docker compose logs -f
+
+# Follow logs for a single service
 docker compose logs -f api-gateway
+docker compose logs -f identity-service
 ```
 
-### 4. Stop
+### 5. Verify all services registered with Eureka
+
+Eureka is on the internal network and has no published port. Query it through the gateway:
 
 ```bash
+curl -s -u ${EUREKA_USER}:${EUREKA_PASSWORD} \
+  http://localhost:8080/eureka/apps | grep '<app>'
+```
+
+Or exec into any container:
+
+```bash
+docker compose exec api-gateway \
+  curl -s http://eureka-server:8761/actuator/health
+```
+
+### 6. Obtain a JWT token
+
+```bash
+curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"Apatehia65$"}'
+```
+
+### 7. Dev override — MinIO file storage (optional)
+
+To activate MinIO instead of local-disk storage for the Settlement Service, merge the dev override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### 8. Stop
+
+```bash
+# Stop and remove containers (keeps volumes)
 docker compose down
+
+# Stop, remove containers AND volumes (destructive — deletes invoice-files volume)
+docker compose down -v
+```
+
+### 9. Rebuild a single service
+
+After changing code in one service only:
+
+```bash
+docker compose up -d --build <service-name>
+# e.g.
+docker compose up -d --build settlement-service
 ```
 
 ---
@@ -833,6 +917,119 @@ RABBITMQ_PASSWORD=<password>
 ```
 
 The MSR, HCP, and Visit services read these variables. The Settlement Service does not use RabbitMQ.
+
+---
+
+## CI with Jenkins
+
+Each of the four microservices has a `Jenkinsfile` at its service root that defines a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls.
+
+| Service | Jenkinsfile path |
+|---|---|
+| Medical Sales Rep | `medical-sales-rep-service/Jenkinsfile` |
+| Healthcare Prof | `healthcare-prof-service/Jenkinsfile` |
+| Visit | `visit-service/Jenkinsfile` |
+| Settlement | `settlement-service/Jenkinsfile` |
+
+### 1. Install required plugins
+
+In Jenkins: **Manage Jenkins → Plugins → Available plugins**
+
+| Plugin | Purpose |
+|---|---|
+| **Pipeline** | Declarative pipeline support (usually pre-installed) |
+| **Git** | SCM checkout |
+| **JUnit** | Publish per-layer test results |
+| **Warnings Next Generation** | `recordIssues` — publishes SpotBugs SAST reports |
+| **OWASP Dependency-Check** | `dependencyCheckPublisher` — publishes CVE scan reports |
+| **Docker Pipeline** | Docker build/push steps |
+
+### 2. Configure tools
+
+In Jenkins: **Manage Jenkins → Tools**
+
+Add entries with these exact names (they match the `tools {}` block in each Jenkinsfile):
+
+| Tool type | Name | Version |
+|---|---|---|
+| JDK | `JDK-21` | Java 21 |
+| Maven | `Maven-3.9` | 3.9.x |
+
+> If Java 21 and Maven 3.9 are already on the agent's `PATH`, you can remove the `tools {}` block from a Jenkinsfile and they will be used automatically.
+
+### 3. Create a Pipeline job for each service
+
+Repeat these steps for each service:
+
+1. **New Item** → enter the service name → select **Pipeline** → **OK**
+2. Under the **Pipeline** section:
+   - Definition: **Pipeline script from SCM**
+   - SCM: **Git**
+   - Repository URL: `https://github.com/diegoarielsanchez/vscode-remote-java-ddd-clean-architecture`
+   - Branch: `*/main` (or your target branch)
+   - Script Path: see table above
+3. **Save** → **Build Now**
+
+### 4. Pipeline stages
+
+```
+Checkout → Domain Tests → Infra Tests → Application Tests
+         → SAST (SpotBugs) → OWASP Dependency-Check → Package
+         → Build Docker Image → [Docker Image Scan*] → [Push*]
+```
+
+Each stage maps to a specific DDD layer and OWASP control:
+
+| Stage | DDD layer | OWASP Top 10 control |
+|---|---|---|
+| **Domain Tests** | `*-domain` | A04 — entity invariants, use-case business rules, SHA-256 integrity (Settlement) |
+| **Infra Tests** | `*-infra` | — JPA adapters + file storage adapters tested in isolation with H2 |
+| **Application Tests** | `*-application` | A01 Broken Access Control, A07 Auth Failures — security filters, JWT, Bean Validation |
+| **SAST — SpotBugs** | all layers | A03 Injection, path traversal, insecure deserialization (Find Security Bugs plugin) |
+| **OWASP Dependency-Check** | all layers | A06 Vulnerable & Outdated Components — fails build on CVSS ≥ 7 |
+| **Build Docker Image** | — | Multi-stage build, minimal JRE runtime image |
+| **Docker Image Scan (Trivy)** | — | A06 — OS-level CVEs in the final image *(commented out, optional)* |
+
+**Stage details:**
+
+- **Domain Tests** — pure JUnit 5 + Mockito, zero Spring context. Business rule regressions are caught before any infrastructure or HTTP test runs.
+- **Infra Tests** — validates JPA mappings and repository queries against H2 in-memory; no live database required in CI.
+- **Application Tests** — Spring Boot test slice (`@WebMvcTest` / `@SpringBootTest`): verifies security filter chain, JWT token validation, rate limiting, and input validation.
+- **SAST — SpotBugs + Find Security Bugs** (`findsecbugs-plugin:1.13.0`) — static analysis at compile time. Detects SQL injection, command injection, XSS, path traversal, and insecure cryptography patterns. Build fails on any finding (`-Dspotbugs.failOnError=true`).
+- **OWASP Dependency-Check** — queries the NVD CVE database against every declared Maven dependency. Build fails if any dependency has a CVSS score ≥ 7 (`-DfailBuildOnCVSS=7`). HTML + XML reports are archived and published via the Jenkins plugin.
+- **Package** — assembles the final JAR (`-DskipTests`) only after all security gates pass.
+- **Build Docker Image** — uses `context: .` (repo root) so the multi-stage Dockerfile can resolve cross-module dependencies.
+
+### 5. OWASP controls summary
+
+| OWASP Top 10 | Pipeline enforcement |
+|---|---|
+| A01 Broken Access Control | Spring Security integration tests in Application Tests stage |
+| A03 Injection | SpotBugs + Find Security Bugs SAST (fails build) |
+| A04 Insecure Design | Domain Tests validate business invariants and SHA-256 integrity |
+| A05 Security Misconfiguration | Prod profile disables Swagger, enforces `server.address=0.0.0.0` only in Docker |
+| A06 Vulnerable Components | OWASP Dependency-Check (fails on CVSS ≥ 7) + optional Trivy image scan |
+| A07 Identification & Auth Failures | JWT filter + BCrypt wiring covered by Application Tests |
+| A09 Security Logging Failures | Log configuration assertions in application integration tests |
+
+### 6. Push to a container registry (optional)
+
+Each Jenkinsfile contains a commented-out `Push Docker Image` stage. To activate it:
+
+1. Add a Jenkins credential (**Manage Jenkins → Credentials**) of type **Username with password**, ID: `docker-registry-credentials`.
+2. Uncomment the `Push Docker Image` stage in the Jenkinsfile.
+3. Replace `<your-registry>` with your registry URL (e.g. `docker.io/myorg`, `123456789.dkr.ecr.us-east-1.amazonaws.com`, `ghcr.io/myorg`).
+
+### 7. Docker image scan with Trivy (optional)
+
+Each Jenkinsfile also contains a commented-out `Docker Image Scan — Trivy` stage. To activate it:
+
+1. Install Trivy on the Jenkins agent:
+   ```bash
+   curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+   ```
+2. Uncomment the `Docker Image Scan — Trivy` stage in the Jenkinsfile.
+3. The stage fails the build on any `HIGH` or `CRITICAL` OS/library CVE in the final image.
 
 ---
 

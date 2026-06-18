@@ -1,0 +1,189 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Healthcare Professional Service — CI Pipeline
+//
+// DDD layer test strategy:
+//   • Domain layer  (hcp-domain)        — pure unit tests, no Spring context,
+//                                         entities + use-case business rules.
+//   • Infra layer   (hcp-infra)         — repository adapter tests (H2 in-memory).
+//   • Application   (hcp-application)   — controller / security integration tests.
+//
+// OWASP Top 10 controls embedded in pipeline:
+//   A01 Broken Access Control    → Spring Security config verified in controller tests.
+//   A03 Injection                → SpotBugs + Find Security Bugs SAST scan.
+//   A05 Security Misconfiguration→ Fail build on CRITICAL/HIGH Dependency-Check CVEs.
+//   A06 Vulnerable Components    → OWASP Dependency-Check on every build.
+//   A07 Auth Failures            → JWT / BCrypt wiring validated in integration tests.
+//   A09 Logging Failures         → Verified by application-layer test assertions.
+// ─────────────────────────────────────────────────────────────────────────────
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.9'
+        jdk   'JDK-21'
+    }
+
+    environment {
+        // ── Module paths ──────────────────────────────────────────────────────
+        DOMAIN_MODULE = 'healthcare-prof-service/hcp-domain'
+        INFRA_MODULE  = 'healthcare-prof-service/hcp-infra'
+        APP_MODULE    = 'healthcare-prof-service/hcp-application'
+        // ── Docker ────────────────────────────────────────────────────────────
+        IMAGE_NAME    = 'healthcare-prof-service'
+        IMAGE_TAG     = "${env.BUILD_NUMBER}"
+        // ── OWASP Dependency-Check: fail on CVSS ≥ 7 (HIGH/CRITICAL) ─────────
+        OWASP_FAIL_CVSS = '7'
+    }
+
+    stages {
+
+        // ── Stage 1: Checkout ─────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ── Stage 2: Domain layer tests (pure unit, no Spring context) ────────
+        // Validates DDD business rules: entity invariants, use-case logic,
+        // domain exceptions — completely isolated from infrastructure.
+        stage('Domain Tests') {
+            steps {
+                sh "mvn -pl ${DOMAIN_MODULE} -am test --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit 'healthcare-prof-service/hcp-domain/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 3: Infrastructure layer tests ───────────────────────────────
+        // Validates repository adapters against H2 in-memory database.
+        // Ensures JPA mappings and query correctness without a live DB.
+        stage('Infra Tests') {
+            steps {
+                sh "mvn -pl ${INFRA_MODULE} -am test --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit 'healthcare-prof-service/hcp-infra/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 4: Application layer tests ─────────────────────────────────
+        // Spring Boot integration tests: controllers, security filters,
+        // JWT validation, rate limiting, input validation (Bean Validation).
+        // OWASP A01, A03, A07 coverage lives here.
+        stage('Application Tests') {
+            steps {
+                sh "mvn -pl ${APP_MODULE} -am test --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit 'healthcare-prof-service/hcp-application/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 5: SAST — SpotBugs + Find Security Bugs (OWASP A03/A04) ────
+        // Find Security Bugs plugin detects injection flaws, path traversal,
+        // insecure deserialization, XSS patterns, and more at compile time.
+        stage('SAST — SpotBugs') {
+            steps {
+                sh """
+                    mvn -pl ${APP_MODULE} -am spotbugs:check \
+                        -Dspotbugs.plugins=com.h3xstream.findsecbugs:findsecbugs-plugin:1.13.0 \
+                        -Dspotbugs.failOnError=true \
+                        --no-transfer-progress
+                """
+            }
+            post {
+                always {
+                    recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                }
+            }
+        }
+
+        // ── Stage 6: OWASP Dependency-Check (A06 Vulnerable Components) ──────
+        // Scans all declared dependencies against the NVD CVE database.
+        // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
+        stage('OWASP Dependency-Check') {
+            steps {
+                sh """
+                    mvn -pl ${APP_MODULE} -am \
+                        org.owasp:dependency-check-maven:check \
+                        -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \
+                        -Dformats=HTML,XML \
+                        --no-transfer-progress
+                """
+            }
+            post {
+                always {
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
+            }
+        }
+
+        // ── Stage 7: Package ──────────────────────────────────────────────────
+        stage('Package') {
+            steps {
+                sh "mvn -pl ${APP_MODULE} -am package -DskipTests --no-transfer-progress"
+            }
+        }
+
+        // ── Stage 8: Build Docker Image ───────────────────────────────────────
+        stage('Build Docker Image') {
+            steps {
+                sh """
+                    docker build \
+                        -f ${APP_MODULE}/Dockerfile \
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                        -t ${IMAGE_NAME}:latest \
+                        .
+                """
+            }
+        }
+
+        // ── Stage 9: Docker Image Scan (optional — requires Trivy on agent) ───
+        // stage('Docker Image Scan — Trivy') {
+        //     steps {
+        //         sh """
+        //             trivy image --exit-code 1 \
+        //                 --severity HIGH,CRITICAL \
+        //                 --no-progress \
+        //                 ${IMAGE_NAME}:${IMAGE_TAG}
+        //         """
+        //     }
+        // }
+
+        // ── Stage 10: Push Docker Image (optional) ────────────────────────────
+        // stage('Push Docker Image') {
+        //     steps {
+        //         withCredentials([usernamePassword(
+        //             credentialsId: 'docker-registry-credentials',
+        //             usernameVariable: 'REGISTRY_USER',
+        //             passwordVariable: 'REGISTRY_PASS'
+        //         )]) {
+        //             sh "docker login -u $REGISTRY_USER -p $REGISTRY_PASS <your-registry>"
+        //             sh "docker push <your-registry>/${IMAGE_NAME}:${IMAGE_TAG}"
+        //             sh "docker push <your-registry>/${IMAGE_NAME}:latest"
+        //         }
+        //     }
+        // }
+
+    }
+
+    post {
+        success {
+            echo "Pipeline for ${IMAGE_NAME} passed all gates — build #${IMAGE_TAG}."
+        }
+        failure {
+            echo "Pipeline for ${IMAGE_NAME} FAILED — review SAST / CVE reports above."
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
