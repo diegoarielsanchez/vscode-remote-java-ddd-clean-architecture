@@ -127,6 +127,9 @@ pipeline {
                     // Free key: https://nvd.nist.gov/developers/request-an-api-key
                     // credentialAvailable is set to true only after withCredentials opens successfully,
                     // so the catch block can distinguish "credential missing" from "Maven failed".
+                    // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe.
+                    //              with a key the limit is 50 req/30 s → 500 ms is fine.
+                    // retryCount:  retry up to 10 times before failing on persistent 429s.
                     def credentialAvailable = false
                     try {
                         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
@@ -136,6 +139,8 @@ pipeline {
                                     org.owasp:dependency-check-maven:check \\
                                     -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
                                     -DnvdApiKey="\${NVD_API_KEY}" \\
+                                    -DnvdApiDelay=500 \\
+                                    -DretryCount=10 \\
                                     -Dformats=HTML,XML \\
                                     --no-transfer-progress
                             """
@@ -147,6 +152,8 @@ pipeline {
                                 mvn -pl ${APP_MODULE} -am \\
                                     org.owasp:dependency-check-maven:check \\
                                     -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                    -DnvdApiDelay=6000 \\
+                                    -DretryCount=10 \\
                                     -Dformats=HTML,XML \\
                                     --no-transfer-progress
                             """
