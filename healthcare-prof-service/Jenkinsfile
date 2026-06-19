@@ -195,10 +195,10 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline for ${IMAGE_NAME} passed all gates — build #${IMAGE_TAG}."
+            echo "Pipeline for ${env.IMAGE_NAME} passed all gates — build #${env.IMAGE_TAG}."
         }
         failure {
-            echo "Pipeline for ${IMAGE_NAME} FAILED — review SAST / CVE reports above."
+            echo "Pipeline for ${env.IMAGE_NAME} FAILED — review SAST / CVE reports above."
         }
         always {
             script {
