@@ -108,7 +108,7 @@ pipeline {
         stage('SAST — SpotBugs') {
             steps {
                 sh """
-                    mvn -pl ${APP_MODULE} -am com.github.spotbugs:spotbugs-maven-plugin:check \
+                    mvn -pl ${APP_MODULE} -am verify -DskipTests \\
                         --no-transfer-progress
                 """
             }
