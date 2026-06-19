@@ -1,7 +1,6 @@
 package com.das.hcp.application.config;
 
 import com.das.hcp.application.security.JwtAuthenticationFilter;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,8 +28,6 @@ public class SecurityConfig {
     private boolean swaggerEnabled;
 
     @Bean
-    @SuppressFBWarnings(value = "SPRING_CSRF_PROTECTION_DISABLED",
-            justification = "Stateless JWT API — CSRF protection is not applicable.")
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http

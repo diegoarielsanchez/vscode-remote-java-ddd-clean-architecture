@@ -99,6 +99,7 @@
                 <artifactId>spotbugs-maven-plugin</artifactId>
                 <configuration>
                     <skip>false</skip>
+                    <excludeFilterFile>src/main/spotbugs/exclude.xml</excludeFilterFile>
                 </configuration>
             </plugin>
             <plugin>
