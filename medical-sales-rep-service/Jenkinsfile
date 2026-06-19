@@ -44,6 +44,16 @@ pipeline {
             }
         }
 
+        // ── Stage 1b: Install shared libraries ────────────────────────────────
+        // domain-commons lives at the root reactor and is not part of this
+        // service's sub-reactor. Install it explicitly so all downstream stages
+        // can resolve it regardless of the Jenkins working directory.
+        stage('Prepare: Shared Libraries') {
+            steps {
+                sh 'mvn -pl domain-commons install -DskipTests --no-transfer-progress'
+            }
+        }
+
         // ── Stage 2: Domain layer tests (pure unit, no Spring context) ────────
         // Validates DDD business rules: entity invariants, use-case logic,
         // domain exceptions — completely isolated from infrastructure.
