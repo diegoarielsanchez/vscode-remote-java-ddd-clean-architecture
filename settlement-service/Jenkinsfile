@@ -119,7 +119,9 @@ pipeline {
             }
             post {
                 always {
-                    recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                    dir('.') {
+                        recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                    }
                 }
             }
         }
@@ -140,7 +142,9 @@ pipeline {
             }
             post {
                 always {
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    dir('.') {
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
                 }
             }
         }

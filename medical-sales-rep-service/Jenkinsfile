@@ -114,8 +114,10 @@ pipeline {
             }
             post {
                 always {
-                    // Requires SpotBugs Jenkins plugin
-                    recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                    dir('.') {
+                        // Requires SpotBugs Jenkins plugin
+                        recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                    }
                 }
             }
         }
@@ -136,8 +138,10 @@ pipeline {
             }
             post {
                 always {
-                    // Requires OWASP Dependency-Check Jenkins plugin
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    dir('.') {
+                        // Requires OWASP Dependency-Check Jenkins plugin
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
                 }
             }
         }
