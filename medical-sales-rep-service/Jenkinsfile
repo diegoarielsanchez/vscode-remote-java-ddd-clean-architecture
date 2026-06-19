@@ -122,18 +122,39 @@ pipeline {
         // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
         stage('OWASP Dependency-Check') {
             steps {
-                // NVD API key speeds up CVE database updates but is optional.
-                // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
-                // Free key: https://nvd.nist.gov/developers/request-an-api-key
-                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY', optional: true)]) {
-                    sh """
-                        mvn -pl ${APP_MODULE} -am \
-                            org.owasp:dependency-check-maven:check \
-                            -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \
-                            \${NVD_API_KEY:+-DnvdApiKey=\${NVD_API_KEY}} \
-                            -Dformats=HTML,XML \
-                            --no-transfer-progress
-                    """
+                script {
+                    // NVD API key is optional — speeds up NVD updates but is not required.
+                    // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
+                    // Free key: https://nvd.nist.gov/developers/request-an-api-key
+                    // credentialAvailable is set to true only after withCredentials opens successfully,
+                    // so the catch block can distinguish "credential missing" from "Maven failed".
+                    def credentialAvailable = false
+                    try {
+                        withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                            credentialAvailable = true
+                            sh """
+                                mvn -pl ${APP_MODULE} -am \\
+                                    org.owasp:dependency-check-maven:check \\
+                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                    -DnvdApiKey="\${NVD_API_KEY}" \\
+                                    -Dformats=HTML,XML \\
+                                    --no-transfer-progress
+                            """
+                        }
+                    } catch (hudson.AbortException e) {
+                        if (!credentialAvailable) {
+                            echo "NVD API key credential 'nvd-api-key' not configured — running without API key (rate-limited)."
+                            sh """
+                                mvn -pl ${APP_MODULE} -am \\
+                                    org.owasp:dependency-check-maven:check \\
+                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                    -Dformats=HTML,XML \\
+                                    --no-transfer-progress
+                            """
+                        } else {
+                            throw e
+                        }
+                    }
                 }
             }
             post {
