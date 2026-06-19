@@ -37,11 +37,6 @@ pipeline {
         IMAGE_TAG     = "${env.BUILD_NUMBER}"
         // ── OWASP Dependency-Check: fail on CVSS ≥ 7 (HIGH/CRITICAL) ─────────
         OWASP_FAIL_CVSS = '7'
-        // ── NVD API key (Jenkins Secret Text credential) ──────────────────────
-        // Register a Secret Text credential named 'nvd-api-key' in Jenkins.
-        // Free key: https://nvd.nist.gov/developers/request-an-api-key
-        // Without it the NVD update is heavily rate-limited (15+ retries).
-        NVD_API_KEY     = credentials('nvd-api-key')
     }
 
     stages {
@@ -131,14 +126,19 @@ pipeline {
         // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
         stage('OWASP Dependency-Check') {
             steps {
-                sh """
-                    mvn -pl ${APP_MODULE} -am \
-                        org.owasp:dependency-check-maven:check \
-                        -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \
-                        -DnvdApiKey=${NVD_API_KEY} \
-                        -Dformats=HTML,XML \
-                        --no-transfer-progress
-                """
+                // NVD API key speeds up CVE database updates but is optional.
+                // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
+                // Free key: https://nvd.nist.gov/developers/request-an-api-key
+                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY', optional: true)]) {
+                    sh """
+                        mvn -pl ${APP_MODULE} -am \
+                            org.owasp:dependency-check-maven:check \
+                            -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \
+                            \${NVD_API_KEY:+-DnvdApiKey=\${NVD_API_KEY}} \
+                            -Dformats=HTML,XML \
+                            --no-transfer-progress
+                    """
+                }
             }
             post {
                 always {
