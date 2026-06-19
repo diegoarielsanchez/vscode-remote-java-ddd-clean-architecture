@@ -208,7 +208,16 @@ pipeline {
             echo "Pipeline for ${IMAGE_NAME} FAILED — review SAST / CVE reports above."
         }
         always {
-            cleanWs()
+            script {
+                // cleanWs() requires a FilePath (workspace) context.
+                // In some Jenkins agent configurations the workspace may be
+                // unavailable by the time the pipeline-level post block runs.
+                try {
+                    cleanWs()
+                } catch (Exception e) {
+                    echo "Workspace cleanup skipped — no workspace context available: ${e.message}"
+                }
+            }
         }
     }
 }
