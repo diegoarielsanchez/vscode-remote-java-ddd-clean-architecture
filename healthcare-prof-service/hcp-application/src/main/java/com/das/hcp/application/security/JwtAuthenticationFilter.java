@@ -12,11 +12,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.lang.NonNull;
@@ -63,7 +65,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             Jwts.parser()
                 .verifyWith(new javax.crypto.spec.SecretKeySpec(
-                    jwtSecret.getBytes(), 0, jwtSecret.getBytes().length, "HmacSHA256"))
+                    jwtSecret.getBytes(StandardCharsets.UTF_8), 0, jwtSecret.getBytes(StandardCharsets.UTF_8).length, "HmacSHA256"))
                 .build()
                 .parseSignedClaims(token);
             return true;
@@ -94,7 +96,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private Claims extractClaimsFromToken(String token) {
         return Jwts.parser()
             .verifyWith(new javax.crypto.spec.SecretKeySpec(
-                jwtSecret.getBytes(), 0, jwtSecret.getBytes().length, "HmacSHA256"))
+                jwtSecret.getBytes(StandardCharsets.UTF_8), 0, jwtSecret.getBytes(StandardCharsets.UTF_8).length, "HmacSHA256"))
             .build()
             .parseSignedClaims(token)
             .getPayload();

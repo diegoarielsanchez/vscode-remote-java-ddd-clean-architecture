@@ -15,6 +15,13 @@
     <description>Visit — Spring Boot application (REST API for Visit and VisitPlan)</description>
 
     <dependencies>
+        <!-- SpotBugs annotations: @SuppressFBWarnings (optional — not needed at runtime) -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs.annotations.version}</version>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>com.das.visit</groupId>
             <artifactId>visit-domain</artifactId>
@@ -87,6 +94,13 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <configuration>
+                    <skip>false</skip>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
