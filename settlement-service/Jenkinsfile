@@ -78,7 +78,7 @@ pipeline {
         // LocalDiskInvoiceFileStorage adapter with a temp directory.
         stage('Infra Tests') {
             steps {
-                sh "mvn -pl ${INFRA_MODULE} -am test --no-transfer-progress"
+                sh "mvn -pl ${INFRA_MODULE} -am install --no-transfer-progress"
             }
             post {
                 always {
