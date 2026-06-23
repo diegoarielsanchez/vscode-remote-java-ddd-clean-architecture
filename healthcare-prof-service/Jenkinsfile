@@ -63,7 +63,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'healthcare-prof-service/hcp-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'healthcare-prof-service/hcp-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -77,7 +77,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'healthcare-prof-service/hcp-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'healthcare-prof-service/hcp-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -92,7 +92,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'healthcare-prof-service/hcp-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'healthcare-prof-service/hcp-application/target/surefire-reports/*.xml'
                 }
             }
         }

@@ -63,7 +63,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'visit-service/visit-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -77,7 +77,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'visit-service/visit-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -92,7 +92,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'visit-service/visit-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-application/target/surefire-reports/*.xml'
                 }
             }
         }

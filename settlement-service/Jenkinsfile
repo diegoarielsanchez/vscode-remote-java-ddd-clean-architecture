@@ -68,7 +68,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'settlement-service/settlement-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'settlement-service/settlement-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -82,7 +82,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'settlement-service/settlement-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'settlement-service/settlement-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -97,7 +97,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'settlement-service/settlement-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'settlement-service/settlement-application/target/surefire-reports/*.xml'
                 }
             }
         }

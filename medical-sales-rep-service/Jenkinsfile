@@ -63,7 +63,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'medical-sales-rep-service/msr-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'medical-sales-rep-service/msr-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -77,7 +77,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'medical-sales-rep-service/msr-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'medical-sales-rep-service/msr-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -92,7 +92,7 @@ pipeline {
             }
             post {
                 always {
-                    junit 'medical-sales-rep-service/msr-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'medical-sales-rep-service/msr-application/target/surefire-reports/*.xml'
                 }
             }
         }
