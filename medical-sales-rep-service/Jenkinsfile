@@ -186,8 +186,9 @@ pipeline {
         // ── Stage 8: Build Docker Image ───────────────────────────────────────
         // The Dockerfile uses a multi-stage build (builder + jre-jammy runtime),
         // so no JAR needs to be pre-built on the host.
-        stage('Build Docker Image') {
-            steps {
+        stage('Build Docker Image') {            when {
+                expression { sh(script: 'which docker > /dev/null 2>&1', returnStatus: true) == 0 }
+            }            steps {
                 sh """
                     docker build \
                         -f ${APP_MODULE}/Dockerfile \
