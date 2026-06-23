@@ -64,7 +64,7 @@ pipeline {
         // Completely isolated from infrastructure — no DB, no file system.
         stage('Domain Tests') {
             steps {
-                sh "mvn -pl ${DOMAIN_MODULE} -am test --no-transfer-progress"
+                sh "mvn -pl ${DOMAIN_MODULE} -am install --no-transfer-progress"
             }
             post {
                 always {
