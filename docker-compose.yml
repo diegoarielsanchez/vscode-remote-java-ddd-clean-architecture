@@ -34,6 +34,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 8
+      start_period: 60s
     restart: unless-stopped
     # No ports: — Eureka is only reachable inside the backend network
 
@@ -58,6 +59,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 8
+      start_period: 60s
     restart: unless-stopped
 
   # ── Medical Sales Rep Service ──────────────────────────────────────────────
