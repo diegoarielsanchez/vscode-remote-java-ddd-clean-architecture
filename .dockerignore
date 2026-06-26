@@ -1,0 +1,19 @@
+# Exclude compiled output — prevents stale .class files from reaching the Docker
+# build context and causing incremental-compilation mismatches (Maven would skip
+# recompiling sources whose .class timestamps appear newer than the .java files).
+**/target/
+
+# Exclude runtime log files
+**/logs/*.log
+logs/
+
+# Exclude local IDE / tooling files
+.git/
+.idea/
+*.iml
+.vscode/
+.devcontainer/
+
+# Exclude node_modules from UI modules (not needed for Java service builds)
+**/node_modules/
+application-ui/node_modules/

@@ -231,18 +231,18 @@ docker run -u 0 \
 
 # Wait for SQL Server to be ready (can take 30-60 s; loop retries every 5 s)
 # (-No suppresses the TLS certificate warning on the 2022 image)
-until docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+until docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No -Q "SELECT 1" &>/dev/null; do
   echo "Waiting for SQL Server to be ready..."; sleep 5
 done
 
 # Create the database
-docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No \
   -Q "CREATE DATABASE visitdb"
 
 # To restart later
-docker start sqlserver_ddd_clean
+docker start sqlserver-ddd-clean
 ```
 
 **MySQL** (Settlement Service only):
