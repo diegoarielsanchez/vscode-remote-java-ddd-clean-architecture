@@ -1,8 +1,10 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.configuration.updateBuildConfiguration": "disabled",
     "cSpell.words": [
         "amqp",
         "assertj",
+        "bukhtoyarov",
+        "circuitbreaker",
         "cleanddd",
         "dtos",
         "greetwithrecord",

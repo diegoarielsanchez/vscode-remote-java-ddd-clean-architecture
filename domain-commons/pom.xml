@@ -69,6 +69,19 @@
     </dependencies>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Pin surefire to 3.2.5 to avoid maven-resolver-util:1.4.1
+                     resolution failure in Docker build environments where that
+                     artifact cannot be downloaded (surefire 3.5.x introduces
+                     resolverVersion=1.4.1 which is not bundled with Maven 3.9). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
