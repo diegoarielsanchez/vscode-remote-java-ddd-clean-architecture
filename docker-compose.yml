@@ -141,7 +141,9 @@ services:
     build:
       context: .
       dockerfile: identity-service/identity-application/Dockerfile
-    networks: [backend]
+    networks: [frontend, backend]   # frontend allows direct host access on port 8090
+    ports:
+      - "8090:8090"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
