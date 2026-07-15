@@ -24,6 +24,8 @@ services:
       context: .
       dockerfile: eureka-server/Dockerfile
     networks: [backend]
+    ports:
+      - "8761:8761"             # Publish so the UI is accessible from the host
     environment:
       SPRING_PROFILES_ACTIVE: prod
       EUREKA_USER: ${EUREKA_USER}
