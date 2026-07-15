@@ -9,6 +9,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Option A — Run Locally (Development)](#option-a--run-locally-development)
+- [Option C — Run Individual Docker Containers](#option-c--run-individual-docker-containers)
 - [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
   - [1. Fill in secrets](#1-fill-in-secrets)
   - [2. Create the external Docker network](#2-create-the-external-docker-network)
@@ -529,6 +530,205 @@ Use the returned token in subsequent requests:
 ```bash
 curl -s "http://localhost:8080/api/v1/medicalsalesrep/get?id=<uuid>" \
   -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Option C — Run Individual Docker Containers
+
+Use this option to build and run each service as a standalone Docker container on a shared network.
+All services must be on the same Docker network (`ddd-clean-net`) and use `SPRING_PROFILES_ACTIVE=prod`
+so that `server.address=0.0.0.0` and Eureka IP auto-detection are activated.
+
+### 0. Prerequisites — shared network and dependency containers
+
+```bash
+# Create the shared network (once)
+docker network create ddd-clean-net
+
+# Connect existing dependency containers to ddd-clean-net
+docker network connect ddd-clean-net postgres-ddd-clean   # MSR + HCP (PostgreSQL)
+docker network connect ddd-clean-net sqlserver-ddd-clean  # Visit (SQL Server)
+docker network connect ddd-clean-net mysql-ddd-clean      # Settlement (MySQL)
+docker network connect ddd-clean-net rabbitmq             # RabbitMQ (or rabbitmq-ddd-clean)
+```
+
+> If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
+
+---
+
+### 1. Eureka Server
+
+```bash
+# Build
+docker build -f eureka-server/Dockerfile -t eureka-server .
+
+# Run
+docker run -d --name eureka-server --network ddd-clean-net -p 8761:8761 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e EUREKA_USER=eureka \
+  -e EUREKA_PASSWORD=eureka \
+  -e EUREKA_HOSTNAME=eureka-server \
+  eureka-server
+```
+
+Dashboard: `http://localhost:8761` (eureka / eureka)
+
+---
+
+### 2. API Gateway
+
+```bash
+# Build
+docker build -f api-gateway/Dockerfile -t api-gateway .
+
+# Run
+docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+  api-gateway
+```
+
+---
+
+### 3. Identity Service
+
+```bash
+# Build
+docker build -f identity-service/identity-application/Dockerfile -t identity-service .
+
+# Run
+docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  identity-service
+```
+
+Auth endpoint: `POST http://localhost:8090/auth/login`
+
+---
+
+### 4. Medical Sales Rep Service
+
+```bash
+# Build
+docker build -f medical-sales-rep-service/msr-application/Dockerfile -t msr-service .
+
+# Run
+docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  msr-service
+```
+
+---
+
+### 5. Healthcare Prof Service
+
+```bash
+# Build
+docker build -f healthcare-prof-service/hcp-application/Dockerfile -t hcp-service .
+
+# Run
+docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  hcp-service
+```
+
+---
+
+### 6. Visit Service
+
+> **Requires:** `sqlserver-ddd-clean` container on `ddd-clean-net` with `visitdb` created.
+
+```bash
+# Build
+docker build -f visit-service/visit-application/Dockerfile -t visit-service .
+
+# Run
+docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL="jdbc:sqlserver://sqlserver-ddd-clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true" \
+  -e DB_USERNAME=sa \
+  -e DB_PASSWORD=Riverplate1! \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e MSR_BASE_URL=http://msr-service:8086 \
+  -e HCP_BASE_URL=http://hcp-service:8087 \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  visit-service
+```
+
+> `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+
+---
+
+### 7. Settlement Service
+
+> **Requires:** `mysql-ddd-clean` container on `ddd-clean-net` with `settlementdb` created.
+
+```bash
+# Build
+docker build -f settlement-service/settlement-application/Dockerfile -t settlement-service .
+
+# Run
+docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL="jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+  -e DB_USERNAME=root \
+  -e DB_PASSWORD=yourpassword \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e MSR_SERVICE_BASE_URL=http://msr-service:8086 \
+  -e INVOICE_FILE_STORAGE_PATH=/var/settlement-service/invoice-files \
+  -v settlement-invoice-files:/var/settlement-service/invoice-files \
+  settlement-service
+```
+
+> `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+
+---
+
+### Start-up order
+
+Always start in this order: **Eureka → API Gateway → Identity → MSR → HCP → Visit → Settlement**
+
+### Check logs
+
+```bash
+docker logs -f <container-name>
+# e.g.
+docker logs -f visit-service
+```
+
+### Rebuild a single service after code changes
+
+```bash
+docker build -f <service>/Dockerfile -t <image-name> .
+docker rm -f <container-name>
+docker run -d ... <image-name>   # reuse the run command above
 ```
 
 ---
