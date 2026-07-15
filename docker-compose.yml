@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: eureka-server/Dockerfile
-    networks: [backend]
+    networks: [frontend, backend]   # frontend allows host access on port 8761
     ports:
       - "8761:8761"             # Publish so the UI is accessible from the host
     environment:
