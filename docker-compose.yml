@@ -148,7 +148,7 @@ services:
     build:
       context: .
       dockerfile: settlement-service/settlement-application/Dockerfile
-    networks: [backend]
+    networks: [backend, ddd-clean-net]  # ddd-clean-net allows reaching MySQL on the Docker host (172.17.0.1)
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
