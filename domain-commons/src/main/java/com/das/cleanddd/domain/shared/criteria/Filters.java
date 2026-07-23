@@ -25,6 +25,6 @@ public final class Filters {
     }
 
     public String serialize() {
-        return filters.stream().map(Filter::serialize).collect(Collectors.joining("^"));
+        return filters.stream().filter(f -> f != null).map(f -> f.serialize()).collect(Collectors.joining("^"));
     }
 }

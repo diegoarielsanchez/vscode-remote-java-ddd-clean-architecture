@@ -7,86 +7,88 @@ spring:
 
   cloud:
     gateway:
-      # Global default filters applied to every route
-      default-filters:
-        - AddResponseHeader=X-Content-Type-Options, nosniff
-        - AddResponseHeader=X-Frame-Options, DENY
-        - AddResponseHeader=X-XSS-Protection, "1; mode=block"
-        - AddResponseHeader=Strict-Transport-Security, "max-age=31536000; includeSubDomains"
+      server:
+        webflux:
+          # Global default filters applied to every route
+          default-filters:
+            - AddResponseHeader=X-Content-Type-Options, nosniff
+            - AddResponseHeader=X-Frame-Options, DENY
+            - AddResponseHeader=X-XSS-Protection, "1; mode=block"
+            - AddResponseHeader=Strict-Transport-Security, "max-age=31536000; includeSubDomains"
 
-      routes:
-        # ── Authentication (Identity Service) ────────────────────────────────
-        - id: auth
-          uri: lb://identity-service
-          predicates:
-            - Path=/auth/**
+          routes:
+            # ── Authentication (Identity Service) ────────────────────────────────
+            - id: auth
+              uri: lb://identity-service
+              predicates:
+                - Path=/auth/**
 
-        # ── Medical Sales Representative Service ─────────────────────────────
-        - id: medical-sales-rep
-          uri: lb://medical-sales-rep-service
-          predicates:
-            - Path=/api/v1/medicalsalesrep/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: msrCircuitBreaker
-                fallbackUri: forward:/fallback/unavailable
+            # ── Medical Sales Representative Service ─────────────────────────────
+            - id: medical-sales-rep
+              uri: lb://medical-sales-rep-service
+              predicates:
+                - Path=/api/v1/medicalsalesrep/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: msrCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
 
-        # ── Health Care Professional Service ─────────────────────────────────
-        - id: healthcare-prof
-          uri: lb://healthcare-prof-service
-          predicates:
-            - Path=/api/v1/healthcareprof/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: hcpCircuitBreaker
-                fallbackUri: forward:/fallback/unavailable
+            # ── Health Care Professional Service ─────────────────────────────────
+            - id: healthcare-prof
+              uri: lb://healthcare-prof-service
+              predicates:
+                - Path=/api/v1/healthcareprof/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: hcpCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
 
-        # ── Visit Service (visits and visit plans) ────────────────────────────
-        - id: visit
-          uri: lb://visit-service
-          predicates:
-            - Path=/api/v1/visit/**,/api/v1/visitplan/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: visitCircuitBreaker
-                fallbackUri: forward:/fallback/unavailable
+            # ── Visit Service (visits and visit plans) ────────────────────────────
+            - id: visit
+              uri: lb://visit-service
+              predicates:
+                - Path=/api/v1/visit/**,/api/v1/visitplan/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: visitCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
 
-        # ── Settlement Service ────────────────────────────────────────────────
-        - id: settlement
-          uri: lb://settlement-service
-          predicates:
-            - Path=/api/v1/settlement/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: settlementCircuitBreaker
-                fallbackUri: forward:/fallback/unavailable
+            # ── Settlement Service ────────────────────────────────────────────────
+            - id: settlement
+              uri: lb://settlement-service
+              predicates:
+                - Path=/api/v1/settlement/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: settlementCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
 
-      # Global CORS (also enforced via SecurityConfig)
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOriginPatterns:
-              - "http://localhost:5173"
-              - "http://localhost:3000"
-              - "https://*.yourdomain.com"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - OPTIONS
-              - PATCH
-            allowedHeaders:
-              - Authorization
-              - Content-Type
-              - X-Requested-With
-            exposedHeaders:
-              - Authorization
-            maxAge: 3600
+          # Global CORS (also enforced via SecurityConfig)
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns:
+                  - "http://localhost:5173"
+                  - "http://localhost:3000"
+                  - "https://*.yourdomain.com"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                  - PATCH
+                allowedHeaders:
+                  - Authorization
+                  - Content-Type
+                  - X-Requested-With
+                exposedHeaders:
+                  - Authorization
+                maxAge: 3600
 
 # Actuator endpoints
 management:
@@ -98,7 +100,7 @@ management:
     health:
       show-details: when-authorized
     gateway:
-      enabled: true
+      access: unrestricted
 
 # JWT
 jwt:

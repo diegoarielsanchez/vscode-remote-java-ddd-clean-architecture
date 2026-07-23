@@ -220,13 +220,11 @@ docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db -c "SELECT
 **Microsoft SQL Server** (Visit Service):
 
 ```bash
-docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=Riverplate1!' -p 1433:1433 --name sqlserver_ddd_clean -v sqlvolume:/var/opt/mssql/data -d mcr.microsoft.com/mssql/server:2022-latest
-
 docker run -u 0 \
   -e 'ACCEPT_EULA=Y' \
   -e 'MSSQL_SA_PASSWORD=Riverplate1!' \
   -p 1433:1433 \
-  --name sqlserver_ddd_clean \
+  --name sqlserver-ddd-clean \
   -v sqlvolume:/var/opt/mssql/data \
   -d mcr.microsoft.com/mssql/server:2022-latest
 
@@ -242,6 +240,10 @@ docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No \
   -Q "CREATE DATABASE visitdb"
 
+docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No \
+  -Q "SELECT * FROM visitdb.dbo.visits"
+
 # To restart later
 docker start sqlserver-ddd-clean
 ```
@@ -250,11 +252,11 @@ docker start sqlserver-ddd-clean
 
 ```bash
 docker run -d --name mysql-ddd-clean \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=yourpassword \
+  -p 3308:3306 \
+  -e MYSQL_ROOT_PASSWORD=riverplate \
   -e MYSQL_DATABASE=settlementdb \
   -v mysql_data:/var/lib/mysql \
-  mysql:8
+  mysql:latest
 
 # To restart later
 docker start mysql-ddd-clean
@@ -473,6 +475,12 @@ DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-bo
 ```bash
 # Default — local-disk file storage (no extra container needed)
 mvn -pl settlement-service/settlement-application -am spring-boot:run
+
+
+DB_URL='jdbc:mysql://172.17.0.1:3308/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true' \
+DB_PASSWORD='riverplate' \
+mvn -pl settlement-service/settlement-application -am spring-boot:run
+
 # Ready when: "Started SettlementApplication" appears
 # Listens on: http://localhost:8089
 ```
@@ -550,7 +558,7 @@ docker network create ddd-clean-net
 docker network connect ddd-clean-net postgres-ddd-clean   # MSR + HCP (PostgreSQL)
 docker network connect ddd-clean-net sqlserver-ddd-clean  # Visit (SQL Server)
 docker network connect ddd-clean-net mysql-ddd-clean      # Settlement (MySQL)
-docker network connect ddd-clean-net rabbitmq             # RabbitMQ (or rabbitmq-ddd-clean)
+docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitmq-ddd-clean)
 ```
 
 > If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.

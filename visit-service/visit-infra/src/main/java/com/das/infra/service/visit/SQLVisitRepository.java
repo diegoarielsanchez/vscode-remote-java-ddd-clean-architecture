@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
-import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
@@ -98,19 +97,15 @@ public final class SQLVisitRepository implements IVisitRepository {
                 ? new Identifier(entity.getVisitSiteId()) {}
                 : null;
 
-        try {
-            return new Visit(
-                    new VisitId(entity.getId()),
-                    entity.getVisitDate(),
-                    new HealthCareProfId(hcpId),
-                    visitComments,
-                    visitSiteId,
-                    List.of(),
-                    new MedicalSalesRepId(msrId)
-            );
-        } catch (BusinessValidationException e) {
-            throw new IllegalStateException("Failed to reconstruct Visit from database: " + e.getMessage(), e);
-        }
+        return Visit.reconstruct(
+                new VisitId(entity.getId()),
+                entity.getVisitDate(),
+                new HealthCareProfId(hcpId),
+                visitComments,
+                visitSiteId,
+                List.of(),
+                new MedicalSalesRepId(msrId)
+        );
     }
 
     private VisitEntity toEntity(Visit visit) {

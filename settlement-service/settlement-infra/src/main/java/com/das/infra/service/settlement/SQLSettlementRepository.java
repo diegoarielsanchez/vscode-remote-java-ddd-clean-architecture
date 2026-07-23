@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.settlement.entities.IInvoiceFileStorage;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
@@ -26,7 +27,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
 @Primary
 @Service
-public final class SQLSettlementRepository implements ISettlementRepository {
+public class SQLSettlementRepository implements ISettlementRepository {
 
     @Autowired
     private SettlementJpaRepository jpaRepository;
@@ -43,6 +44,7 @@ public final class SQLSettlementRepository implements ISettlementRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Settlement> findById(SettlementId id) {
         if (id == null || id.value() == null) {
             return Optional.empty();
@@ -56,6 +58,7 @@ public final class SQLSettlementRepository implements ISettlementRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Settlement> searchAll() {
         return jpaRepository.findAll().stream()
                 .map(this::toDomain)
@@ -63,6 +66,7 @@ public final class SQLSettlementRepository implements ISettlementRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Settlement> searchAll(int page, int pageSize) {
         return jpaRepository.findAll(PageRequest.of(page - 1, pageSize)).stream()
                 .map(this::toDomain)

@@ -58,7 +58,7 @@ public class SecurityConfig {
                 .referrerPolicy(rp -> rp
                     .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 .contentSecurityPolicy(csp -> csp
-                    .policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                    .policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'"))
                 .permissionsPolicyHeader(pp -> pp
                     .policy("geolocation=(), microphone=(), camera=()"))
             );
