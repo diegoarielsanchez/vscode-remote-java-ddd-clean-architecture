@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://xmlns.jcp.org/jsf/html"
+      xmlns:p="http://primefaces.org/ui"
+      xmlns:f="http://xmlns.jcp.org/jsf/core">
+<h:head>
+    <title>Settlement Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f7fb; margin: 0; }
+        .layout { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 20px; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</h:head>
+<h:body>
+    <div class="layout">
+        <div class="toolbar">
+            <div>
+                <h1 style="margin:0">Settlement Console</h1>
+                <p style="margin:4px 0 0; color:#64748b">Responsive PrimeFaces dashboard backed by the settlement API.</p>
+            </div>
+            <p:commandButton value="Refresh" actionListener="#{settlementViewBean.loadSettlements}" update="settlementPanel" />
+        </div>
+
+        <p:growl id="growl" showDetail="true" />
+
+        <div class="grid">
+            <div class="card">
+                <p:panel id="settlementPanel" header="Settlements">
+                    <p:dataTable var="settlement" value="#{settlementViewBean.settlements}" paginator="true" rows="5" responsiveLayout="stack">
+                        <p:column headerText="ID">
+                            <h:outputText value="#{settlement.id}" />
+                        </p:column>
+                        <p:column headerText="Description">
+                            <h:outputText value="#{settlement.description}" />
+                        </p:column>
+                        <p:column headerText="Date">
+                            <h:outputText value="#{settlement.settlementDate}" />
+                        </p:column>
+                        <p:column headerText="Status">
+                            <p:tag value="#{settlement.status}" severity="info" />
+                        </p:column>
+                        <p:column headerText="Amount">
+                            <h:outputText value="#{settlement.totalAmount}" />
+                        </p:column>
+                    </p:dataTable>
+                </p:panel>
+            </div>
+
+            <div class="card">
+                <h:form>
+                    <p:panel header="Create Settlement">
+                        <div class="ui-fluid">
+                            <p:messages />
+                            <div class="p-field">
+                                <p:outputLabel for="description" value="Description" />
+                                <p:inputText id="description" value="#{settlementViewBean.description}" required="true" />
+                            </div>
+                            <div class="p-field">
+                                <p:outputLabel for="settlementDate" value="Settlement Date" />
+                                <p:datePicker id="settlementDate" value="#{settlementViewBean.settlementDate}" pattern="yyyy-MM-dd" />
+                            </div>
+                            <div class="p-field">
+                                <p:outputLabel for="repId" value="Medical Sales Rep" />
+                                <p:inputText id="repId" value="#{settlementViewBean.medicalSalesRepId}" required="true" />
+                            </div>
+                        </div>
+                        <p:commandButton value="Create" actionListener="#{settlementViewBean.createSettlement}" update="growl settlementPanel" styleClass="ui-button-success" />
+                    </p:panel>
+                </h:form>
+            </div>
+        </div>
+    </div>
+</h:body>
+</html>
