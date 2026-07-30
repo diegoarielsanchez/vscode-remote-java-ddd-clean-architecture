@@ -17,9 +17,9 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <domain-commons.version>1.0.0-SNAPSHOT</domain-commons.version>
         <msr-domain.version>1.0.0-SNAPSHOT</msr-domain.version>
         <hcp-domain.version>1.0.0-SNAPSHOT</hcp-domain.version>

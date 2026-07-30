@@ -35,9 +35,9 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <start-class>com.das.cleanddd.application.DemoApplication</start-class>
         <log4j2.version>2.26.0</log4j2.version>
     </properties>

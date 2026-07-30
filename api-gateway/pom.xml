@@ -18,9 +18,9 @@
     <description>API Gateway — routes, JWT validation, rate limiting for all microservices</description>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
         <log4j2.version>2.26.0</log4j2.version>
     </properties>
