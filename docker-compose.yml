@@ -176,6 +176,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Settlement UI (server-rendered console) ────────────────────────────────
+  settlement-ui:
+    container_name: settlement-ui-ddd-clean
+    build:
+      context: .
+      dockerfile: settlement-ui/cleanddd/Dockerfile
+    networks: [frontend, backend]   # frontend allows host access on port 8081
+    ports:
+      - "8081:8081"
+    environment:
+      SETTLEMENT_API_BASE_URL: http://settlement-service:8089/api/v1/settlement
+      IDENTITY_SERVICE_BASE_URL: http://identity-service:8090
+      IDENTITY_CLIENT_USERNAME: ${IDENTITY_CLIENT_USERNAME}
+      IDENTITY_CLIENT_PASSWORD: ${IDENTITY_CLIENT_PASSWORD}
+    depends_on:
+      - settlement-service
+      - identity-service
+    restart: unless-stopped
+
 volumes:
   invoice-files:
     driver: local
