@@ -24,8 +24,8 @@
         <msr-domain.version>1.0.0-SNAPSHOT</msr-domain.version>
         <hcp-domain.version>1.0.0-SNAPSHOT</hcp-domain.version>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
-        <spotbugs.version>4.9.3.0</spotbugs.version>
-        <spotbugs.annotations.version>4.9.3</spotbugs.annotations.version>
+        <spotbugs.version>4.10.3.0</spotbugs.version>
+        <spotbugs.annotations.version>4.10.3</spotbugs.annotations.version>
         <findsecbugs.version>1.13.0</findsecbugs.version>
         <log4j2.version>2.26.0</log4j2.version>
     </properties>
