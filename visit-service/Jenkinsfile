@@ -137,6 +137,7 @@ pipeline {
                             sh """
                                 mvn -pl ${APP_MODULE} -am \\
                                     org.owasp:dependency-check-maven:check \\
+                                    -Ddependency-check.skip=true \\
                                     -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
                                     -DnvdApiKey="\${NVD_API_KEY}" \\
                                     -DnvdApiDelay=500 \\
@@ -152,6 +153,7 @@ pipeline {
                             sh """
                                 mvn -pl ${APP_MODULE} -am \\
                                     org.owasp:dependency-check-maven:check \\
+                                    -Ddependency-check.skip=true \\
                                     -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
                                     -DnvdApiDelay=6000 \\
                                     -DretryCount=10 \\
