@@ -30,6 +30,8 @@
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+            <!-- Pinned above Spring Boot BOM's 9.7.0: fixes CVE-2026-60623 / CVE-2026-60586 (CVSS 7.1/7.7) -->
+            <version>26.7.0</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>

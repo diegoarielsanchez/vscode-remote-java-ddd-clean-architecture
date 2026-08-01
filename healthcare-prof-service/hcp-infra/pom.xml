@@ -27,6 +27,8 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+            <!-- Pinned above Spring Boot BOM's 42.7.11: fixes CVE-2026-54291 (channel-binding downgrade) -->
+            <version>42.7.12</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
