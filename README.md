@@ -1,6 +1,6 @@
 # Java DDD Clean Architecture — Microservices
 
-A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 21.
+A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 25.
 
 ## Table of Contents
 
@@ -1160,10 +1160,10 @@ Add entries with these exact names (they match the `tools {}` block in each Jenk
 
 | Tool type | Name | Version |
 |---|---|---|
-| JDK | `JDK-21` | Java 21 |
+| JDK | `JDK-25` | Java 25 |
 | Maven | `Maven-3.9` | 3.9.x |
 
-> If Java 21 and Maven 3.9 are already on the agent's `PATH`, you can remove the `tools {}` block from a Jenkinsfile and they will be used automatically.
+> If Java 25 and Maven 3.9 are already on the agent's `PATH`, you can remove the `tools {}` block from a Jenkinsfile and they will be used automatically.
 
 ### 3. Create a Pipeline job for each service
 

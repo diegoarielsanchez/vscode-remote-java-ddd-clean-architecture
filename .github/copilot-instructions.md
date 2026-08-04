@@ -15,7 +15,7 @@ This file explains the minimal, actionable knowledge an AI coding agent needs to
 - Global error handling: `application/src/main/java/com/das/cleanddd/application/GlobalExceptionHandler.java` (maps domain exceptions to HTTP responses).
 
 **Build / run / test workflows**
-- Java target: project uses Java 21 (`<java.version>21</java.version>` in POMs). Ensure JDK 21 is used when building or running.
+- Java target: project uses Java 25 (`<java.version>21</java.version>` in POMs). Ensure JDK 25 is used when building or running.
 - Build all modules: `mvn clean install` (run at repository root).
 - Run the application module locally: from repo root run:
   - `mvn -pl application -am spring-boot:run` (builds required modules and starts the Spring Boot app)
