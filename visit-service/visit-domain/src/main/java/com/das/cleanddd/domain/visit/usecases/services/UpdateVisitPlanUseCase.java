@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
@@ -86,7 +87,7 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
 
             VisitPlan updatedVisitPlan = factory.buildForUpdate(
                 visitId,
-                inputDTO.visitDateTime(),
+                new VisitDateTime(inputDTO.visitDateTime()),
                 healthCareProfId,
                 comments,
                 visitSiteId,

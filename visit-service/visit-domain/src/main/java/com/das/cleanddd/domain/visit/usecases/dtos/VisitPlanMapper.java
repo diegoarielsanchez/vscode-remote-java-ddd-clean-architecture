@@ -12,7 +12,7 @@ public class VisitPlanMapper {
     public VisitPlanOutputDTO outputFromEntity(VisitPlan visitPlan) {
         return new VisitPlanOutputDTO(
             visitPlan.visitId().value(),
-            visitPlan.visitTimeDate(),
+            visitPlan.visitTimeDate().value(),
             visitPlan.healthCareProfId() == null ? null : visitPlan.healthCareProfId().value(),
             visitPlan.visitComments() == null ? null : visitPlan.visitComments().value(),
             visitPlan.visitSideId() == null ? null : visitPlan.visitSideId().value(),

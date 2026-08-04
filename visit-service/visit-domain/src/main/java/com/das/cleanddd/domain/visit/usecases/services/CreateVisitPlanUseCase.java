@@ -10,6 +10,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
@@ -73,7 +74,7 @@ public final class CreateVisitPlanUseCase implements UseCase<CreateVisitPlanInpu
                 : new TextValueObject(inputDTO.visitComments()) {};
 
             VisitPlan visitPlan = factory.createVisitPlan(
-                inputDTO.visitDateTime(),
+                new VisitDateTime(inputDTO.visitDateTime()),
                 healthCareProfId,
                 comments,
                 visitSiteId,

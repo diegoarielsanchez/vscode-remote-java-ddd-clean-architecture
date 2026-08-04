@@ -28,7 +28,7 @@ public class VisitPlanFactory {
     }
 
     public VisitPlan createVisitPlan(
-        LocalDateTime visitDateTime,
+        VisitDateTime visitDateTime,
         HealthCareProfId healthCareProfId,
         TextValueObject visitComments,
         Identifier visitSiteId,

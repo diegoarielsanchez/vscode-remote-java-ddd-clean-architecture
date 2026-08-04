@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.settlement.entities.IInvoiceFileStorage;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
+import com.das.cleanddd.domain.settlement.entities.DueDate;
+import com.das.cleanddd.domain.settlement.entities.IssueDate;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
 import com.das.cleanddd.domain.settlement.entities.InvoiceFile;
@@ -21,6 +23,7 @@ import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
+import com.das.cleanddd.domain.settlement.entities.SettlementDate;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -98,7 +101,7 @@ public class SQLSettlementRepository implements ISettlementRepository {
             return new Settlement(
                     new SettlementId(entity.getId()),
                     entity.getDescription(),
-                    entity.getSettlementDate(),
+                    new SettlementDate(entity.getSettlementDate()),
                     SettlementStatus.valueOf(entity.getStatus()),
                     invoices,
                     msrId);
@@ -124,8 +127,8 @@ public class SQLSettlementRepository implements ISettlementRepository {
         return new Invoice(
                 new InvoiceId(ie.getId()),
                 new InvoiceNumber(ie.getInvoiceNumber()),
-                ie.getIssueDate(),
-                ie.getDueDate(),
+                new IssueDate(ie.getIssueDate()),
+                ie.getDueDate() != null ? new DueDate(ie.getDueDate()) : null,
                 ie.getAmount(),
                 InvoiceStatus.valueOf(ie.getStatus()),
                 invoiceFile);
@@ -135,7 +138,7 @@ public class SQLSettlementRepository implements ISettlementRepository {
         SettlementEntity entity = new SettlementEntity();
         entity.setId(domain.settlementId().value());
         entity.setDescription(domain.description());
-        entity.setSettlementDate(domain.settlementDate());
+        entity.setSettlementDate(domain.settlementDate().value());
         entity.setStatus(domain.status().name());
         entity.setMedicalSalesRepId(domain.medicalSalesRepId() != null ? domain.medicalSalesRepId().value() : null);
 
@@ -151,8 +154,8 @@ public class SQLSettlementRepository implements ISettlementRepository {
         InvoiceEntity ie = new InvoiceEntity();
         ie.setId(invoice.invoiceId().value());
         ie.setInvoiceNumber(invoice.invoiceNumber().value());
-        ie.setIssueDate(invoice.issueDate());
-        ie.setDueDate(invoice.dueDate());
+        ie.setIssueDate(invoice.issueDate().value());
+        ie.setDueDate(invoice.dueDate() != null ? invoice.dueDate().value() : null);
         ie.setAmount(invoice.amount());
         ie.setStatus(invoice.status().name());
         ie.setSettlement(parent);

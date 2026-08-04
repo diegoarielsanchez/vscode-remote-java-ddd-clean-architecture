@@ -19,6 +19,7 @@ import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 
 @Service
 public class SQLVisitPlanRepository implements IVisitPlanRepository {
@@ -126,7 +127,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
         try {
             return new VisitPlan(
                     new VisitId(entity.getId()),
-                    entity.getVisitDateTime(),
+                    new VisitDateTime(entity.getVisitDateTime()),
                     new HealthCareProfId(hcpId),
                     visitComments,
                     visitSiteId,
@@ -144,7 +145,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
         }
         VisitPlanEntity entity = new VisitPlanEntity();
         entity.setId(visitPlan.visitId().value());
-        entity.setVisitDateTime(visitPlan.visitTimeDate());
+        entity.setVisitDateTime(visitPlan.visitTimeDate().value());
         entity.setVisitComments(visitPlan.visitComments() != null ? visitPlan.visitComments().value() : null);
         entity.setVisitSiteId(visitPlan.visitSideId() != null ? visitPlan.visitSideId().value() : null);
         entity.setHealthCareProfId(visitPlan.healthCareProfId() != null ? visitPlan.healthCareProfId().value() : null);

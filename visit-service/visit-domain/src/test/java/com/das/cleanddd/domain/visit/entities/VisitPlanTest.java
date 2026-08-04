@@ -27,7 +27,7 @@ class VisitPlanTest {
     private VisitPlan buildValid() throws BusinessValidationException {
         return new VisitPlan(
             new VisitId(VISIT_ID),
-            VALID_DATE,
+            new VisitDateTime(VALID_DATE),
             new HealthCareProfId(HCP_ID),
             new TextValueObject("planned check") {},
             new Identifier(SITE_ID) {},
@@ -45,7 +45,7 @@ class VisitPlanTest {
             VisitPlan plan = buildValid();
 
             assertThat(plan.visitId().value()).isEqualTo(VISIT_ID);
-            assertThat(plan.visitTimeDate()).isEqualTo(VALID_DATE);
+            assertThat(plan.visitTimeDate().value()).isEqualTo(VALID_DATE);
             assertThat(plan.healthCareProfId().value()).isEqualTo(HCP_ID);
             assertThat(plan.medicalSalesRepId().value()).isEqualTo(MSR_ID);
             assertThat(plan.visitSideId().value()).isEqualTo(SITE_ID);
@@ -57,7 +57,7 @@ class VisitPlanTest {
         void shouldAllowNullComments() throws BusinessValidationException {
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -73,14 +73,14 @@ class VisitPlanTest {
             LocalDateTime today = LocalDate.now().atTime(23, 59);
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                today,
+                new VisitDateTime(today),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
                 List.of(),
                 new MedicalSalesRepId(MSR_ID)
             );
-            assertThat(plan.visitTimeDate().toLocalDate()).isEqualTo(LocalDate.now());
+            assertThat(plan.visitTimeDate().value().toLocalDate()).isEqualTo(LocalDate.now());
         }
 
         @Test
@@ -102,7 +102,7 @@ class VisitPlanTest {
             // past-date validation lives in VisitPlanFactory, not in the constructor
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                LocalDateTime.now().minusDays(1),
+                new VisitDateTime(LocalDateTime.now().minusDays(1)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -116,7 +116,7 @@ class VisitPlanTest {
         void shouldThrowWhenMedicalSalesRepIdIsNull() {
             assertThatThrownBy(() -> new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -130,7 +130,7 @@ class VisitPlanTest {
         void shouldThrowWhenHealthCareProfIdIsNull() {
             assertThatThrownBy(() -> new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE,
+                new VisitDateTime(VALID_DATE),
                 null,
                 null,
                 new Identifier(SITE_ID) {},
@@ -149,7 +149,7 @@ class VisitPlanTest {
         void shouldReturnMorningForHourBeforeNoon() throws BusinessValidationException {
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(9),
+                new VisitDateTime(VALID_DATE.withHour(9)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -163,7 +163,7 @@ class VisitPlanTest {
         void shouldReturnAfternoonForHourAtNoon() throws BusinessValidationException {
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(12),
+                new VisitDateTime(VALID_DATE.withHour(12)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -177,7 +177,7 @@ class VisitPlanTest {
         void shouldReturnAfternoonForHourAfterNoon() throws BusinessValidationException {
             VisitPlan plan = new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE.withHour(17),
+                new VisitDateTime(VALID_DATE.withHour(17)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},
@@ -234,7 +234,7 @@ class VisitPlanTest {
             VisitPlan p1 = buildValid();
             VisitPlan p2 = new VisitPlan(
                 new VisitId(VISIT_ID),
-                VALID_DATE.plusDays(1),
+                new VisitDateTime(VALID_DATE.plusDays(1)),
                 new HealthCareProfId(HCP_ID),
                 null,
                 new Identifier(SITE_ID) {},

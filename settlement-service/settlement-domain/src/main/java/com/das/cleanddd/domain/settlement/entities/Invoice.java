@@ -1,7 +1,6 @@
 package com.das.cleanddd.domain.settlement.entities;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.Objects;
 
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -14,16 +13,16 @@ public final class Invoice {
 
     private final InvoiceId      _invoiceId;
     private final InvoiceNumber   _invoiceNumber;
-    private final LocalDate _issueDate;
-    private final LocalDate _dueDate;
+    private final IssueDate  _issueDate;
+    private final DueDate    _dueDate;
     private final BigDecimal _amount;
     private InvoiceStatus   _status;
     private final InvoiceFile    _invoiceFile;
 
     public Invoice(InvoiceId invoiceId,
                    InvoiceNumber invoiceNumber,
-                   LocalDate issueDate,
-                   LocalDate dueDate,
+                   IssueDate issueDate,
+                   DueDate dueDate,
                    BigDecimal amount,
                    InvoiceStatus status) throws BusinessValidationException {
         this(invoiceId, invoiceNumber, issueDate, dueDate, amount, status, null);
@@ -71,8 +70,8 @@ public final class Invoice {
     }
 
     static Invoice create(InvoiceNumber invoiceNumber,
-                           LocalDate issueDate,
-                           LocalDate dueDate,
+                           IssueDate issueDate,
+                           DueDate dueDate,
                            BigDecimal amount) throws BusinessValidationException {
         return new Invoice(InvoiceId.random(), invoiceNumber, issueDate, dueDate, amount, InvoiceStatus.DRAFT, null);
     }
