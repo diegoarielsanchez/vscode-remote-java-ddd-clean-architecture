@@ -55,15 +55,9 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
         if (inputDTO.visitDate() == null) {
             throw new DomainException("Visit date cannot be null");
         }
-        if (inputDTO.healthCareProfId() == null || inputDTO.healthCareProfId().isBlank()) {
-            throw new DomainException("Health Care Professional id cannot be null or empty");
-        }
-        if (inputDTO.visitSiteId() == null || inputDTO.visitSiteId().isBlank()) {
-            throw new DomainException("Visit site id cannot be null or empty");
-        }
-        if (inputDTO.medicalSalesRepId() == null || inputDTO.medicalSalesRepId().isBlank()) {
-            throw new DomainException("Medical Sales Representative id cannot be null or empty");
-        }
+        VisitInputValidation.requireNonBlank(inputDTO.healthCareProfId(), "Health Care Professional id");
+        VisitInputValidation.requireNonBlank(inputDTO.visitSiteId(), "Visit site id");
+        VisitInputValidation.requireNonBlank(inputDTO.medicalSalesRepId(), "Medical Sales Representative id");
 
         try {
             HealthCareProfId healthCareProfId = new HealthCareProfId(inputDTO.healthCareProfId());

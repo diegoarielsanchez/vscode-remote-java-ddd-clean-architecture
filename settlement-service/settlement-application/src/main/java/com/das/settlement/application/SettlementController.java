@@ -5,7 +5,6 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +51,6 @@ public class SettlementController {
     private static final java.util.Set<String> ALLOWED_EXTENSIONS =
             java.util.Set.of(".pdf", ".xlsx", ".docx", ".txt");
 
-    @Autowired
     private final UseCase<CreateSettlementInputDTO, SettlementOutputDTO> createSettlementUseCase;
     private final UseCase<UpdateSettlementInputDTO, SettlementOutputDTO> updateSettlementUseCase;
     private final UseCase<SettlementIDDto, SettlementOutputDTO> getSettlementByIdUseCase;

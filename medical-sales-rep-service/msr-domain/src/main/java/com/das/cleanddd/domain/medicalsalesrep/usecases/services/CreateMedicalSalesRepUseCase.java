@@ -1,7 +1,5 @@
 package com.das.cleanddd.domain.medicalsalesrep.usecases.services;
 
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +23,7 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
     @Autowired
     private final MedicalSalesRepMapper mapper;
     private final IMsrEventPublisher publisher;
+    private final EnsureMedicalSalesRepEmailIsUniqueService uniqueEmailService;
     
     public CreateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
         , MedicalSalesRepMapper mapper
@@ -33,6 +32,7 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.uniqueEmailService = new EnsureMedicalSalesRepEmailIsUniqueService(repository);
     }
 
     @Override
@@ -43,26 +43,18 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
         if (inputDTO == null) {
             throw new DomainException("Input DTO cannot be null");
         }
-        if (inputDTO.name() == null || inputDTO.name().isEmpty()) {
-            throw new DomainException("Name cannot be null or empty");
-        }
-        if (inputDTO.surname() == null || inputDTO.surname().isEmpty()) {
-            throw new DomainException("Surname cannot be null or empty");
-        }
-        if (inputDTO.email() == null || inputDTO.email().isEmpty()) {
-            throw new DomainException("Email cannot be null or empty");
-        }
         MedicalSalesRep medicalSalesRep;
 
         try {
+            // Name/surname/email presence and format rules are enforced by their
+            // respective Value Objects (MedicalSalesRepName, MedicalSalesRepEmail);
+            // duplicating those checks here would just create a second, divergent
+            // source of truth for the same invariant.
             MedicalSalesRepName medicalSalesRepName = new MedicalSalesRepName(inputDTO.name());
             MedicalSalesRepName medicalSalesRepSurname = new MedicalSalesRepName(inputDTO.surname());
             MedicalSalesRepEmail medicalSalesRepEmail = new MedicalSalesRepEmail(inputDTO.email());
-            // Validate Unique Email
-            Optional<MedicalSalesRep> medicalSalesRepWithEmail = repository.findByEmail(medicalSalesRepEmail);
-            if(medicalSalesRepWithEmail.isPresent()) {
-            throw new DomainException("There is already a Medical Sales Representative with this email.");
-            }
+            // Validate Unique Email (cross-aggregate rule enforced via domain service)
+            uniqueEmailService.ensureUnique(medicalSalesRepEmail, null);
             // Create a new MedicalSalesRep object using the factory
                 medicalSalesRep = MedicalSalesRep.create(null, medicalSalesRepName, medicalSalesRepSurname, medicalSalesRepEmail, null);
             // Create

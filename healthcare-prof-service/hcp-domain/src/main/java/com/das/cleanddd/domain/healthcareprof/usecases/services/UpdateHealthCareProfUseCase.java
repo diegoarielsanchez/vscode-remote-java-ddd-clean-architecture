@@ -18,6 +18,7 @@ import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutput
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 @Service
@@ -28,6 +29,7 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
     @Autowired
     private final HealthCareProfMapper _mapper;
     private final IHcpEventPublisher _publisher;
+    private final EnsureHealthCareProfEmailIsUniqueService _uniqueEmailService;
 
     public UpdateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfMapper mapper
@@ -36,6 +38,7 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
         this._repository = repository;
         this._mapper = mapper;
         this._publisher = publisher;
+        this._uniqueEmailService = new EnsureHealthCareProfEmailIsUniqueService(repository);
     }
     @Override
     public HealthCareProfOutputDTO execute(UpdateHealthCareProfInputDTO inputDTO)
@@ -44,25 +47,17 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
         if (inputDTO == null) {
             throw new DomainException("Input DTO cannot be null");
         }
-        if (inputDTO.name() == null || inputDTO.name().isEmpty()) {
-            throw new DomainException("Name cannot be null or empty");
-        }
-        if (inputDTO.surname() == null || inputDTO.surname().isEmpty()) {
-            throw new DomainException("Surname cannot be null or empty");
-        }
-        if (inputDTO.email() == null || inputDTO.email().isEmpty()) {
-            throw new DomainException("Email cannot be null or empty");
-        }
-        if (inputDTO.specialties() == null || inputDTO.specialties().isEmpty()) {
-            throw new DomainException("Specialties cannot be null or empty");
-        }
         HealthCareProf entity;
         try {
+            // Name/surname/email presence and format rules are enforced by their
+            // respective Value Objects (HealthCareProfName, HealthCareProfEmail);
+            // duplicating those checks here would just create a second, divergent
+            // source of truth for the same invariant.
             HealthCareProfName name = new HealthCareProfName(inputDTO.name());
             HealthCareProfName surname = new HealthCareProfName(inputDTO.surname());
             HealthCareProfEmail email = new HealthCareProfEmail(inputDTO.email());
             HealthCareProfId id = new HealthCareProfId(inputDTO.id());
-            List<Specialty> specialties = inputDTO.specialties().stream()
+            List<Specialty> specialties = (inputDTO.specialties() == null ? List.<String>of() : inputDTO.specialties()).stream()
                 .map(code -> {
                     try {
                         return SpecialtyCatalog.fromCode(code);
@@ -76,20 +71,19 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
         if (!existingHealthCareProf.isPresent()) {
             throw new DomainException("Health Care Professional not found.");
         }
-        // Validate Unique Email
-        if (!existingHealthCareProf.get().getEmail().equals(email)) {
-            Optional<HealthCareProf> HealthCareProfRepWithEmail = _repository.findByEmail(email);
-            if (HealthCareProfRepWithEmail.isPresent()) {
-                throw new DomainException("There is already a Health Care Professional with this email.");
-            }
-        }
+        // Validate Unique Email (cross-aggregate rule enforced via domain service; excludes this HCP's own id)
+        _uniqueEmailService.ensureUnique(email, id);
         entity = existingHealthCareProf.get().withUpdatedDetails(name, surname, email, specialties);
+        // "Specialties required" (and other entity-level invariants) is enforced
+        // by the entity's own validate() method - the single source of truth,
+        // reused by both create and update instead of duplicated DTO checks.
+        entity.validate();
         // Update the existing HealthCareProf with the new values
         _repository.save(entity);
         entity.pullDomainEvents().forEach(_publisher::publish);
         // Convert response to output and return
         return _mapper.outputFromEntity(entity);
-        } catch (IllegalArgumentException  e) {
+        } catch (IllegalArgumentException | BusinessException e) {
             throw new DomainException(e.getMessage());
         }
     }

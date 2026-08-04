@@ -1,6 +1,6 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,22 +51,14 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
         if (inputDTO == null) {
             throw new DomainException("Input DTO cannot be null");
         }
-        if (inputDTO.id() == null || inputDTO.id().isBlank()) {
-            throw new DomainException("Visit id cannot be null or empty");
-        }
+        VisitInputValidation.requireNonBlank(inputDTO.id(), "Visit id");
         if (inputDTO.visitDate() == null) {
             throw new DomainException("Visit date cannot be null");
         }
-        VisitDateTime visitDateTime = new VisitDateTime(inputDTO.visitDate().atStartOfDay());
-        if (inputDTO.healthCareProfId() == null || inputDTO.healthCareProfId().isBlank()) {
-            throw new DomainException("Health Care Professional id cannot be null or empty");
-        }
-        if (inputDTO.visitSiteId() == null || inputDTO.visitSiteId().isBlank()) {
-            throw new DomainException("Visit site id cannot be null or empty");
-        }
-        if (inputDTO.medicalSalesRepId() == null || inputDTO.medicalSalesRepId().isBlank()) {
-            throw new DomainException("Medical Sales Representative id cannot be null or empty");
-        }
+        LocalDateTime visitDateTime = inputDTO.visitDate().atStartOfDay();
+        VisitInputValidation.requireNonBlank(inputDTO.healthCareProfId(), "Health Care Professional id");
+        VisitInputValidation.requireNonBlank(inputDTO.visitSiteId(), "Visit site id");
+        VisitInputValidation.requireNonBlank(inputDTO.medicalSalesRepId(), "Medical Sales Representative id");
 
         try {
             VisitId visitId = new VisitId(inputDTO.id());
@@ -90,13 +82,12 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
                 ? null
                 : new TextValueObject(inputDTO.visitComments()) {};
 
-            Visit updatedVisit = new Visit(
-                visitId,
+            Visit updatedVisit = existingVisit.get();
+            updatedVisit.update(
                 visitDateTime,
                 healthCareProfId,
                 comments,
                 visitSiteId,
-                List.of(),
                 medicalSalesRepId
             );
 

@@ -1,6 +1,6 @@
 # Java DDD Clean Architecture — Microservices
 
-A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 21.
+A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 25.
 
 ## Table of Contents
 
@@ -9,13 +9,31 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Option A — Run Locally (Development)](#option-a--run-locally-development)
+- [Option C — Run Individual Docker Containers](#option-c--run-individual-docker-containers)
 - [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
+  - [1. Fill in secrets](#1-fill-in-secrets)
+  - [2. Create the external Docker network](#2-create-the-external-docker-network)
+  - [3. Build and start](#3-build-and-start)
+  - [4. Check status](#4-check-status)
+  - [5. Verify all services registered with Eureka](#5-verify-all-services-registered-with-eureka)
+  - [6. Obtain a JWT token](#6-obtain-a-jwt-token)
+  - [7. Dev override — MinIO file storage (optional)](#7-dev-override--minio-file-storage-optional)
+  - [8. Stop](#8-stop)
+  - [9. Rebuild a single service](#9-rebuild-a-single-service)
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
 - [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
+- [CI with Jenkins](#ci-with-jenkins)
+  - [1. Install required plugins](#1-install-required-plugins)
+  - [2. Configure tools](#2-configure-tools)
+  - [3. Create a Pipeline job for each service](#3-create-a-pipeline-job-for-each-service)
+  - [4. Pipeline stages](#4-pipeline-stages)
+  - [5. OWASP controls summary](#5-owasp-controls-summary)
+  - [6. Push to a container registry (optional)](#6-push-to-a-container-registry-optional)
+  - [7. Docker image scan with Trivy (optional)](#7-docker-image-scan-with-trivy-optional)
 - [Running Tests](#running-tests)
 - [Troubleshooting](#troubleshooting)
 
@@ -202,41 +220,43 @@ docker exec -it postgres-ddd-clean psql -U root -d medicalsalesrep_db -c "SELECT
 **Microsoft SQL Server** (Visit Service):
 
 ```bash
-docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=Riverplate1!' -p 1433:1433 --name sqlserver_ddd_clean -v sqlvolume:/var/opt/mssql/data -d mcr.microsoft.com/mssql/server:2022-latest
-
 docker run -u 0 \
   -e 'ACCEPT_EULA=Y' \
   -e 'MSSQL_SA_PASSWORD=Riverplate1!' \
   -p 1433:1433 \
-  --name sqlserver_ddd_clean \
+  --name sqlserver-ddd-clean \
   -v sqlvolume:/var/opt/mssql/data \
   -d mcr.microsoft.com/mssql/server:2022-latest
 
 # Wait for SQL Server to be ready (can take 30-60 s; loop retries every 5 s)
 # (-No suppresses the TLS certificate warning on the 2022 image)
-until docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+until docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No -Q "SELECT 1" &>/dev/null; do
   echo "Waiting for SQL Server to be ready..."; sleep 5
 done
 
 # Create the database
-docker exec sqlserver_ddd_clean /opt/mssql-tools18/bin/sqlcmd \
+docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P "Riverplate1!" -No \
   -Q "CREATE DATABASE visitdb"
 
+docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P "Riverplate1!" -No \
+  -Q "SELECT * FROM visitdb.dbo.visits"
+
 # To restart later
-docker start sqlserver_ddd_clean
+docker start sqlserver-ddd-clean
 ```
 
 **MySQL** (Settlement Service only):
 
 ```bash
 docker run -d --name mysql-ddd-clean \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=yourpassword \
+  -p 3308:3306 \
+  -e MYSQL_ROOT_PASSWORD=riverplate \
   -e MYSQL_DATABASE=settlementdb \
   -v mysql_data:/var/lib/mysql \
-  mysql:8
+  mysql:latest
 
 # To restart later
 docker start mysql-ddd-clean
@@ -455,6 +475,12 @@ DB_PASSWORD='Riverplate1!' mvn -pl visit-service/visit-application -am spring-bo
 ```bash
 # Default — local-disk file storage (no extra container needed)
 mvn -pl settlement-service/settlement-application -am spring-boot:run
+
+
+DB_URL='jdbc:mysql://172.17.0.1:3308/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true' \
+DB_PASSWORD='riverplate' \
+mvn -pl settlement-service/settlement-application -am spring-boot:run
+
 # Ready when: "Started SettlementApplication" appears
 # Listens on: http://localhost:8089
 ```
@@ -516,6 +542,205 @@ curl -s "http://localhost:8080/api/v1/medicalsalesrep/get?id=<uuid>" \
 
 ---
 
+## Option C — Run Individual Docker Containers
+
+Use this option to build and run each service as a standalone Docker container on a shared network.
+All services must be on the same Docker network (`ddd-clean-net`) and use `SPRING_PROFILES_ACTIVE=prod`
+so that `server.address=0.0.0.0` and Eureka IP auto-detection are activated.
+
+### 0. Prerequisites — shared network and dependency containers
+
+```bash
+# Create the shared network (once)
+docker network create ddd-clean-net
+
+# Connect existing dependency containers to ddd-clean-net
+docker network connect ddd-clean-net postgres-ddd-clean   # MSR + HCP (PostgreSQL)
+docker network connect ddd-clean-net sqlserver-ddd-clean  # Visit (SQL Server)
+docker network connect ddd-clean-net mysql-ddd-clean      # Settlement (MySQL)
+docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitmq-ddd-clean)
+```
+
+> If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
+
+---
+
+### 1. Eureka Server
+
+```bash
+# Build
+docker build -f eureka-server/Dockerfile -t eureka-server .
+
+# Run
+docker run -d --name eureka-server --network ddd-clean-net -p 8761:8761 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e EUREKA_USER=eureka \
+  -e EUREKA_PASSWORD=eureka \
+  -e EUREKA_HOSTNAME=eureka-server \
+  eureka-server
+```
+
+Dashboard: `http://localhost:8761` (eureka / eureka)
+
+---
+
+### 2. API Gateway
+
+```bash
+# Build
+docker build -f api-gateway/Dockerfile -t api-gateway .
+
+# Run
+docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+  api-gateway
+```
+
+---
+
+### 3. Identity Service
+
+```bash
+# Build
+docker build -f identity-service/identity-application/Dockerfile -t identity-service .
+
+# Run
+docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  identity-service
+```
+
+Auth endpoint: `POST http://localhost:8090/auth/login`
+
+---
+
+### 4. Medical Sales Rep Service
+
+```bash
+# Build
+docker build -f medical-sales-rep-service/msr-application/Dockerfile -t msr-service .
+
+# Run
+docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  msr-service
+```
+
+---
+
+### 5. Healthcare Prof Service
+
+```bash
+# Build
+docker build -f healthcare-prof-service/hcp-application/Dockerfile -t hcp-service .
+
+# Run
+docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  hcp-service
+```
+
+---
+
+### 6. Visit Service
+
+> **Requires:** `sqlserver-ddd-clean` container on `ddd-clean-net` with `visitdb` created.
+
+```bash
+# Build
+docker build -f visit-service/visit-application/Dockerfile -t visit-service .
+
+# Run
+docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL="jdbc:sqlserver://sqlserver-ddd-clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true" \
+  -e DB_USERNAME=sa \
+  -e DB_PASSWORD=Riverplate1! \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e MSR_BASE_URL=http://msr-service:8086 \
+  -e HCP_BASE_URL=http://hcp-service:8087 \
+  -e RABBITMQ_HOST=rabbitmq \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
+  visit-service
+```
+
+> `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+
+---
+
+### 7. Settlement Service
+
+> **Requires:** `mysql-ddd-clean` container on `ddd-clean-net` with `settlementdb` created.
+
+```bash
+# Build
+docker build -f settlement-service/settlement-application/Dockerfile -t settlement-service .
+
+# Run
+docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL="jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+  -e DB_USERNAME=root \
+  -e DB_PASSWORD=yourpassword \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e MSR_SERVICE_BASE_URL=http://msr-service:8086 \
+  -e INVOICE_FILE_STORAGE_PATH=/var/settlement-service/invoice-files \
+  -v settlement-invoice-files:/var/settlement-service/invoice-files \
+  settlement-service
+```
+
+> `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+
+---
+
+### Start-up order
+
+Always start in this order: **Eureka → API Gateway → Identity → MSR → HCP → Visit → Settlement**
+
+### Check logs
+
+```bash
+docker logs -f <container-name>
+# e.g.
+docker logs -f visit-service
+```
+
+### Rebuild a single service after code changes
+
+```bash
+docker build -f <service>/Dockerfile -t <image-name> .
+docker rm -f <container-name>
+docker run -d ... <image-name>   # reuse the run command above
+```
+
+---
+
 ## Option B — Run with Docker Compose (Production)
 
 All services run as Docker containers on an internal network. Only the API Gateway port is published to the host.
@@ -527,11 +752,23 @@ cp .env.example .env
 # Edit .env — replace every "change-me" value with a real secret
 ```
 
-### 2. Build and start
+### 2. Create the external Docker network
+
+Several services (`msr`, `hcp`, `visit`) join a pre-existing network called `ddd-clean-net` to reach a RabbitMQ container that lives outside of Compose. Create it once on the Docker host:
+
+```bash
+docker network create ddd-clean-net
+```
+
+> If this network already exists (e.g. created by another Compose project) the command returns an error you can safely ignore.
+
+### 3. Build and start
 
 ```bash
 docker compose up -d --build
 ```
+
+The `--build` flag compiles every service JAR inside Docker (multi-stage build) — required on first run and after any code change.
 
 This starts:
 
@@ -546,18 +783,73 @@ This starts:
 | `settlement-service` | none | `prod` |
 
 > In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
+>
+> Services with `depends_on: service_healthy` wait for Eureka to pass its healthcheck before starting, so the stack comes up in the correct order automatically.
 
-### 3. Check status
+### 4. Check status
 
 ```bash
+# Show running containers and their state
 docker compose ps
+
+# Follow logs for all services
+docker compose logs -f
+
+# Follow logs for a single service
 docker compose logs -f api-gateway
+docker compose logs -f identity-service
 ```
 
-### 4. Stop
+### 5. Verify all services registered with Eureka
+
+Eureka is on the internal network and has no published port. Query it through the gateway:
 
 ```bash
+curl -s -u ${EUREKA_USER}:${EUREKA_PASSWORD} \
+  http://localhost:8080/eureka/apps | grep '<app>'
+```
+
+Or exec into any container:
+
+```bash
+docker compose exec api-gateway \
+  curl -s http://eureka-server:8761/actuator/health
+```
+
+### 6. Obtain a JWT token
+
+```bash
+curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"Apatehia65$"}'
+```
+
+### 7. Dev override — MinIO file storage (optional)
+
+To activate MinIO instead of local-disk storage for the Settlement Service, merge the dev override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### 8. Stop
+
+```bash
+# Stop and remove containers (keeps volumes)
 docker compose down
+
+# Stop, remove containers AND volumes (destructive — deletes invoice-files volume)
+docker compose down -v
+```
+
+### 9. Rebuild a single service
+
+After changing code in one service only:
+
+```bash
+docker compose up -d --build <service-name>
+# e.g.
+docker compose up -d --build settlement-service
 ```
 
 ---
@@ -833,6 +1125,119 @@ RABBITMQ_PASSWORD=<password>
 ```
 
 The MSR, HCP, and Visit services read these variables. The Settlement Service does not use RabbitMQ.
+
+---
+
+## CI with Jenkins
+
+Each of the four microservices has a `Jenkinsfile` at its service root that defines a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls.
+
+| Service | Jenkinsfile path |
+|---|---|
+| Medical Sales Rep | `medical-sales-rep-service/Jenkinsfile` |
+| Healthcare Prof | `healthcare-prof-service/Jenkinsfile` |
+| Visit | `visit-service/Jenkinsfile` |
+| Settlement | `settlement-service/Jenkinsfile` |
+
+### 1. Install required plugins
+
+In Jenkins: **Manage Jenkins → Plugins → Available plugins**
+
+| Plugin | Purpose |
+|---|---|
+| **Pipeline** | Declarative pipeline support (usually pre-installed) |
+| **Git** | SCM checkout |
+| **JUnit** | Publish per-layer test results |
+| **Warnings Next Generation** | `recordIssues` — publishes SpotBugs SAST reports |
+| **OWASP Dependency-Check** | `dependencyCheckPublisher` — publishes CVE scan reports |
+| **Docker Pipeline** | Docker build/push steps |
+
+### 2. Configure tools
+
+In Jenkins: **Manage Jenkins → Tools**
+
+Add entries with these exact names (they match the `tools {}` block in each Jenkinsfile):
+
+| Tool type | Name | Version |
+|---|---|---|
+| JDK | `JDK-25` | Java 25 |
+| Maven | `Maven-3.9` | 3.9.x |
+
+> If Java 25 and Maven 3.9 are already on the agent's `PATH`, you can remove the `tools {}` block from a Jenkinsfile and they will be used automatically.
+
+### 3. Create a Pipeline job for each service
+
+Repeat these steps for each service:
+
+1. **New Item** → enter the service name → select **Pipeline** → **OK**
+2. Under the **Pipeline** section:
+   - Definition: **Pipeline script from SCM**
+   - SCM: **Git**
+   - Repository URL: `https://github.com/diegoarielsanchez/vscode-remote-java-ddd-clean-architecture`
+   - Branch: `*/main` (or your target branch)
+   - Script Path: see table above
+3. **Save** → **Build Now**
+
+### 4. Pipeline stages
+
+```
+Checkout → Domain Tests → Infra Tests → Application Tests
+         → SAST (SpotBugs) → OWASP Dependency-Check → Package
+         → Build Docker Image → [Docker Image Scan*] → [Push*]
+```
+
+Each stage maps to a specific DDD layer and OWASP control:
+
+| Stage | DDD layer | OWASP Top 10 control |
+|---|---|---|
+| **Domain Tests** | `*-domain` | A04 — entity invariants, use-case business rules, SHA-256 integrity (Settlement) |
+| **Infra Tests** | `*-infra` | — JPA adapters + file storage adapters tested in isolation with H2 |
+| **Application Tests** | `*-application` | A01 Broken Access Control, A07 Auth Failures — security filters, JWT, Bean Validation |
+| **SAST — SpotBugs** | all layers | A03 Injection, path traversal, insecure deserialization (Find Security Bugs plugin) |
+| **OWASP Dependency-Check** | all layers | A06 Vulnerable & Outdated Components — fails build on CVSS ≥ 7 |
+| **Build Docker Image** | — | Multi-stage build, minimal JRE runtime image |
+| **Docker Image Scan (Trivy)** | — | A06 — OS-level CVEs in the final image *(commented out, optional)* |
+
+**Stage details:**
+
+- **Domain Tests** — pure JUnit 5 + Mockito, zero Spring context. Business rule regressions are caught before any infrastructure or HTTP test runs.
+- **Infra Tests** — validates JPA mappings and repository queries against H2 in-memory; no live database required in CI.
+- **Application Tests** — Spring Boot test slice (`@WebMvcTest` / `@SpringBootTest`): verifies security filter chain, JWT token validation, rate limiting, and input validation.
+- **SAST — SpotBugs + Find Security Bugs** (`findsecbugs-plugin:1.13.0`) — static analysis at compile time. Detects SQL injection, command injection, XSS, path traversal, and insecure cryptography patterns. Build fails on any finding (`-Dspotbugs.failOnError=true`).
+- **OWASP Dependency-Check** — queries the NVD CVE database against every declared Maven dependency. Build fails if any dependency has a CVSS score ≥ 7 (`-DfailBuildOnCVSS=7`). HTML + XML reports are archived and published via the Jenkins plugin.
+- **Package** — assembles the final JAR (`-DskipTests`) only after all security gates pass.
+- **Build Docker Image** — uses `context: .` (repo root) so the multi-stage Dockerfile can resolve cross-module dependencies.
+
+### 5. OWASP controls summary
+
+| OWASP Top 10 | Pipeline enforcement |
+|---|---|
+| A01 Broken Access Control | Spring Security integration tests in Application Tests stage |
+| A03 Injection | SpotBugs + Find Security Bugs SAST (fails build) |
+| A04 Insecure Design | Domain Tests validate business invariants and SHA-256 integrity |
+| A05 Security Misconfiguration | Prod profile disables Swagger, enforces `server.address=0.0.0.0` only in Docker |
+| A06 Vulnerable Components | OWASP Dependency-Check (fails on CVSS ≥ 7) + optional Trivy image scan |
+| A07 Identification & Auth Failures | JWT filter + BCrypt wiring covered by Application Tests |
+| A09 Security Logging Failures | Log configuration assertions in application integration tests |
+
+### 6. Push to a container registry (optional)
+
+Each Jenkinsfile contains a commented-out `Push Docker Image` stage. To activate it:
+
+1. Add a Jenkins credential (**Manage Jenkins → Credentials**) of type **Username with password**, ID: `docker-registry-credentials`.
+2. Uncomment the `Push Docker Image` stage in the Jenkinsfile.
+3. Replace `<your-registry>` with your registry URL (e.g. `docker.io/myorg`, `123456789.dkr.ecr.us-east-1.amazonaws.com`, `ghcr.io/myorg`).
+
+### 7. Docker image scan with Trivy (optional)
+
+Each Jenkinsfile also contains a commented-out `Docker Image Scan — Trivy` stage. To activate it:
+
+1. Install Trivy on the Jenkins agent:
+   ```bash
+   curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+   ```
+2. Uncomment the `Docker Image Scan — Trivy` stage in the Jenkinsfile.
+3. The stage fails the build on any `HIGH` or `CRITICAL` OS/library CVE in the final image.
 
 ---
 

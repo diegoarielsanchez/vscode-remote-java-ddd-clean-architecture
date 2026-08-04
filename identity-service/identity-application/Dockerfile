@@ -1,18 +1,11 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM maven:3.9-eclipse-temurin-25 AS builder
+WORKDIR /build
+COPY . .
+RUN mvn -pl identity-service/identity-application -am clean package -DskipTests --no-transfer-progress
+
+FROM eclipse-temurin:25-jre-noble
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-# Create non-root user (OWASP A06: least privilege)
-RUN addgroup -S identity && adduser -S identity -G identity
-
-COPY target/identity-application-*.jar app.jar
-RUN chown identity:identity app.jar
-
-USER identity
-
-ENV SERVER_ADDRESS=0.0.0.0
+COPY --from=builder /build/identity-service/identity-application/target/*.jar app.jar
 EXPOSE 8090
-
-ENTRYPOINT ["java", \
-  "-Djava.security.egd=file:/dev/./urandom", \
-  "-Dspring.profiles.active=prod", \
-  "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

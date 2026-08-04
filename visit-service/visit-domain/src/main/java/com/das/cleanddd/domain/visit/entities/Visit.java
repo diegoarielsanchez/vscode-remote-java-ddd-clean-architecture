@@ -35,18 +35,8 @@ public final class Visit extends AggregateRoot<Object> {
         , List<VisitItem> visitItems
         , MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
 
-        if (visitDate == null || visitDate.value().isAfter(LocalDateTime.now())) {
-            throw new BusinessValidationException("Visit date cannot be later than today.");
-        }
-        if (visitDate.value().isBefore(LocalDateTime.now().minusMonths(1))) {
-            throw new BusinessValidationException("Visit date cannot be more than one month in the past.");
-        }
-        if (medicalSalesRepId == null) {
-            throw new BusinessValidationException("Medical Sales Representative is required.");
-        }
-        if (healthCareProfId == null) {
-            throw new BusinessValidationException("Health Care Professional is required.");
-        }
+        validateVisitDate(visitDate);
+        validateRequiredReferences(medicalSalesRepId, healthCareProfId);
 
         this._visitId           = visitId;
         this._visitDate         = visitDate;
@@ -56,7 +46,80 @@ public final class Visit extends AggregateRoot<Object> {
         this._medicalSalesRepId = medicalSalesRepId;
     }
 
-    @SuppressWarnings("unused")
+    /**
+     * Updates the mutable business attributes of this Visit, re-applying the same
+     * invariants enforced at creation time (visit date window, required references).
+     * Keeping validation centralized here ensures the rules cannot be bypassed by
+     * whichever use case (create or update) manipulates this aggregate.
+     */
+    public void update(
+        LocalDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId
+    ) throws BusinessValidationException {
+
+        validateVisitDate(visitDate);
+        validateRequiredReferences(medicalSalesRepId, healthCareProfId);
+
+        this._visitDate         = visitDate;
+        this._healthCareProfId  = healthCareProfId;
+        this._visitComments     = visitComments;
+        this._visitSiteId       = visitSiteId;
+        this._medicalSalesRepId = medicalSalesRepId;
+    }
+
+    private static void validateVisitDate(LocalDateTime visitDate) throws BusinessValidationException {
+        if (visitDate == null || visitDate.isAfter(LocalDateTime.now())) {
+            throw new BusinessValidationException("Visit date cannot be later than today.");
+        }
+        if (visitDate.value().isBefore(LocalDateTime.now().minusMonths(1))) {
+            throw new BusinessValidationException("Visit date cannot be more than one month in the past.");
+        }
+    }
+
+    private static void validateRequiredReferences(
+        MedicalSalesRepId medicalSalesRepId,
+        HealthCareProfId healthCareProfId
+    ) throws BusinessValidationException {
+        if (medicalSalesRepId == null) {
+            throw new BusinessValidationException("Medical Sales Representative is required.");
+        }
+        if (healthCareProfId == null) {
+            throw new BusinessValidationException("Health Care Professional is required.");
+        }
+    }
+
+    /**
+     * Rehydrates a Visit from persisted/trusted state (e.g. repository reads for
+     * get/list use cases) WITHOUT re-running business validation. Business rules
+     * such as the visit date window are enforced only when a Visit is created or
+     * updated; historical records that already exist must remain readable even if
+     * they no longer satisfy today's date-window rule.
+     */
+    public static Visit reconstruct(
+        VisitId visitId,
+        LocalDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        List<VisitItem> visitItems,
+        MedicalSalesRepId medicalSalesRepId
+    ) {
+        Visit visit = new Visit();
+        visit._visitId           = visitId;
+        visit._visitDate         = visitDate;
+        visit._healthCareProfId  = healthCareProfId;
+        visit._visitComments     = visitComments;
+        visit._visitSiteId       = visitSiteId;
+        visit._medicalSalesRepId = medicalSalesRepId;
+        if (visitItems != null) {
+            visit._visitItems.addAll(visitItems);
+        }
+        return visit;
+    }
+
     private Visit() {
         _visitId           = null;
         _visitDate         = null;

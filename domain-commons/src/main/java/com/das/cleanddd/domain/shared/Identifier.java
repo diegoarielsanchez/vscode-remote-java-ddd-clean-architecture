@@ -39,6 +39,12 @@ public abstract class Identifier implements Serializable {
     }
 
     private void ensureValidUuid(String value) throws IllegalArgumentException {
+        if (value == null) {
+            throw new IllegalArgumentException("Id cannot be null.");
+        }
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("Id cannot be empty.");
+        }
         UUID.fromString(value);
     }
 }

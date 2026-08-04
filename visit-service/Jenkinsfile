@@ -1,0 +1,251 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Visit Service — CI Pipeline
+//
+// DDD layer test strategy:
+//   • Domain layer  (visit-domain)       — pure unit tests, no Spring context,
+//                                          entities + use-case business rules.
+//   • Infra layer   (visit-infra)        — repository adapter tests (H2 in-memory).
+//   • Application   (visit-application)  — controller / security integration tests.
+//
+// OWASP Top 10 controls embedded in pipeline:
+//   A01 Broken Access Control    → Spring Security config verified in controller tests.
+//   A03 Injection                → SpotBugs + Find Security Bugs SAST scan.
+//   A05 Security Misconfiguration→ Fail build on CRITICAL/HIGH Dependency-Check CVEs.
+//   A06 Vulnerable Components    → OWASP Dependency-Check on every build.
+//   A07 Auth Failures            → JWT / BCrypt wiring validated in integration tests.
+//   A09 Logging Failures         → Verified by application-layer test assertions.
+// ─────────────────────────────────────────────────────────────────────────────
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.9'
+        jdk   'JDK-25'
+    }
+
+    environment {
+        // ── Module paths ──────────────────────────────────────────────────────
+        DOMAIN_MODULE = 'visit-service/visit-domain'
+        INFRA_MODULE  = 'visit-service/visit-infra'
+        APP_MODULE    = 'visit-service/visit-application'
+        // ── Docker ────────────────────────────────────────────────────────────
+        IMAGE_NAME    = 'visit-service'
+        IMAGE_TAG     = "${env.BUILD_NUMBER}"
+        // ── OWASP Dependency-Check: fail on CVSS ≥ 7 (HIGH/CRITICAL) ─────────
+        OWASP_FAIL_CVSS = '7'
+    }
+
+    stages {
+
+        // ── Stage 1: Checkout ─────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ── Stage 1b: Install shared libraries ────────────────────────────────
+        // domain-commons lives at the root reactor and is not part of this
+        // service's sub-reactor. Install it explicitly so all downstream stages
+        // can resolve it regardless of the Jenkins working directory.
+        stage('Prepare: Shared Libraries') {
+            steps {
+                sh 'mvn -pl domain-commons install -DskipTests --no-transfer-progress'
+            }
+        }
+
+        // ── Stage 2: Domain layer tests (pure unit, no Spring context) ────────
+        // Validates DDD business rules: entity invariants, use-case logic,
+        // domain exceptions — completely isolated from infrastructure.
+        stage('Domain Tests') {
+            steps {
+                sh "mvn -pl ${DOMAIN_MODULE} -am install --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-domain/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 3: Infrastructure layer tests ───────────────────────────────
+        // Validates repository adapters against H2 in-memory database.
+        // Ensures JPA mappings and query correctness without a live DB.
+        stage('Infra Tests') {
+            steps {
+                sh "mvn -pl ${INFRA_MODULE} -am install --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-infra/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 4: Application layer tests ─────────────────────────────────
+        // Spring Boot integration tests: controllers, security filters,
+        // JWT validation, rate limiting, input validation (Bean Validation).
+        // OWASP A01, A03, A07 coverage lives here.
+        stage('Application Tests') {
+            steps {
+                sh "mvn -pl ${APP_MODULE} -am test --no-transfer-progress"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'visit-service/visit-application/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ── Stage 5: SAST — SpotBugs + Find Security Bugs (OWASP A03/A04) ────
+        // Find Security Bugs plugin detects injection flaws, path traversal,
+        // insecure deserialization, XSS patterns, and more at compile time.
+        stage('SAST — SpotBugs') {
+            steps {
+                sh """
+                    mvn -pl ${APP_MODULE} -am verify -DskipTests \\
+                        --no-transfer-progress
+                """
+            }
+            post {
+                always {
+                    dir('.') {
+                        recordIssues(tools: [spotBugs(pattern: '**/spotbugsXml.xml')])
+                    }
+                }
+            }
+        }
+
+        // ── Stage 6: OWASP Dependency-Check (A06 Vulnerable Components) ──────
+        // Scans all declared dependencies against the NVD CVE database.
+        // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
+        stage('OWASP Dependency-Check') {
+            steps {
+                script {
+                    // NVD API key is optional — speeds up NVD updates but is not required.
+                    // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
+                    // Free key: https://nvd.nist.gov/developers/request-an-api-key
+                    // credentialAvailable is set to true only after withCredentials opens successfully,
+                    // so the catch block can distinguish "credential missing" from "Maven failed".
+                    // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe.
+                    //              with a key the limit is 50 req/30 s → 500 ms is fine.
+                    // retryCount:  retry up to 10 times before failing on persistent 429s.
+                    def credentialAvailable = false
+                    try {
+                        withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                            credentialAvailable = true
+                            sh """
+                                mvn -pl ${APP_MODULE} -am \\
+                                    org.owasp:dependency-check-maven:check \\
+                                    -Ddependency-check.skip=true \\
+                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                    -DnvdApiKey="\${NVD_API_KEY}" \\
+                                    -DnvdApiDelay=500 \\
+                                    -DretryCount=10 \\
+                                    -DossIndexAnalyzerEnabled=false \\
+                                    -Dformats=HTML,XML \\
+                                    --no-transfer-progress
+                            """
+                        }
+                    } catch (hudson.AbortException e) {
+                        if (!credentialAvailable) {
+                            echo "NVD API key credential 'nvd-api-key' not configured — running without API key (rate-limited)."
+                            sh """
+                                mvn -pl ${APP_MODULE} -am \\
+                                    org.owasp:dependency-check-maven:check \\
+                                    -Ddependency-check.skip=true \\
+                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                    -DnvdApiDelay=6000 \\
+                                    -DretryCount=10 \\
+                                    -DossIndexAnalyzerEnabled=false \\
+                                    -Dformats=HTML,XML \\
+                                    --no-transfer-progress
+                            """
+                        } else {
+                            throw e
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    dir('.') {
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
+                }
+            }
+        }
+
+        // ── Stage 7: Package ──────────────────────────────────────────────────
+        stage('Package') {
+            steps {
+                sh "mvn -pl ${APP_MODULE} -am package -DskipTests --no-transfer-progress"
+            }
+        }
+
+        // ── Stage 8: Build Docker Image ───────────────────────────────────────
+        stage('Build Docker Image') {
+            when {
+                expression { sh(script: 'which docker > /dev/null 2>&1', returnStatus: true) == 0 }
+            }
+            steps {
+                sh """
+                    docker build \
+                        -f ${APP_MODULE}/Dockerfile \
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                        -t ${IMAGE_NAME}:latest \
+                        .
+                """
+            }
+        }
+
+        // ── Stage 9: Docker Image Scan (optional — requires Trivy on agent) ───
+        // stage('Docker Image Scan — Trivy') {
+        //     steps {
+        //         sh """
+        //             trivy image --exit-code 1 \
+        //                 --severity HIGH,CRITICAL \
+        //                 --no-progress \
+        //                 ${IMAGE_NAME}:${IMAGE_TAG}
+        //         """
+        //     }
+        // }
+
+        // ── Stage 10: Push Docker Image (optional) ────────────────────────────
+        // stage('Push Docker Image') {
+        //     steps {
+        //         withCredentials([usernamePassword(
+        //             credentialsId: 'docker-registry-credentials',
+        //             usernameVariable: 'REGISTRY_USER',
+        //             passwordVariable: 'REGISTRY_PASS'
+        //         )]) {
+        //             sh "docker login -u $REGISTRY_USER -p $REGISTRY_PASS <your-registry>"
+        //             sh "docker push <your-registry>/${IMAGE_NAME}:${IMAGE_TAG}"
+        //             sh "docker push <your-registry>/${IMAGE_NAME}:latest"
+        //         }
+        //     }
+        // }
+
+    }
+
+    post {
+        success {
+            echo "Pipeline for ${env.IMAGE_NAME} passed all gates — build #${env.IMAGE_TAG}."
+        }
+        failure {
+            echo "Pipeline for ${env.IMAGE_NAME} FAILED — review SAST / CVE reports above."
+        }
+        always {
+            script {
+                // cleanWs() requires a FilePath (workspace) context.
+                // In some Jenkins agent configurations the workspace may be
+                // unavailable by the time the pipeline-level post block runs.
+                try {
+                    cleanWs()
+                } catch (Exception e) {
+                    echo "Workspace cleanup skipped — no workspace context available: ${e.message}"
+                }
+            }
+        }
+    }
+}

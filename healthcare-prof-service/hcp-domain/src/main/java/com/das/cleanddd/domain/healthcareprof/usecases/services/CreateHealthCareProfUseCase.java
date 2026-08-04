@@ -1,7 +1,6 @@
 package com.das.cleanddd.domain.healthcareprof.usecases.services;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +16,7 @@ import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 //@RequiredArgsConstructor
@@ -28,6 +28,7 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
     @Autowired
     private final HealthCareProfMapper mapper;
     private final IHcpEventPublisher publisher;
+    private final EnsureHealthCareProfEmailIsUniqueService uniqueEmailService;
     
     public CreateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfMapper mapper
@@ -36,6 +37,7 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.uniqueEmailService = new EnsureHealthCareProfEmailIsUniqueService(repository);
     }
 
     @Override
@@ -46,25 +48,17 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
         if (inputDTO == null) {
             throw new DomainException("Input DTO cannot be null");
         }
-        if (inputDTO.name() == null || inputDTO.name().isEmpty()) {
-            throw new DomainException("Name cannot be null or empty");
-        }
-        if (inputDTO.surname() == null || inputDTO.surname().isEmpty()) {
-            throw new DomainException("Surname cannot be null or empty");
-        }
-        if (inputDTO.email() == null || inputDTO.email().isEmpty()) {
-            throw new DomainException("Email cannot be null or empty");
-        }
-        if (inputDTO.specialties() == null || inputDTO.specialties().isEmpty()) {
-            throw new DomainException("Specialties cannot be null or empty");
-        }
         HealthCareProf entity;
 
         try {
+            // Name/surname/email presence and format rules are enforced by their
+            // respective Value Objects (HealthCareProfName, HealthCareProfEmail);
+            // duplicating those checks here would just create a second, divergent
+            // source of truth for the same invariant.
             HealthCareProfName name = new HealthCareProfName(inputDTO.name());
             HealthCareProfName surname = new HealthCareProfName(inputDTO.surname());
             HealthCareProfEmail email = new HealthCareProfEmail(inputDTO.email());
-            List<Specialty> specialties = inputDTO.specialties().stream()
+            List<Specialty> specialties = (inputDTO.specialties() == null ? List.<String>of() : inputDTO.specialties()).stream()
                 .map(code -> {
                     try {
                         return SpecialtyCatalog.fromCode(code);
@@ -73,19 +67,20 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
                     }
                 })
                 .toList();
-            // Validate Unique Email
-            Optional<HealthCareProf> entityWithEmail = repository.findByEmail(email);
-            if(entityWithEmail.isPresent()) {
-            throw new DomainException("There is already a Health Care Professional with this email.");
-            }
+            // Validate Unique Email (cross-aggregate rule enforced via domain service)
+            uniqueEmailService.ensureUnique(email, null);
             // Create a new HealthCareProf object using the factory
                 entity = HealthCareProf.create(null, name, surname, email, null, specialties);
+            // "Specialties required" (and other entity-level invariants) is enforced
+            // by the entity's own validate() method - the single source of truth,
+            // reused by both create and update instead of duplicated DTO checks.
+            entity.validate();
             // Create
             repository.save(entity);
                 entity.pullDomainEvents().forEach(publisher::publish);
             // Convert response to output and return
             return mapper.outputFromEntity(entity);
-        } catch (IllegalArgumentException  e) {
+        } catch (IllegalArgumentException | BusinessException e) {
             throw new DomainException(e.getMessage());
 
         }

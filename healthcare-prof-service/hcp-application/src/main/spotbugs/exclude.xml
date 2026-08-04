@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclusion filter for hcp-application.
+
+  SPRING_CSRF_PROTECTION_DISABLED: CSRF is intentionally disabled.
+  This is a stateless JWT API — no session cookies are used, so CSRF is not
+  applicable. The API Gateway provides the external authentication boundary.
+-->
+<FindBugsFilter>
+    <Match>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+        <Class name="com.das.hcp.application.config.SecurityConfig"/>
+    </Match>
+</FindBugsFilter>

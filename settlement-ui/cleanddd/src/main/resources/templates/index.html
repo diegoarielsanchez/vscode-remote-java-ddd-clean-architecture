@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settlement Console</title>
+    <link rel="stylesheet" href="https://unpkg.com/primeflex@3.3.1/primeflex.css" />
+    <style>
+        body { background: #f5f7fb; font-family: Arial, sans-serif; margin: 0; color: #0f172a; }
+        .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 18px rgba(0,0,0,0.06); padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .pill { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background: #f8fafc; }
+        .form-grid { display: grid; gap: 12px; }
+        .field { display: flex; flex-direction: column; gap: 6px; }
+        input, button { padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; }
+        button { background: #2563eb; color: white; cursor: pointer; }
+        .success { color: #166534; background: #dcfce7; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
+        .error { color: #b91c1c; background: #fee2e2; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
+        @media (max-width: 900px) { .header { flex-direction: column; align-items: flex-start; gap: 10px; } }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <div>
+                <h1 style="margin: 0;">Settlement Console</h1>
+                <p style="margin: 4px 0 0; color: #64748b;">Responsive UI consuming the settlement API from the Spring Boot backend.</p>
+            </div>
+            <span class="pill">PrimeFlex + Thymeleaf</span>
+        </div>
+
+        <div class="grid">
+            <div class="col-12 lg:col-8">
+                <div class="card">
+                    <h2 style="margin-top:0;">Existing settlements</h2>
+                    <div th:if="${successMessage}" class="success" th:text="${successMessage}"></div>
+                    <div th:if="${errorMessage}" class="error" th:text="${errorMessage}"></div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Description</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="settlement : ${settlements}">
+                                <td th:text="${settlement.id}"></td>
+                                <td th:text="${settlement.description}"></td>
+                                <td th:text="${settlement.settlementDate}"></td>
+                                <td th:text="${settlement.status}"></td>
+                                <td th:text="${settlement.totalAmount}"></td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(settlements)}">
+                                <td colspan="5">No settlements found yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-12 lg:col-4">
+                <div class="card">
+                    <h2 style="margin-top:0;">Create settlement</h2>
+                    <form th:action="@{/settlements}" th:object="${form}" method="post" class="form-grid">
+                        <div class="field">
+                            <label for="description">Description</label>
+                            <input id="description" type="text" th:field="*{description}" required="required" />
+                        </div>
+                        <div class="field">
+                            <label for="settlementDate">Settlement date</label>
+                            <input id="settlementDate" type="date" th:field="*{settlementDate}" />
+                        </div>
+                        <div class="field">
+                            <label for="medicalSalesRepId">Medical Sales Rep ID</label>
+                            <input id="medicalSalesRepId" type="text" th:field="*{medicalSalesRepId}" required="required" />
+                        </div>
+                        <button type="submit">Create settlement</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

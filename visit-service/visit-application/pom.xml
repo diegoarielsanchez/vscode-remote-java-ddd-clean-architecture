@@ -3,6 +3,7 @@
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+
     <parent>
         <groupId>com.das.visit</groupId>
         <artifactId>visit-service</artifactId>
@@ -15,6 +16,13 @@
     <description>Visit — Spring Boot application (REST API for Visit and VisitPlan)</description>
 
     <dependencies>
+        <!-- SpotBugs annotations: @SuppressFBWarnings (optional — not needed at runtime) -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs.annotations.version}</version>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>com.das.visit</groupId>
             <artifactId>visit-domain</artifactId>
@@ -83,10 +91,24 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+
+        <!-- Caffeine cache (used by Spring Cloud LoadBalancer instead of the default in-memory cache) -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <configuration>
+                    <skip>false</skip>
+                    <excludeFilterFile>src/main/spotbugs/exclude.xml</excludeFilterFile>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

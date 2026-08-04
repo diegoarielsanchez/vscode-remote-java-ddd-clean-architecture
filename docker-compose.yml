@@ -20,10 +20,13 @@ services:
 
   # ── Eureka Service Registry ────────────────────────────────────────────────
   eureka-server:
+    container_name: eureka-server-ddd-clean
     build:
       context: .
       dockerfile: eureka-server/Dockerfile
-    networks: [backend]
+    networks: [frontend, backend]   # frontend allows host access on port 8761
+    ports:
+      - "8761:8761"             # Publish so the UI is accessible from the host
     environment:
       SPRING_PROFILES_ACTIVE: prod
       EUREKA_USER: ${EUREKA_USER}
@@ -34,11 +37,13 @@ services:
       interval: 15s
       timeout: 5s
       retries: 8
+      start_period: 60s
     restart: unless-stopped
     # No ports: — Eureka is only reachable inside the backend network
 
   # ── API Gateway (sole public entry point) ──────────────────────────────────
   api-gateway:
+    container_name: api-gateway-ddd-clean
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
@@ -58,10 +63,12 @@ services:
       interval: 15s
       timeout: 5s
       retries: 8
+      start_period: 60s
     restart: unless-stopped
 
   # ── Medical Sales Rep Service ──────────────────────────────────────────────
   medical-sales-rep-service:
+    container_name: medical-sales-rep-service-ddd-clean
     build:
       context: .
       dockerfile: medical-sales-rep-service/msr-application/Dockerfile
@@ -84,6 +91,7 @@ services:
 
   # ── Healthcare Professional Service ────────────────────────────────────────
   healthcare-prof-service:
+    container_name: healthcare-prof-service-ddd-clean
     build:
       context: .
       dockerfile: healthcare-prof-service/hcp-application/Dockerfile
@@ -105,6 +113,7 @@ services:
 
   # ── Visit Service ──────────────────────────────────────────────────────────
   visit-service:
+    container_name: visit-service-ddd-clean
     build:
       context: .
       dockerfile: visit-service/visit-application/Dockerfile
@@ -126,12 +135,31 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Identity Service ──────────────────────────────────────────────────────
+  identity-service:
+    container_name: identity-service-ddd-clean
+    build:
+      context: .
+      dockerfile: identity-service/identity-application/Dockerfile
+    networks: [frontend, backend]   # frontend allows direct host access on port 8090
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ── Settlement Service ─────────────────────────────────────────────────────
   settlement-service:
+    container_name: settlement-service-ddd-clean
     build:
       context: .
       dockerfile: settlement-service/settlement-application/Dockerfile
-    networks: [backend]
+    networks: [backend, ddd-clean-net]  # ddd-clean-net allows reaching MySQL on the Docker host (172.17.0.1)
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
@@ -146,6 +174,25 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ── Settlement UI (server-rendered console) ────────────────────────────────
+  settlement-ui:
+    container_name: settlement-ui-ddd-clean
+    build:
+      context: .
+      dockerfile: settlement-ui/cleanddd/Dockerfile
+    networks: [frontend, backend]   # frontend allows host access on port 8081
+    ports:
+      - "8081:8081"
+    environment:
+      SETTLEMENT_API_BASE_URL: http://settlement-service:8089/api/v1/settlement
+      IDENTITY_SERVICE_BASE_URL: http://identity-service:8090
+      IDENTITY_CLIENT_USERNAME: ${IDENTITY_CLIENT_USERNAME}
+      IDENTITY_CLIENT_PASSWORD: ${IDENTITY_CLIENT_PASSWORD}
+    depends_on:
+      - settlement-service
+      - identity-service
     restart: unless-stopped
 
 volumes:
