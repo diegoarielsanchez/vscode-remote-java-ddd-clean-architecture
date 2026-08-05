@@ -75,7 +75,7 @@ pipeline {
                     // NVD API key is optional — speeds up NVD updates but is not required.
                     // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
                     // Free key: https://nvd.nist.gov/developers/request-an-api-key
-                    def credentialAvailable = false
+                    def credentialAvailable = true
                     try {
                         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
                             credentialAvailable = true

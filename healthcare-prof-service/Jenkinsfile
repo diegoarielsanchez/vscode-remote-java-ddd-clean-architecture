@@ -130,7 +130,7 @@ pipeline {
                     // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe.
                     //              with a key the limit is 50 req/30 s → 500 ms is fine.
                     // retryCount:  retry up to 10 times before failing on persistent 429s.
-                    def credentialAvailable = false
+                    def credentialAvailable = true
                     try {
                         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
                             credentialAvailable = true
