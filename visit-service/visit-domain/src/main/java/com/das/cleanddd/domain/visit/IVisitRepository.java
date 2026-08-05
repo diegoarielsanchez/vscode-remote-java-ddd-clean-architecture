@@ -21,6 +21,6 @@ public interface IVisitRepository {
 
     List<Visit> searchAll(int page, int pageSize);
 
-    boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, LocalDateTime visitDate);
+    boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, VisitDateTime visitDate);
 
 }

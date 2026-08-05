@@ -22,6 +22,9 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
+        <spotbugs.version>4.10.3.0</spotbugs.version>
+        <spotbugs.annotations.version>4.10.3</spotbugs.annotations.version>
+        <findsecbugs.version>1.13.0</findsecbugs.version>
         <log4j2.version>2.26.0</log4j2.version>
     </properties>
 
@@ -38,6 +41,13 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- SpotBugs annotations: @SuppressFBWarnings (optional — not needed at runtime) -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs.annotations.version}</version>
+            <optional>true</optional>
+        </dependency>
         <!-- Spring Cloud Gateway (reactive / WebFlux) -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -121,6 +131,30 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.version}</version>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.h3xstream.findsecbugs</groupId>
+                            <artifactId>findsecbugs-plugin</artifactId>
+                            <version>${findsecbugs.version}</version>
+                        </plugin>
+                    </plugins>
+                    <failOnError>true</failOnError>
+                    <skip>false</skip>
+                    <excludeFilterFile>src/main/spotbugs/exclude.xml</excludeFilterFile>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

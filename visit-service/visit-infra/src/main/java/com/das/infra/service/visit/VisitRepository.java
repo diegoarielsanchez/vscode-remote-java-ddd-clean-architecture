@@ -59,7 +59,7 @@ public final class VisitRepository implements IVisitRepository {
     }
 
     @Override
-    public synchronized boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, LocalDateTime visitDate) {
+    public synchronized boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, VisitDateTime visitDate) {
         if (healthCareProfId == null || medicalSalesRepId == null || visitDate == null) {
             return false;
         }

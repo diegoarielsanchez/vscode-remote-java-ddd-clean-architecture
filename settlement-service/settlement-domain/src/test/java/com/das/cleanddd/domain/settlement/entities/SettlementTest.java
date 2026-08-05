@@ -102,7 +102,7 @@ class SettlementTest {
         @DisplayName("addInvoice should add a new invoice to an OPEN settlement")
         void shouldAddInvoiceToOpenSettlement() throws BusinessValidationException {
             Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new BigDecimal("500.00"));
+            Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(new BigDecimal("500.00")));
 
             assertEquals(1, s.invoices().size());
             assertEquals(Invoice.InvoiceStatus.DRAFT, added.status());
@@ -113,10 +113,10 @@ class SettlementTest {
         @DisplayName("addInvoice should throw on duplicate invoice number")
         void shouldThrowOnDuplicateInvoiceNumber() throws BusinessValidationException {
             Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO);
+            s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
 
             assertThrows(BusinessValidationException.class,
-                    () -> s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO));
+                    () -> s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO)));
         }
 
         @Test
@@ -124,14 +124,14 @@ class SettlementTest {
         void shouldThrowWhenAddingToClosedSettlement() throws BusinessValidationException {
             Settlement closed = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId).close();
             assertThrows(BusinessValidationException.class,
-                    () -> closed.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO));
+                    () -> closed.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO)));
         }
 
         @Test
         @DisplayName("removeInvoice should remove an existing invoice")
         void shouldRemoveInvoice() throws BusinessValidationException {
             Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO);
+            Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
             s.removeInvoice(added);
             assertTrue(s.invoices().isEmpty());
         }
@@ -140,7 +140,7 @@ class SettlementTest {
         @DisplayName("removeInvoice should throw when settlement is CLOSED")
         void shouldThrowWhenRemovingFromClosedSettlement() throws BusinessValidationException {
             Settlement open   = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            Invoice added     = open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO);
+            Invoice added     = open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
             Settlement closed = open.close();
 
             assertThrows(BusinessValidationException.class,
@@ -173,8 +173,8 @@ class SettlementTest {
         @DisplayName("should sum all invoice amounts")
         void shouldSumInvoiceAmounts() throws BusinessValidationException {
             Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            s.addInvoice(new InvoiceNumber("A000100000001"), new IssueDate(VALID_ISSUE_DATE), null, new BigDecimal("300.00"));
-            s.addInvoice(new InvoiceNumber("A000100000002"), new IssueDate(VALID_ISSUE_DATE), null, new BigDecimal("200.50"));
+            s.addInvoice(new InvoiceNumber("A000100000001"), new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("300.00")));
+            s.addInvoice(new InvoiceNumber("A000100000002"), new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("200.50")));
 
             assertEquals(new BigDecimal("500.50"), s.totalAmount());
         }
@@ -197,7 +197,7 @@ class SettlementTest {
         @DisplayName("close() should return a new immutable instance preserving invoices")
         void closeShouldPreserveInvoices() throws BusinessValidationException {
             Settlement open = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
-            open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new BigDecimal("100.00"));
+            open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("100.00")));
             Settlement closed = open.close();
 
             assertNotSame(open, closed);

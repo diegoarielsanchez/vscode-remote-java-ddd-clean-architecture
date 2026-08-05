@@ -7,6 +7,7 @@ import com.das.cleanddd.domain.settlement.entities.IMedicalSalesRepPort;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.DueDate;
 import com.das.cleanddd.domain.settlement.entities.IssueDate;
+import com.das.cleanddd.domain.settlement.entities.InvoiceAmount;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
@@ -68,7 +69,7 @@ public final class CreateSettlementUseCase implements UseCase<CreateSettlementIn
                             new InvoiceNumber(invoiceDTO.invoiceNumber()),
                             new IssueDate(invoiceDTO.issueDate()),
                             invoiceDTO.dueDate() != null ? new DueDate(invoiceDTO.dueDate()) : null,
-                            invoiceDTO.amount());
+                            new InvoiceAmount(invoiceDTO.amount()));
                 }
             }
 

@@ -46,7 +46,7 @@ public class SettlementMapper {
                 invoice.invoiceNumber().value(),
                 invoice.issueDate().value(),
                 invoice.dueDate() != null ? invoice.dueDate().value() : null,
-                invoice.amount(),
+                invoice.amount().value(),
                 invoice.status().name(),
                 file != null ? file.fileName()   : null,
                 file != null ? file.contentType() : null,

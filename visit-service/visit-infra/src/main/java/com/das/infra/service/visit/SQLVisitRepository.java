@@ -69,7 +69,7 @@ public final class SQLVisitRepository implements IVisitRepository {
     }
 
     @Override
-    public boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, LocalDateTime visitDate) {
+    public boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, VisitDateTime visitDate) {
         if (healthCareProfId == null || medicalSalesRepId == null || visitDate == null) {
             return false;
         }
@@ -99,7 +99,7 @@ public final class SQLVisitRepository implements IVisitRepository {
 
         return Visit.reconstruct(
                 new VisitId(entity.getId()),
-                entity.getVisitDate(),
+                new VisitDateTime(entity.getVisitDate()),
                 new HealthCareProfId(hcpId),
                 visitComments,
                 visitSiteId,

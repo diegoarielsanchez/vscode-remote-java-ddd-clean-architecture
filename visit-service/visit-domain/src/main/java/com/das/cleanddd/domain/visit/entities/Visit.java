@@ -53,7 +53,7 @@ public final class Visit extends AggregateRoot<Object> {
      * whichever use case (create or update) manipulates this aggregate.
      */
     public void update(
-        LocalDateTime visitDate,
+        VisitDateTime visitDate,
         HealthCareProfId healthCareProfId,
         TextValueObject visitComments,
         Identifier visitSiteId,
@@ -70,8 +70,8 @@ public final class Visit extends AggregateRoot<Object> {
         this._medicalSalesRepId = medicalSalesRepId;
     }
 
-    private static void validateVisitDate(LocalDateTime visitDate) throws BusinessValidationException {
-        if (visitDate == null || visitDate.isAfter(LocalDateTime.now())) {
+    private static void validateVisitDate(VisitDateTime visitDate) throws BusinessValidationException {
+        if (visitDate == null || visitDate.value().isAfter(LocalDateTime.now())) {
             throw new BusinessValidationException("Visit date cannot be later than today.");
         }
         if (visitDate.value().isBefore(LocalDateTime.now().minusMonths(1))) {
@@ -100,7 +100,7 @@ public final class Visit extends AggregateRoot<Object> {
      */
     public static Visit reconstruct(
         VisitId visitId,
-        LocalDateTime visitDate,
+        VisitDateTime visitDate,
         HealthCareProfId healthCareProfId,
         TextValueObject visitComments,
         Identifier visitSiteId,

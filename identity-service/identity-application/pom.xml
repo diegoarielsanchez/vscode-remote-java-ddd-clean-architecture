@@ -15,6 +15,13 @@
     <description>Identity — Spring Boot application (REST API, security hardening, Eureka registration)</description>
 
     <dependencies>
+        <!-- SpotBugs annotations: @SuppressFBWarnings (optional — not needed at runtime) -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs.annotations.version}</version>
+            <optional>true</optional>
+        </dependency>
         <!-- Domain + Infra layers -->
         <dependency>
             <groupId>com.das.identity</groupId>
@@ -79,6 +86,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <configuration>
+                    <skip>false</skip>
+                    <excludeFilterFile>src/main/spotbugs/exclude.xml</excludeFilterFile>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

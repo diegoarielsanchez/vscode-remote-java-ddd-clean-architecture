@@ -68,7 +68,7 @@ public final class Settlement extends AggregateRoot<Object> {
     public Invoice addInvoice(InvoiceNumber invoiceNumber,
                                IssueDate issueDate,
                                DueDate dueDate,
-                               BigDecimal amount) throws BusinessValidationException {
+                               InvoiceAmount amount) throws BusinessValidationException {
         if (_status == SettlementStatus.CLOSED) {
             throw new BusinessValidationException("Cannot add invoices to a CLOSED settlement.");
         }
@@ -114,6 +114,7 @@ public final class Settlement extends AggregateRoot<Object> {
         return _invoices.stream()
                 .map(Invoice::amount)
                 .filter(Objects::nonNull)
+                .map(InvoiceAmount::value)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

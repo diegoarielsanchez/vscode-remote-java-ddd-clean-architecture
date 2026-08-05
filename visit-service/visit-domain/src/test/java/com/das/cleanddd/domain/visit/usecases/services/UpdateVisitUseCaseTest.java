@@ -26,6 +26,7 @@ import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
@@ -61,7 +62,7 @@ class UpdateVisitUseCaseTest {
     private Visit buildExistingVisit() throws BusinessValidationException {
         return new Visit(
             new VisitId(VISIT_ID),
-            LocalDateTime.now().minusDays(1).withHour(10),
+            new VisitDateTime(LocalDateTime.now().minusDays(1).withHour(10)),
             new HealthCareProfId(HCP_ID),
             null,
             new Identifier(SITE_ID) {},

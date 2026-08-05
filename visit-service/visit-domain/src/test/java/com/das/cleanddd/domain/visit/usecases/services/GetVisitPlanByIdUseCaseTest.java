@@ -22,6 +22,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
@@ -48,7 +49,7 @@ class GetVisitPlanByIdUseCaseTest {
     private VisitPlan buildPlan() throws BusinessValidationException {
         return new VisitPlan(
             new VisitId(PLAN_ID),
-            LocalDateTime.now().plusDays(1),
+            new VisitDateTime(LocalDateTime.now().plusDays(1)),
             new HealthCareProfId(HCP_ID),
             null,
             new Identifier(SITE_ID) {},

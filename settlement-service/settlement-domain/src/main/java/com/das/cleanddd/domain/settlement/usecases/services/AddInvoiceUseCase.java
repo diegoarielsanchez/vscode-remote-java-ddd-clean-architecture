@@ -1,10 +1,13 @@
 package com.das.cleanddd.domain.settlement.usecases.services;
 
+import com.das.cleanddd.domain.settlement.entities.DueDate;
 import com.das.cleanddd.domain.settlement.entities.IInvoiceFileStorage;
 import com.das.cleanddd.domain.settlement.entities.ISettlementRepository;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.InvoiceFile;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
+import com.das.cleanddd.domain.settlement.entities.IssueDate;
+import com.das.cleanddd.domain.settlement.entities.InvoiceAmount;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.AddInvoiceInputDTO;
@@ -63,9 +66,9 @@ public final class AddInvoiceUseCase implements UseCase<AddInvoiceInputDTO, Invo
         try {
             newInvoice = settlement.addInvoice(
                     invoiceNumber,
-                    input.issueDate(),
-                    input.dueDate(),
-                    input.amount());
+                    new IssueDate(input.issueDate()),
+                    input.dueDate() != null ? new DueDate(input.dueDate()) : null,
+                    new InvoiceAmount(input.amount()));
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());
         }

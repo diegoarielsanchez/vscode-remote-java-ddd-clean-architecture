@@ -109,7 +109,7 @@ class VisitPlanTest {
                 List.of(),
                 new MedicalSalesRepId(MSR_ID)
             );
-            assertThat(plan.visitTimeDate()).isBefore(LocalDateTime.now());
+            assertThat(plan.visitTimeDate().value()).isBefore(LocalDateTime.now());
         }
 
         @Test

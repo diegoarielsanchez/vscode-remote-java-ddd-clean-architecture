@@ -30,13 +30,13 @@ class InvoiceTest {
         @DisplayName("should create a DRAFT invoice with all valid fields")
         void shouldCreateDraftInvoice() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), AMOUNT, null);
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
 
             assertNotNull(invoice.invoiceId());
             assertEquals(INV_NUMBER, invoice.invoiceNumber());
             assertEquals(VALID_ISSUE_DATE, invoice.issueDate().value());
             assertEquals(VALID_DUE_DATE,   invoice.dueDate().value());
-            assertEquals(AMOUNT,           invoice.amount());
+            assertEquals(AMOUNT,           invoice.amount().value());
             assertEquals(Invoice.InvoiceStatus.DRAFT, invoice.status());
         }
 
@@ -44,7 +44,7 @@ class InvoiceTest {
         @DisplayName("should generate a random id when invoiceId is null")
         void shouldGenerateIdWhenNull() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), AMOUNT, null);
+                    null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
             assertNotNull(invoice.invoiceId());
         }
 
@@ -52,7 +52,7 @@ class InvoiceTest {
         @DisplayName("should accept a null due date")
         void shouldAcceptNullDueDate() {
             assertDoesNotThrow(() ->
-                    new Invoice(null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, AMOUNT, null));
+                    new Invoice(null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(AMOUNT), null));
         }
 
         @Test
@@ -60,7 +60,7 @@ class InvoiceTest {
         void shouldThrowWhenIssueDateNull() {
             BusinessValidationException ex = assertThrows(
                     BusinessValidationException.class,
-                    () -> new Invoice(null, INV_NUMBER, null, null, AMOUNT, null));
+                    () -> new Invoice(null, INV_NUMBER, null, null, new InvoiceAmount(AMOUNT), null));
             assertTrue(ex.getMessage().contains("Issue date is required."));
         }
 
@@ -69,7 +69,7 @@ class InvoiceTest {
         void shouldThrowWhenIssueDateTooRecent() {
             assertThrows(BusinessValidationException.class,
                     () -> new Invoice(null, INV_NUMBER,
-                            LocalDate.now().minusDays(61), null, AMOUNT, null));
+                            new IssueDate(LocalDate.now().minusDays(61)), null, new InvoiceAmount(AMOUNT), null));
         }
 
         @Test
@@ -77,7 +77,7 @@ class InvoiceTest {
         void shouldThrowWhenDueDateBeforeIssueDate() {
             assertThrows(BusinessValidationException.class,
                     () -> new Invoice(null, INV_NUMBER,
-                            new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_ISSUE_DATE.minusDays(1)), AMOUNT, null));
+                            new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_ISSUE_DATE.minusDays(1)), new InvoiceAmount(AMOUNT), null));
         }
 
         @Test
@@ -92,14 +92,14 @@ class InvoiceTest {
         void shouldThrowWhenAmountNegative() {
             assertThrows(BusinessValidationException.class,
                     () -> new Invoice(null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null,
-                            new BigDecimal("-0.01"), null));
+                            new InvoiceAmount(new BigDecimal("-0.01")), null));
         }
 
         @Test
         @DisplayName("should accept zero amount")
         void shouldAcceptZeroAmount() {
             assertDoesNotThrow(() ->
-                    new Invoice(null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, BigDecimal.ZERO, null));
+                    new Invoice(null, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO), null));
         }
     }
 
@@ -114,7 +114,7 @@ class InvoiceTest {
         @BeforeEach
         void setUp() throws BusinessValidationException {
             draftInvoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), AMOUNT, null);
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
         }
 
         @Test
@@ -177,7 +177,7 @@ class InvoiceTest {
         @DisplayName("state transitions should preserve invoice id")
         void shouldPreserveIdOnTransition() throws BusinessValidationException {
             InvoiceId id = InvoiceId.random();
-            Invoice invoice = new Invoice(id, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, AMOUNT, null);
+            Invoice invoice = new Invoice(id, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(AMOUNT), null);
             assertEquals(id, invoice.issue().invoiceId());
         }
     }
@@ -196,7 +196,7 @@ class InvoiceTest {
         @DisplayName("invoiceFile() should be null when invoice is created without a file")
         void invoiceFileShouldBeNullByDefault() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
             assertNull(invoice.invoiceFile());
         }
 
@@ -204,7 +204,7 @@ class InvoiceTest {
         @DisplayName("should store and return the InvoiceFile when provided at construction")
         void shouldReturnInvoiceFileWhenProvidedAtConstruction() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT),
                     Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
             assertEquals(INVOICE_FILE, invoice.invoiceFile());
         }
@@ -213,7 +213,7 @@ class InvoiceTest {
         @DisplayName("attachFile() should return a new invoice instance with the file attached")
         void attachFileShouldReturnNewInstanceWithFile() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
 
             Invoice withFile = invoice.attachFile(INVOICE_FILE);
 
@@ -227,15 +227,15 @@ class InvoiceTest {
         void attachFileShouldPreserveOtherFields() throws BusinessValidationException {
             InvoiceId id = InvoiceId.random();
             Invoice invoice = new Invoice(
-                    id, INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+                    id, INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
 
             Invoice withFile = invoice.attachFile(INVOICE_FILE);
 
             assertEquals(id,              withFile.invoiceId());
             assertEquals(INV_NUMBER,      withFile.invoiceNumber());
-            assertEquals(VALID_ISSUE_DATE, withFile.issueDate());
-            assertEquals(VALID_DUE_DATE,  withFile.dueDate());
-            assertEquals(AMOUNT,          withFile.amount());
+            assertEquals(VALID_ISSUE_DATE, withFile.issueDate().value());
+            assertEquals(VALID_DUE_DATE,  withFile.dueDate().value());
+            assertEquals(AMOUNT,          withFile.amount().value());
             assertEquals(Invoice.InvoiceStatus.DRAFT, withFile.status());
         }
 
@@ -243,7 +243,7 @@ class InvoiceTest {
         @DisplayName("attachFile(null) should throw BusinessValidationException")
         void attachFileNullShouldThrow() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT, null);
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT), null);
             assertThrows(BusinessValidationException.class, () -> invoice.attachFile(null));
         }
 
@@ -251,7 +251,7 @@ class InvoiceTest {
         @DisplayName("issue() should carry the attached InvoiceFile to the new instance")
         void issueShouldCarryInvoiceFile() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT),
                     Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
 
             Invoice issued = invoice.issue();
@@ -263,7 +263,7 @@ class InvoiceTest {
         @DisplayName("pay() should carry the attached InvoiceFile to the new instance")
         void payShouldCarryInvoiceFile() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT),
                     Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
 
             Invoice paid = invoice.issue().pay();
@@ -275,7 +275,7 @@ class InvoiceTest {
         @DisplayName("cancel() should carry the attached InvoiceFile to the new instance")
         void cancelShouldCarryInvoiceFile() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT),
                     Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
 
             Invoice cancelled = invoice.cancel();
@@ -287,7 +287,7 @@ class InvoiceTest {
         @DisplayName("attachFile() can replace an existing file with a new one")
         void attachFileShouldReplaceExistingFile() throws BusinessValidationException {
             Invoice invoice = new Invoice(
-                    InvoiceId.random(), INV_NUMBER, VALID_ISSUE_DATE, VALID_DUE_DATE, AMOUNT,
+                    InvoiceId.random(), INV_NUMBER, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(AMOUNT),
                     Invoice.InvoiceStatus.DRAFT, INVOICE_FILE);
 
             InvoiceFile newFile = new InvoiceFile("INV-001-v2.pdf", "application/pdf", new byte[]{9, 8, 7});

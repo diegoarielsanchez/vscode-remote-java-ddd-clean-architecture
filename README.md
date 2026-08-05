@@ -1130,7 +1130,7 @@ The MSR, HCP, and Visit services read these variables. The Settlement Service do
 
 ## CI with Jenkins
 
-Each of the four microservices has a `Jenkinsfile` at its service root that defines a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls.
+Each microservice has a `Jenkinsfile` at its service root. The four DDD services (domain/infra/application split) define a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls; the single-module infrastructure services (API Gateway, Eureka Server) use a shorter 8-stage variant without the per-layer test split.
 
 | Service | Jenkinsfile path |
 |---|---|
@@ -1138,6 +1138,9 @@ Each of the four microservices has a `Jenkinsfile` at its service root that defi
 | Healthcare Prof | `healthcare-prof-service/Jenkinsfile` |
 | Visit | `visit-service/Jenkinsfile` |
 | Settlement | `settlement-service/Jenkinsfile` |
+| Identity | `identity-service/Jenkinsfile` |
+| API Gateway | `api-gateway/Jenkinsfile` |
+| Eureka Server | `eureka-server/Jenkinsfile` |
 
 ### 1. Install required plugins
 

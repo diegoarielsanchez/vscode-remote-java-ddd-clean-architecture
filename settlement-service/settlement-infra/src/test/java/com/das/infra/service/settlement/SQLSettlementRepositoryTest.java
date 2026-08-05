@@ -1,12 +1,16 @@
 package com.das.infra.service.settlement;
 
+import com.das.cleanddd.domain.settlement.entities.DueDate;
 import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
+import com.das.cleanddd.domain.settlement.entities.InvoiceAmount;
 import com.das.cleanddd.domain.settlement.entities.InvoiceId;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
+import com.das.cleanddd.domain.settlement.entities.IssueDate;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
+import com.das.cleanddd.domain.settlement.entities.SettlementDate;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import org.junit.jupiter.api.AfterEach;
@@ -59,7 +63,7 @@ class SQLSettlementRepositoryTest {
         return new Settlement(
                 new SettlementId(id),
                 description,
-                LocalDate.now(),
+                new SettlementDate(LocalDate.now()),
                 SettlementStatus.OPEN,
                 List.of(),
                 new MedicalSalesRepId(msrId));
@@ -69,9 +73,9 @@ class SQLSettlementRepositoryTest {
         return new Invoice(
                 new InvoiceId(id),
                 new InvoiceNumber(number),
-                LocalDate.now(),
-                LocalDate.now().plusDays(30),
-                BigDecimal.valueOf(500),
+                new IssueDate(LocalDate.now()),
+                new DueDate(LocalDate.now().plusDays(30)),
+                new InvoiceAmount(BigDecimal.valueOf(500)),
                 InvoiceStatus.DRAFT);
     }
 
@@ -100,7 +104,7 @@ class SQLSettlementRepositoryTest {
         Settlement updated = new Settlement(
                 new SettlementId(id),
                 "Updated",
-                LocalDate.now(),
+                new SettlementDate(LocalDate.now()),
                 SettlementStatus.CLOSED,
                 List.of(),
                 new MedicalSalesRepId(msrId));

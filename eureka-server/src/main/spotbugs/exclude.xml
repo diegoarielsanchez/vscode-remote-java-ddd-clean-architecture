@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclusion filter for eureka-server.
+
+  SPRING_CSRF_PROTECTION_DISABLED: CSRF is only ignored for the /eureka/**
+  registration endpoints, which are called by service clients (not browsers)
+  and are not exposed publicly outside the internal network.
+-->
+<FindBugsFilter>
+    <Match>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+        <Class name="com.das.registry.config.SecurityConfig"/>
+    </Match>
+</FindBugsFilter>

@@ -18,6 +18,7 @@ import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.entities.HealthCareProfId;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
@@ -111,7 +112,7 @@ class VisitPlanDeactivationIntegrationTest {
     private VisitPlan buildFutureVisitPlan() throws Exception {
         return new VisitPlan(
                 new VisitId(VISIT_ID),
-                LocalDateTime.now().plusDays(2).withHour(10).withMinute(0).withSecond(0).withNano(0),
+                new VisitDateTime(LocalDateTime.now().plusDays(2).withHour(10).withMinute(0).withSecond(0).withNano(0)),
                 new HealthCareProfId(HCP_ID),
                 new TextValueObject("integration test") {},
                 new Identifier(SITE_ID) {},

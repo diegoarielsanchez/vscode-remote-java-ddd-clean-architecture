@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +54,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
         if (inputDTO.visitDate() == null) {
             throw new DomainException("Visit date cannot be null");
         }
-        LocalDateTime visitDateTime = inputDTO.visitDate().atStartOfDay();
+        VisitDateTime visitDateTime = new VisitDateTime(inputDTO.visitDate().atStartOfDay());
         VisitInputValidation.requireNonBlank(inputDTO.healthCareProfId(), "Health Care Professional id");
         VisitInputValidation.requireNonBlank(inputDTO.visitSiteId(), "Visit site id");
         VisitInputValidation.requireNonBlank(inputDTO.medicalSalesRepId(), "Medical Sales Representative id");

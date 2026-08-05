@@ -7,7 +7,7 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
 /**
  * Value object representing the date an invoice was issued.
- * Business rule: must be at least 60 days in the past.
+ * Business rule: must be within the last 60 days.
  */
 public final class IssueDate extends DateValueObject {
 
@@ -16,8 +16,8 @@ public final class IssueDate extends DateValueObject {
         if (value == null) {
             throw new BusinessValidationException("Issue date is required.");
         }
-        if (value.isAfter(LocalDate.now().minusDays(60))) {
-            throw new BusinessValidationException("Issue date must be at least 60 days in the past.");
+        if (value.isBefore(LocalDate.now().minusDays(60))) {
+            throw new BusinessValidationException("Issue date must be within the last 60 days.");
         }
     }
 }

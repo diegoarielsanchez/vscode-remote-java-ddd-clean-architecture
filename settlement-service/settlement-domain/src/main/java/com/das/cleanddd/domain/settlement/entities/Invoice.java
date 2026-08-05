@@ -1,6 +1,6 @@
 package com.das.cleanddd.domain.settlement.entities;
 
-import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Objects;
 
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -15,7 +15,7 @@ public final class Invoice {
     private final InvoiceNumber   _invoiceNumber;
     private final IssueDate  _issueDate;
     private final DueDate    _dueDate;
-    private final BigDecimal _amount;
+    private final InvoiceAmount _amount;
     private InvoiceStatus   _status;
     private final InvoiceFile    _invoiceFile;
 
@@ -23,30 +23,30 @@ public final class Invoice {
                    InvoiceNumber invoiceNumber,
                    IssueDate issueDate,
                    DueDate dueDate,
-                   BigDecimal amount,
+                   InvoiceAmount amount,
                    InvoiceStatus status) throws BusinessValidationException {
         this(invoiceId, invoiceNumber, issueDate, dueDate, amount, status, null);
     }
 
     public Invoice(InvoiceId invoiceId,
                    InvoiceNumber invoiceNumber,
-                   LocalDate issueDate,
-                   LocalDate dueDate,
-                   BigDecimal amount,
+                   IssueDate issueDate,
+                   DueDate dueDate,
+                   InvoiceAmount amount,
                    InvoiceStatus status,
                    InvoiceFile invoiceFile) throws BusinessValidationException {
 
         if (issueDate == null) {
             throw new BusinessValidationException("Issue date is required.");
         }
-        if (issueDate.isBefore(LocalDate.now().minusDays(60))) {
+        if (issueDate.value().isBefore(LocalDate.now().minusDays(60))) {
             throw new BusinessValidationException("Issue date must be within the last 60 days.");
         }
-        if (dueDate != null && dueDate.isBefore(issueDate)) {
+        if (dueDate != null && dueDate.value().isBefore(issueDate.value())) {
             throw new BusinessValidationException("Due date cannot be before issue date.");
         }
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BusinessValidationException("Amount must be zero or positive.");
+        if (amount == null) {
+            throw new BusinessValidationException("Amount is required.");
         }
 
         this._invoiceId     = invoiceId == null ? InvoiceId.random() : invoiceId;
@@ -72,7 +72,7 @@ public final class Invoice {
     static Invoice create(InvoiceNumber invoiceNumber,
                            IssueDate issueDate,
                            DueDate dueDate,
-                           BigDecimal amount) throws BusinessValidationException {
+                           InvoiceAmount amount) throws BusinessValidationException {
         return new Invoice(InvoiceId.random(), invoiceNumber, issueDate, dueDate, amount, InvoiceStatus.DRAFT, null);
     }
 
@@ -80,9 +80,9 @@ public final class Invoice {
 
     public InvoiceId invoiceId()       { return _invoiceId; }
     public InvoiceNumber invoiceNumber() { return _invoiceNumber; }
-    public LocalDate issueDate()       { return _issueDate; }
-    public LocalDate dueDate()         { return _dueDate; }
-    public BigDecimal amount()         { return _amount; }
+    public IssueDate issueDate()       { return _issueDate; }
+    public DueDate dueDate()           { return _dueDate; }
+    public InvoiceAmount amount()      { return _amount; }
     public InvoiceStatus status()      { return _status; }
     /** Returns the attached digital file, or {@code null} if none has been attached yet. */
     public InvoiceFile invoiceFile()   { return _invoiceFile; }

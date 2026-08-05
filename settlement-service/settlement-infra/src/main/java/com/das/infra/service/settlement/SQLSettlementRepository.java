@@ -19,6 +19,7 @@ import com.das.cleanddd.domain.settlement.entities.Invoice;
 import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
 import com.das.cleanddd.domain.settlement.entities.InvoiceFile;
 import com.das.cleanddd.domain.settlement.entities.InvoiceId;
+import com.das.cleanddd.domain.settlement.entities.InvoiceAmount;
 import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
@@ -129,7 +130,7 @@ public class SQLSettlementRepository implements ISettlementRepository {
                 new InvoiceNumber(ie.getInvoiceNumber()),
                 new IssueDate(ie.getIssueDate()),
                 ie.getDueDate() != null ? new DueDate(ie.getDueDate()) : null,
-                ie.getAmount(),
+                new InvoiceAmount(ie.getAmount()),
                 InvoiceStatus.valueOf(ie.getStatus()),
                 invoiceFile);
     }
@@ -156,7 +157,7 @@ public class SQLSettlementRepository implements ISettlementRepository {
         ie.setInvoiceNumber(invoice.invoiceNumber().value());
         ie.setIssueDate(invoice.issueDate().value());
         ie.setDueDate(invoice.dueDate() != null ? invoice.dueDate().value() : null);
-        ie.setAmount(invoice.amount());
+        ie.setAmount(invoice.amount().value());
         ie.setStatus(invoice.status().name());
         ie.setSettlement(parent);
 

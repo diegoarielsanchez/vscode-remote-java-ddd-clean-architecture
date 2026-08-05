@@ -1,6 +1,5 @@
 package com.das.cleanddd.domain.visit.entities;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +34,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
     }
 
     public VisitPlan(VisitId visitId
-        , LocalDateTime visitDateTime
+        , VisitDateTime visitDateTime
         , HealthCareProfId healthCareProfId
         , TextValueObject visitComments
         , Identifier visitSiteId
