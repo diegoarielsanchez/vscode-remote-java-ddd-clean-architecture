@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -15,9 +16,10 @@ import org.springframework.web.client.RestTemplate;
  * call downstream APIs (settlement-service, msr-service, etc.) on behalf of a
  * fixed service account.
  * <p>
- * Uses its own {@link RestTemplate} instance (not the shared bean used for
+ * Uses the dedicated {@code identityRestTemplate} bean (not the shared one used for
  * business API calls) to avoid the auth interceptor being applied to the
- * login call itself.
+ * login call itself. Both beans are {@code @LoadBalanced}, resolving logical
+ * Eureka service names instead of hard-coded host:port values.
  */
 @Service
 public class IdentityTokenService {
@@ -27,7 +29,7 @@ public class IdentityTokenService {
     /** Refresh a bit before actual expiry to avoid using a token that expires mid-request. */
     private static final long EXPIRY_SAFETY_MARGIN_SECONDS = 30;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     private final String identityBaseUrl;
     private final String username;
@@ -38,10 +40,12 @@ public class IdentityTokenService {
     private volatile Instant expiresAt = Instant.MIN;
 
     public IdentityTokenService(
+            @Qualifier("identityRestTemplate") RestTemplate identityRestTemplate,
             @Value("${identity.service.base-url:http://localhost:8090}") String identityBaseUrl,
             @Value("${identity.client.username:user}") String username,
             @Value("${identity.client.password:}") String password,
             @Value("${identity.client.token-ttl-seconds:3600}") long tokenTtlSeconds) {
+        this.restTemplate = identityRestTemplate;
         this.identityBaseUrl = identityBaseUrl;
         this.username = username;
         this.password = password;

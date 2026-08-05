@@ -24,7 +24,7 @@ public class SettlementViewBean {
 
     private final RestTemplate restTemplate;
 
-    @Value("${settlement.api.base-url:http://localhost:8080/api/v1/settlement}")
+    @Value("${settlement.api.base-url:http://settlement-service/api/v1/settlement}")
     private String apiBaseUrl;
 
     @Autowired

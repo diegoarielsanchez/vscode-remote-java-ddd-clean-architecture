@@ -15,8 +15,10 @@ import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 
 /**
  * Infra adapter that implements {@link IMedicalSalesRepPort} by calling the
- * msr-service REST API.  The base URL is configurable so integration tests can
- * point it at a stub/WireMock server.
+ * msr-service REST API. The injected {@link RestTemplate} is {@code @LoadBalanced},
+ * so {@code msrServiceBaseUrl} is resolved as an Eureka logical service name — requests
+ * are distributed across every registered medical-sales-rep-service instance. Integration
+ * tests can still point it at a stub/WireMock server by overriding it with a raw host:port.
  */
 @Service
 public class MedicalSalesRepHttpAdapter implements IMedicalSalesRepPort {
@@ -27,9 +29,9 @@ public class MedicalSalesRepHttpAdapter implements IMedicalSalesRepPort {
     private final String msrServiceBaseUrl;
 
     public MedicalSalesRepHttpAdapter(
-            RestTemplate restTemplate,
+            RestTemplate loadBalancedRestTemplate,
             @Value("${msr.service.base-url}") String msrServiceBaseUrl) {
-        this.restTemplate = restTemplate;
+        this.restTemplate = loadBalancedRestTemplate;
         this.msrServiceBaseUrl = msrServiceBaseUrl;
     }
 

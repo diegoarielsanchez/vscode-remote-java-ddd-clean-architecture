@@ -166,7 +166,8 @@ services:
       DB_URL: ${SETTLEMENT_DB_URL}
       DB_USERNAME: ${SETTLEMENT_DB_USERNAME}
       DB_PASSWORD: ${SETTLEMENT_DB_PASSWORD}
-      MSR_SERVICE_BASE_URL: http://medical-sales-rep-service:8086
+      # Logical Eureka service name — resolved to an instance by the @LoadBalanced RestTemplate.
+      MSR_SERVICE_BASE_URL: http://medical-sales-rep-service
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
       INVOICE_FILE_STORAGE_PATH: /var/settlement-service/invoice-files
     volumes:
@@ -186,13 +187,19 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SETTLEMENT_API_BASE_URL: http://settlement-service:8089/api/v1/settlement
-      IDENTITY_SERVICE_BASE_URL: http://identity-service:8090
+      # Logical Eureka service names — resolved to an instance by the @LoadBalanced RestTemplate beans.
+      SETTLEMENT_API_BASE_URL: http://settlement-service/api/v1/settlement
+      IDENTITY_SERVICE_BASE_URL: http://identity-service
       IDENTITY_CLIENT_USERNAME: ${IDENTITY_CLIENT_USERNAME}
       IDENTITY_CLIENT_PASSWORD: ${IDENTITY_CLIENT_PASSWORD}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
     depends_on:
-      - settlement-service
-      - identity-service
+      eureka-server:
+        condition: service_healthy
+      settlement-service:
+        condition: service_started
+      identity-service:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
