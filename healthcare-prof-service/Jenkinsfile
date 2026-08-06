@@ -125,15 +125,13 @@ pipeline {
                     // NVD API key is optional — speeds up NVD updates but is not required.
                     // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
                     // Free key: https://nvd.nist.gov/developers/request-an-api-key
-                    // credentialAvailable is set to true only after withCredentials opens successfully,
-                    // so the catch block can distinguish "credential missing" from "Maven failed".
+                    // Any failure with the key (missing credential, revoked/invalid key, NVD outage)
+                    // falls back to a keyless run instead of failing the whole build.
                     // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe.
                     //              with a key the limit is 50 req/30 s → 500 ms is fine.
                     // retryCount:  retry up to 10 times before failing on persistent 429s.
-                    def credentialAvailable = true
                     try {
                         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                            credentialAvailable = true
                             sh """
                                 mvn -pl ${APP_MODULE} -am \\
                                     org.owasp:dependency-check-maven:check \\
@@ -148,22 +146,18 @@ pipeline {
                             """
                         }
                     } catch (hudson.AbortException e) {
-                        if (!credentialAvailable) {
-                            echo "NVD API key credential 'nvd-api-key' not configured — running without API key (rate-limited)."
-                            sh """
-                                mvn -pl ${APP_MODULE} -am \\
-                                    org.owasp:dependency-check-maven:check \\
-                                    -Ddependency-check.skip=false \\
-                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
-                                    -DnvdApiDelay=6000 \\
-                                    -DretryCount=10 \\
-                                    -DossIndexAnalyzerEnabled=false \\
-                                    -Dformats=HTML,XML \\
-                                    --no-transfer-progress
-                            """
-                        } else {
-                            throw e
-                        }
+                        echo "NVD Dependency-Check with API key failed (${e.message}) — retrying without API key (rate-limited)."
+                        sh """
+                            mvn -pl ${APP_MODULE} -am \\
+                                org.owasp:dependency-check-maven:check \\
+                                -Ddependency-check.skip=false \\
+                                -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                -DnvdApiDelay=6000 \\
+                                -DretryCount=10 \\
+                                -DossIndexAnalyzerEnabled=false \\
+                                -Dformats=HTML,XML \\
+                                --no-transfer-progress
+                        """
                     }
                 }
             }

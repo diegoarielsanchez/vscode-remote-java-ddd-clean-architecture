@@ -75,10 +75,10 @@ pipeline {
                     // NVD API key is optional — speeds up NVD updates but is not required.
                     // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
                     // Free key: https://nvd.nist.gov/developers/request-an-api-key
-                    def credentialAvailable = true
+                    // Any failure with the key (missing credential, revoked/invalid key, NVD outage)
+                    // falls back to a keyless run instead of failing the whole build.
                     try {
                         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                            credentialAvailable = true
                             sh """
                                 mvn -pl ${MODULE} -am \\
                                     org.owasp:dependency-check-maven:check \\
@@ -93,22 +93,18 @@ pipeline {
                             """
                         }
                     } catch (hudson.AbortException e) {
-                        if (!credentialAvailable) {
-                            echo "NVD API key credential 'nvd-api-key' not configured — running without API key (rate-limited)."
-                            sh """
-                                mvn -pl ${MODULE} -am \\
-                                    org.owasp:dependency-check-maven:check \\
-                                    -Ddependency-check.skip=false \\
-                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
-                                    -DnvdApiDelay=6000 \\
-                                    -DretryCount=10 \\
-                                    -DossIndexAnalyzerEnabled=false \\
-                                    -Dformats=HTML,XML \\
-                                    --no-transfer-progress
-                            """
-                        } else {
-                            throw e
-                        }
+                        echo "NVD Dependency-Check with API key failed (${e.message}) — retrying without API key (rate-limited)."
+                        sh """
+                            mvn -pl ${MODULE} -am \\
+                                org.owasp:dependency-check-maven:check \\
+                                -Ddependency-check.skip=false \\
+                                -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
+                                -DnvdApiDelay=6000 \\
+                                -DretryCount=10 \\
+                                -DossIndexAnalyzerEnabled=false \\
+                                -Dformats=HTML,XML \\
+                                --no-transfer-progress
+                        """
                     }
                 }
             }
