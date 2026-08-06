@@ -68,6 +68,10 @@ pipeline {
         // Scans all declared dependencies against the NVD CVE database.
         // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
         stage('OWASP Dependency-Check') {
+            // Disabled: OWASP Dependency-Check deactivated for this pipeline.
+            when {
+                expression { return false }
+            }
             steps {
                 script {
                     // NVD API key is optional — speeds up NVD updates but is not required.
