@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.TestPropertySource;
 
 import com.das.cleanddd.domain.shared.Identifier;
@@ -56,16 +56,16 @@ class VisitPlanDeactivationIntegrationTest {
     @Autowired
     private HcpSnapshotUpdater hcpSnapshotUpdater;
 
-    @MockBean
+    @MockitoBean
     private ConnectionFactory connectionFactory;
 
-    @MockBean
+    @MockitoBean
     private IHealthCareProfValidator healthCareProfValidator;
 
-    @MockBean
+    @MockitoBean
     private IMedicalSalesRepValidator medicalSalesRepValidator;
 
-    @MockBean
+    @MockitoBean
     private IProductPromoAttachmentStorage attachmentStorage;
 
     @AfterEach
