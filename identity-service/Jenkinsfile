@@ -70,7 +70,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'identity-service/identity-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'identity-service/identity-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -84,7 +84,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'identity-service/identity-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'identity-service/identity-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -99,7 +99,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'identity-service/identity-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'identity-service/identity-application/target/surefire-reports/*.xml'
                 }
             }
         }
