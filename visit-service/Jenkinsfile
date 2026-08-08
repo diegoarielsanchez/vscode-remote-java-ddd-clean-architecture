@@ -19,9 +19,11 @@
 pipeline {
     agent any
 
-    // Polls SCM every 5 min; swap for `githubPush()` if a GitHub webhook is configured.
+    // Builds on push: GitHub delivers the event to Jenkins' /github-webhook/ endpoint.
+    // Requires the GitHub plugin, a Jenkins URL GitHub can reach, and a repo webhook
+    // pointing at <JENKINS_URL>/github-webhook/ (trailing slash required).
     triggers {
-        pollSCM('H/5 * * * *')
+        githubPush()
     }
 
     tools {
