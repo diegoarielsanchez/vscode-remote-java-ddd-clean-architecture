@@ -1,5 +1,9 @@
 {
-    "java.configuration.updateBuildConfiguration": "disabled",
+    // "disabled" never re-syncs the language server's project model, so adding a source
+    // folder or editing a pom leaves a permanent "Project configuration is not up-to-date"
+    // warning until Shift+Alt+U is pressed manually. "automatic" re-imports on its own.
+    // Switch back to "interactive" if re-indexing this 24-module reactor becomes disruptive.
+    "java.configuration.updateBuildConfiguration": "automatic",
     "cSpell.words": [
         "amqp",
         "assertj",
@@ -24,6 +28,11 @@
         "springframework",
         "testuser"
     ],
-    "java.compile.nullAnalysis.mode": "automatic",
+    // "automatic" switches on JDT annotation-based null analysis whenever a null-annotation
+    // library is found on the classpath (jakarta.annotation-api pulls it in). That contradicts
+    // .settings/org.eclipse.jdt.core.prefs, which disables null analysis and sets
+    // nullUncheckedConversion=ignore. No code here carries @NonNull/@Nullable, so the analysis
+    // only produces "needs unchecked conversion" noise that no Maven or CI build enforces.
+    "java.compile.nullAnalysis.mode": "disabled",
     "maven.view": "hierarchical"
 }
