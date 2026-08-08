@@ -1,6 +1,5 @@
 package com.das.identity.domain.entities;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,7 +23,9 @@ public final class User {
         this.id           = id;
         this.username     = username;
         this.passwordHash = passwordHash;
-        this.roles        = Collections.unmodifiableList(roles);
+        // Defensive copy, not a wrapper view: unmodifiableList would still reflect later
+        // mutations of the caller's list, letting a retained reference escalate roles (A01).
+        this.roles        = List.copyOf(roles);
         this.active       = active;
     }
 
