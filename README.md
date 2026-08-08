@@ -1185,7 +1185,7 @@ Repeat these steps for each service:
 
 ```
 Checkout → Domain Tests → Infra Tests → Application Tests
-         → SAST (SpotBugs) → OWASP Dependency-Check → Package
+         → SAST (SpotBugs) → [OWASP Dependency-Check*] → Package
          → Build Docker Image → [Docker Image Scan*] → [Push*]
 ```
 
@@ -1197,7 +1197,7 @@ Each stage maps to a specific DDD layer and OWASP control:
 | **Infra Tests** | `*-infra` | — JPA adapters + file storage adapters tested in isolation with H2 |
 | **Application Tests** | `*-application` | A01 Broken Access Control, A07 Auth Failures — security filters, JWT, Bean Validation |
 | **SAST — SpotBugs** | all layers | A03 Injection, path traversal, insecure deserialization (Find Security Bugs plugin) |
-| **OWASP Dependency-Check** | all layers | A06 Vulnerable & Outdated Components — fails build on CVSS ≥ 7 |
+| **OWASP Dependency-Check** | all layers | A06 Vulnerable & Outdated Components — fails build on CVSS ≥ 7 *(disabled, see below)* |
 | **Build Docker Image** | — | Multi-stage build, minimal JRE runtime image |
 | **Docker Image Scan (Trivy)** | — | A06 — OS-level CVEs in the final image *(commented out, optional)* |
 
@@ -1207,7 +1207,7 @@ Each stage maps to a specific DDD layer and OWASP control:
 - **Infra Tests** — validates JPA mappings and repository queries against H2 in-memory; no live database required in CI.
 - **Application Tests** — Spring Boot test slice (`@WebMvcTest` / `@SpringBootTest`): verifies security filter chain, JWT token validation, rate limiting, and input validation.
 - **SAST — SpotBugs + Find Security Bugs** (`findsecbugs-plugin:1.13.0`) — static analysis at compile time. Detects SQL injection, command injection, XSS, path traversal, and insecure cryptography patterns. Build fails on any finding (`-Dspotbugs.failOnError=true`).
-- **OWASP Dependency-Check** — queries the NVD CVE database against every declared Maven dependency. Build fails if any dependency has a CVSS score ≥ 7 (`-DfailBuildOnCVSS=7`). HTML + XML reports are archived and published via the Jenkins plugin.
+- **OWASP Dependency-Check** — **currently disabled in every Jenkinsfile** (`when { expression { return false } }`, since commit `95c323e`): NVD API rate-limiting made the stage unreliable in CI. A06 coverage is instead held manually by the pinned CVE-override versions in each service's aggregator `pom.xml` `<dependencyManagement>` block. The stage body is left intact — when enabled it queries the NVD CVE database against every declared Maven dependency, fails the build on any CVSS score ≥ 7 (`-DfailBuildOnCVSS=7`), and publishes HTML + XML reports via the Jenkins plugin. It can also be run ad hoc: `mvn -Powasp dependency-check:check`.
 - **Package** — assembles the final JAR (`-DskipTests`) only after all security gates pass.
 - **Build Docker Image** — uses `context: .` (repo root) so the multi-stage Dockerfile can resolve cross-module dependencies.
 
@@ -1219,7 +1219,7 @@ Each stage maps to a specific DDD layer and OWASP control:
 | A03 Injection | SpotBugs + Find Security Bugs SAST (fails build) |
 | A04 Insecure Design | Domain Tests validate business invariants and SHA-256 integrity |
 | A05 Security Misconfiguration | Prod profile disables Swagger, enforces `server.address=0.0.0.0` only in Docker |
-| A06 Vulnerable Components | OWASP Dependency-Check (fails on CVSS ≥ 7) + optional Trivy image scan |
+| A06 Vulnerable Components | Pinned CVE-override versions in each service pom (Dependency-Check stage disabled) + optional Trivy image scan |
 | A07 Identification & Auth Failures | JWT filter + BCrypt wiring covered by Application Tests |
 | A09 Security Logging Failures | Log configuration assertions in application integration tests |
 
