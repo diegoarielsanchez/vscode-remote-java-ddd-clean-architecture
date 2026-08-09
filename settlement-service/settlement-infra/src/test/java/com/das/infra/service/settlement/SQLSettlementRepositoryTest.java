@@ -11,6 +11,7 @@ import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementDate;
+import com.das.cleanddd.domain.settlement.entities.SettlementDescription;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import org.junit.jupiter.api.AfterEach;
@@ -66,7 +67,7 @@ class SQLSettlementRepositoryTest {
             throws BusinessValidationException {
         return new Settlement(
                 new SettlementId(id),
-                description,
+                new SettlementDescription(description),
                 new SettlementDate(LocalDate.now()),
                 SettlementStatus.OPEN,
                 invoices,
@@ -107,7 +108,7 @@ class SQLSettlementRepositoryTest {
 
         Settlement updated = new Settlement(
                 new SettlementId(id),
-                "Updated",
+                new SettlementDescription("Updated"),
                 new SettlementDate(LocalDate.now()),
                 SettlementStatus.CLOSED,
                 List.of(),
@@ -131,7 +132,7 @@ class SQLSettlementRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().settlementId().value()).isEqualTo(id);
-        assertThat(result.get().description()).isEqualTo("Find me");
+        assertThat(result.get().description().value()).isEqualTo("Find me");
         assertThat(result.get().medicalSalesRepId().value()).isEqualTo(msrId);
     }
 
@@ -154,7 +155,7 @@ class SQLSettlementRepositoryTest {
 
         assertThat(all).hasSize(2);
         assertThat(all)
-                .extracting(Settlement::description)
+                .extracting(s -> s.description().value())
                 .containsExactlyInAnyOrder("S1", "S2");
     }
 

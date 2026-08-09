@@ -16,14 +16,14 @@ public final class Settlement extends AggregateRoot<Object> {
     }
 
     private final SettlementId         _settlementId;
-    private final String               _description;
+    private final SettlementDescription _description;
     private final SettlementDate       _settlementDate;
     private SettlementStatus           _status;
     private final List<Invoice>        _invoices;
     private final MedicalSalesRepId    _medicalSalesRepId;
 
     public Settlement(SettlementId settlementId,
-                      String description,
+                      SettlementDescription description,
                       SettlementDate settlementDate,
                       SettlementStatus status,
                       List<Invoice> invoices,
@@ -32,7 +32,9 @@ public final class Settlement extends AggregateRoot<Object> {
         if (settlementDate == null) {
             throw new BusinessValidationException("Settlement date is required.");
         }
-        if (description == null || description.isBlank()) {
+        // Blankness, length and character rules live in SettlementDescription itself;
+        // the aggregate only needs to insist that a description was supplied.
+        if (description == null) {
             throw new BusinessValidationException("Settlement description is required.");
         }
         if (medicalSalesRepId == null) {
@@ -40,7 +42,7 @@ public final class Settlement extends AggregateRoot<Object> {
         }
 
         this._settlementId      = settlementId == null ? SettlementId.random() : settlementId;
-        this._description       = description.strip();
+        this._description       = description;
         this._settlementDate    = settlementDate;
         this._status            = status == null ? SettlementStatus.OPEN : status;
         this._invoices          = invoices == null ? new ArrayList<>() : new ArrayList<>(invoices);
@@ -57,7 +59,7 @@ public final class Settlement extends AggregateRoot<Object> {
         this._medicalSalesRepId = null;
     }
 
-    public static Settlement create(String description,
+    public static Settlement create(SettlementDescription description,
                                     SettlementDate settlementDate,
                                     MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
         return new Settlement(SettlementId.random(), description, settlementDate, SettlementStatus.OPEN, null, medicalSalesRepId);
@@ -121,7 +123,7 @@ public final class Settlement extends AggregateRoot<Object> {
     // ── Queries ───────────────────────────────────────────────────────────
 
     public SettlementId settlementId()             { return _settlementId; }
-    public String description()                    { return _description; }
+    public SettlementDescription description()     { return _description; }
     public SettlementDate settlementDate()         { return _settlementDate; }
     public SettlementStatus status()               { return _status; }
     public List<Invoice> invoices()                { return Collections.unmodifiableList(_invoices); }
