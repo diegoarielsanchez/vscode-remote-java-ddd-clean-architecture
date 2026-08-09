@@ -11,6 +11,7 @@ import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementDate;
+import com.das.cleanddd.domain.settlement.entities.SettlementDescription;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +28,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 /**
  * Integration tests for {@link SQLSettlementRepository}.
@@ -60,12 +60,17 @@ class SQLSettlementRepositoryTest {
 
     private Settlement aSettlement(String id, String description, String msrId)
             throws BusinessValidationException {
+        return aSettlement(id, description, msrId, List.of());
+    }
+
+    private Settlement aSettlement(String id, String description, String msrId, List<Invoice> invoices)
+            throws BusinessValidationException {
         return new Settlement(
                 new SettlementId(id),
-                description,
+                new SettlementDescription(description),
                 new SettlementDate(LocalDate.now()),
                 SettlementStatus.OPEN,
-                List.of(),
+                invoices,
                 new MedicalSalesRepId(msrId));
     }
 
@@ -103,7 +108,7 @@ class SQLSettlementRepositoryTest {
 
         Settlement updated = new Settlement(
                 new SettlementId(id),
-                "Updated",
+                new SettlementDescription("Updated"),
                 new SettlementDate(LocalDate.now()),
                 SettlementStatus.CLOSED,
                 List.of(),
@@ -127,7 +132,7 @@ class SQLSettlementRepositoryTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().settlementId().value()).isEqualTo(id);
-        assertThat(result.get().description()).isEqualTo("Find me");
+        assertThat(result.get().description().value()).isEqualTo("Find me");
         assertThat(result.get().medicalSalesRepId().value()).isEqualTo(msrId);
     }
 
@@ -150,7 +155,7 @@ class SQLSettlementRepositoryTest {
 
         assertThat(all).hasSize(2);
         assertThat(all)
-                .extracting(Settlement::description)
+                .extracting(s -> s.description().value())
                 .containsExactlyInAnyOrder("S1", "S2");
     }
 
@@ -187,5 +192,73 @@ class SQLSettlementRepositoryTest {
         List<Settlement> page2 = repository.searchAll(2, 3);
 
         assertThat(page2).hasSize(2);
+    }
+
+    // ── invoice mapping ───────────────────────────────────────────────────────
+    // The adapter maps the Settlement aggregate's invoices onto InvoiceEntity
+    // children (@OneToMany, cascade ALL, orphanRemoval). Every test above builds
+    // settlements with an empty invoice list, so these cover that mapping.
+
+    @Test
+    void save_cascadesInvoicesToChildRows() throws BusinessValidationException {
+        String id    = UUID.randomUUID().toString();
+        String msrId = UUID.randomUUID().toString();
+
+        repository.save(aSettlement(id, "With invoices", msrId, List.of(
+                anInvoice(UUID.randomUUID().toString(), "A000100000001"),
+                anInvoice(UUID.randomUUID().toString(), "A000100000002"))));
+
+        SettlementEntity stored = jpaRepository.findById(id).orElseThrow();
+        assertThat(stored.getInvoices())
+                .extracting(InvoiceEntity::getInvoiceNumber)
+                .containsExactlyInAnyOrder("A000100000001", "A000100000002");
+    }
+
+    @Test
+    void findById_roundTripsInvoiceFields() throws BusinessValidationException {
+        String id        = UUID.randomUUID().toString();
+        String msrId     = UUID.randomUUID().toString();
+        String invoiceId = UUID.randomUUID().toString();
+        repository.save(aSettlement(id, "Round trip", msrId,
+                List.of(anInvoice(invoiceId, "A000100000042"))));
+
+        Settlement found = repository.findById(new SettlementId(id)).orElseThrow();
+
+        assertThat(found.invoices()).hasSize(1);
+        Invoice invoice = found.invoices().get(0);
+        assertThat(invoice.invoiceId().value()).isEqualTo(invoiceId);
+        assertThat(invoice.invoiceNumber().value()).isEqualTo("A000100000042");
+        assertThat(invoice.amount().value()).isEqualByComparingTo(BigDecimal.valueOf(500));
+        assertThat(invoice.status()).isEqualTo(InvoiceStatus.DRAFT);
+        assertThat(invoice.issueDate().value()).isEqualTo(LocalDate.now());
+        assertThat(invoice.dueDate().value()).isEqualTo(LocalDate.now().plusDays(30));
+    }
+
+    @Test
+    void findById_leavesInvoiceFileNull_whenNoFileWasAttached() throws BusinessValidationException {
+        String id    = UUID.randomUUID().toString();
+        String msrId = UUID.randomUUID().toString();
+        repository.save(aSettlement(id, "No file", msrId,
+                List.of(anInvoice(UUID.randomUUID().toString(), "A000100000003"))));
+
+        Settlement found = repository.findById(new SettlementId(id)).orElseThrow();
+
+        // The adapter must not call the file storage port when the stored row has
+        // no file name / content type / hash.
+        assertThat(found.invoices().get(0).invoiceFile()).isNull();
+    }
+
+    @Test
+    void save_removesOrphanedInvoices_whenResavedWithoutThem() throws BusinessValidationException {
+        String id    = UUID.randomUUID().toString();
+        String msrId = UUID.randomUUID().toString();
+        repository.save(aSettlement(id, "Initial", msrId, List.of(
+                anInvoice(UUID.randomUUID().toString(), "A000100000001"),
+                anInvoice(UUID.randomUUID().toString(), "A000100000002"))));
+
+        repository.save(aSettlement(id, "Initial", msrId, List.of()));
+
+        SettlementEntity stored = jpaRepository.findById(id).orElseThrow();
+        assertThat(stored.getInvoices()).isEmpty();
     }
 }

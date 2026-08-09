@@ -25,6 +25,7 @@ import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
 import com.das.cleanddd.domain.settlement.entities.SettlementDate;
+import com.das.cleanddd.domain.settlement.entities.SettlementDescription;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -101,12 +102,14 @@ public class SQLSettlementRepository implements ISettlementRepository {
                     : null;
             return new Settlement(
                     new SettlementId(entity.getId()),
-                    entity.getDescription(),
+                    new SettlementDescription(entity.getDescription()),
                     new SettlementDate(entity.getSettlementDate()),
                     SettlementStatus.valueOf(entity.getStatus()),
                     invoices,
                     msrId);
-        } catch (BusinessValidationException e) {
+        } catch (BusinessValidationException | IllegalArgumentException e) {
+            // IllegalArgumentException also covers a stored value that no longer satisfies a
+            // value object's rules — a corrupt row should fail loudly, not load half-valid.
             throw new IllegalStateException("Cannot reconstruct Settlement from DB row id=" + entity.getId(), e);
         }
     }
@@ -138,7 +141,7 @@ public class SQLSettlementRepository implements ISettlementRepository {
     private SettlementEntity toEntity(Settlement domain) {
         SettlementEntity entity = new SettlementEntity();
         entity.setId(domain.settlementId().value());
-        entity.setDescription(domain.description());
+        entity.setDescription(domain.description().value());
         entity.setSettlementDate(domain.settlementDate().value());
         entity.setStatus(domain.status().name());
         entity.setMedicalSalesRepId(domain.medicalSalesRepId() != null ? domain.medicalSalesRepId().value() : null);

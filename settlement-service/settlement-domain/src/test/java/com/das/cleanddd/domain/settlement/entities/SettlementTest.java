@@ -38,10 +38,10 @@ class SettlementTest {
         @Test
         @DisplayName("should create an OPEN settlement with a random id")
         void shouldCreateOpenSettlement() throws BusinessValidationException {
-            Settlement s = Settlement.create("Monthly settlement", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("Monthly settlement"), new SettlementDate(SETTLEMENT_DATE), msrId);
 
             assertNotNull(s.settlementId());
-            assertEquals("Monthly settlement", s.description());
+            assertEquals("Monthly settlement", s.description().value());
             assertEquals(SETTLEMENT_DATE, s.settlementDate().value());
             assertEquals(Settlement.SettlementStatus.OPEN, s.status());
             assertTrue(s.invoices().isEmpty());
@@ -51,43 +51,42 @@ class SettlementTest {
         @Test
         @DisplayName("should strip leading/trailing spaces from description")
         void shouldStripDescription() throws BusinessValidationException {
-            Settlement s = new Settlement(null, "  trimmed  ", new SettlementDate(SETTLEMENT_DATE),
+            Settlement s = new Settlement(null, new SettlementDescription("  trimmed  "), new SettlementDate(SETTLEMENT_DATE),
                     Settlement.SettlementStatus.OPEN, null, msrId);
-            assertEquals("trimmed", s.description());
+            assertEquals("trimmed", s.description().value());
         }
 
         @Test
-        @DisplayName("should throw when description is null")
+        @DisplayName("should throw when no description is supplied")
         void shouldThrowWhenDescriptionNull() {
             assertThrows(BusinessValidationException.class,
-                    () -> Settlement.create(null, new SettlementDate(SETTLEMENT_DATE), msrId));
+                    () -> Settlement.create((SettlementDescription) null, new SettlementDate(SETTLEMENT_DATE), msrId));
         }
 
         @Test
-        @DisplayName("should throw when description is blank")
-        void shouldThrowWhenDescriptionBlank() {
-            assertThrows(BusinessValidationException.class,
-                    () -> Settlement.create("   ", new SettlementDate(SETTLEMENT_DATE), msrId));
+        @DisplayName("a blank description should be rejected by the value object, before the aggregate sees it")
+        void shouldRejectBlankDescriptionAtTheValueObject() {
+            assertThrows(IllegalArgumentException.class, () -> new SettlementDescription("   "));
         }
 
         @Test
         @DisplayName("should throw when settlement date is null")
         void shouldThrowWhenDateNull() {
             assertThrows(BusinessValidationException.class,
-                    () -> Settlement.create("desc", (SettlementDate) null, msrId));
+                    () -> Settlement.create(new SettlementDescription("desc"), (SettlementDate) null, msrId));
         }
 
         @Test
         @DisplayName("should throw when medicalSalesRepId is null")
         void shouldThrowWhenMsrIdNull() {
             assertThrows(BusinessValidationException.class,
-                    () -> Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), null));
+                    () -> Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), null));
         }
 
         @Test
         @DisplayName("should default status to OPEN when null is provided")
         void shouldDefaultStatusToOpen() throws BusinessValidationException {
-            Settlement s = new Settlement(null, "desc", new SettlementDate(SETTLEMENT_DATE), null, null, msrId);
+            Settlement s = new Settlement(null, new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), null, null, msrId);
             assertEquals(Settlement.SettlementStatus.OPEN, s.status());
         }
     }
@@ -101,7 +100,7 @@ class SettlementTest {
         @Test
         @DisplayName("addInvoice should add a new invoice to an OPEN settlement")
         void shouldAddInvoiceToOpenSettlement() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), new DueDate(VALID_DUE_DATE), new InvoiceAmount(new BigDecimal("500.00")));
 
             assertEquals(1, s.invoices().size());
@@ -112,7 +111,7 @@ class SettlementTest {
         @Test
         @DisplayName("addInvoice should throw on duplicate invoice number")
         void shouldThrowOnDuplicateInvoiceNumber() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
 
             assertThrows(BusinessValidationException.class,
@@ -122,7 +121,7 @@ class SettlementTest {
         @Test
         @DisplayName("addInvoice should throw when settlement is CLOSED")
         void shouldThrowWhenAddingToClosedSettlement() throws BusinessValidationException {
-            Settlement closed = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId).close();
+            Settlement closed = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId).close();
             assertThrows(BusinessValidationException.class,
                     () -> closed.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO)));
         }
@@ -130,7 +129,7 @@ class SettlementTest {
         @Test
         @DisplayName("removeInvoice should remove an existing invoice")
         void shouldRemoveInvoice() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             Invoice added = s.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
             s.removeInvoice(added);
             assertTrue(s.invoices().isEmpty());
@@ -139,7 +138,7 @@ class SettlementTest {
         @Test
         @DisplayName("removeInvoice should throw when settlement is CLOSED")
         void shouldThrowWhenRemovingFromClosedSettlement() throws BusinessValidationException {
-            Settlement open   = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement open   = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             Invoice added     = open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(BigDecimal.ZERO));
             Settlement closed = open.close();
 
@@ -150,7 +149,7 @@ class SettlementTest {
         @Test
         @DisplayName("invoices() should return an unmodifiable view")
         void invoiceListShouldBeUnmodifiable() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             assertThrows(UnsupportedOperationException.class,
                     () -> s.invoices().add(null));
         }
@@ -165,14 +164,14 @@ class SettlementTest {
         @Test
         @DisplayName("should be zero when there are no invoices")
         void shouldBeZeroWithNoInvoices() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             assertEquals(BigDecimal.ZERO, s.totalAmount());
         }
 
         @Test
         @DisplayName("should sum all invoice amounts")
         void shouldSumInvoiceAmounts() throws BusinessValidationException {
-            Settlement s = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement s = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             s.addInvoice(new InvoiceNumber("A000100000001"), new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("300.00")));
             s.addInvoice(new InvoiceNumber("A000100000002"), new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("200.50")));
 
@@ -189,14 +188,14 @@ class SettlementTest {
         @Test
         @DisplayName("close() should transition OPEN → CLOSED")
         void shouldCloseOpenSettlement() throws BusinessValidationException {
-            Settlement closed = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId).close();
+            Settlement closed = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId).close();
             assertEquals(Settlement.SettlementStatus.CLOSED, closed.status());
         }
 
         @Test
         @DisplayName("close() should return a new immutable instance preserving invoices")
         void closeShouldPreserveInvoices() throws BusinessValidationException {
-            Settlement open = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement open = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             open.addInvoice(invNumber, new IssueDate(VALID_ISSUE_DATE), null, new InvoiceAmount(new BigDecimal("100.00")));
             Settlement closed = open.close();
 
@@ -207,14 +206,14 @@ class SettlementTest {
         @Test
         @DisplayName("close() should throw when already CLOSED")
         void shouldThrowWhenAlreadyClosed() throws BusinessValidationException {
-            Settlement closed = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId).close();
+            Settlement closed = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId).close();
             assertThrows(BusinessValidationException.class, closed::close);
         }
 
         @Test
         @DisplayName("close() should preserve settlement id")
         void shouldPreserveIdOnClose() throws BusinessValidationException {
-            Settlement open = Settlement.create("desc", new SettlementDate(SETTLEMENT_DATE), msrId);
+            Settlement open = Settlement.create(new SettlementDescription("desc"), new SettlementDate(SETTLEMENT_DATE), msrId);
             SettlementId id = open.settlementId();
             Settlement closed = open.close();
             assertEquals(id, closed.settlementId());

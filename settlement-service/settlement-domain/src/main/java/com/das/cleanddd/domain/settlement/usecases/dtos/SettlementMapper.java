@@ -19,7 +19,7 @@ public class SettlementMapper {
         MedicalSalesRepId msrId = settlement.medicalSalesRepId();
         return new SettlementOutputDTO(
                 settlement.settlementId().value(),
-                settlement.description(),
+                settlement.description().value(),
                 settlement.settlementDate().value(),
                 settlement.status().name(),
                 settlement.totalAmount(),

@@ -10,13 +10,21 @@
 // OWASP Top 10 controls embedded in pipeline:
 //   A01 Broken Access Control    → Spring Security config verified in controller tests.
 //   A03 Injection                → SpotBugs + Find Security Bugs SAST scan.
-//   A05 Security Misconfiguration→ Fail build on CRITICAL/HIGH Dependency-Check CVEs.
-//   A06 Vulnerable Components    → OWASP Dependency-Check on every build.
+//   A05 Security Misconfiguration→ Prod profile hardening (Swagger disabled, bind address).
+//   A06 Vulnerable Components    → Patched versions pinned in pom dependencyManagement.
+//                                  NOTE: the Dependency-Check stage is DISABLED.
 //   A07 Auth Failures            → JWT / BCrypt wiring validated in integration tests.
 //   A09 Logging Failures         → Verified by application-layer test assertions.
 // ─────────────────────────────────────────────────────────────────────────────
 pipeline {
     agent any
+
+    // Builds on push: GitHub delivers the event to Jenkins' /github-webhook/ endpoint.
+    // Requires the GitHub plugin, a Jenkins URL GitHub can reach, and a repo webhook
+    // pointing at <JENKINS_URL>/github-webhook/ (trailing slash required).
+    triggers {
+        githubPush()
+    }
 
     tools {
         maven 'Maven-3.9'
@@ -63,7 +71,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'visit-service/visit-domain/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'visit-service/visit-domain/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -77,7 +85,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'visit-service/visit-infra/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'visit-service/visit-infra/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -92,7 +100,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'visit-service/visit-application/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: false, testResults: 'visit-service/visit-application/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -118,9 +126,11 @@ pipeline {
 
         // ── Stage 6: OWASP Dependency-Check (A06 Vulnerable Components) ──────
         // Scans all declared dependencies against the NVD CVE database.
-        // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
+        // When enabled, the build fails on any dependency with CVSS ≥ OWASP_FAIL_CVSS.
         stage('OWASP Dependency-Check') {
-            // Disabled: OWASP Dependency-Check deactivated for this pipeline.
+            // Disabled (95c323e): NVD API rate-limiting made this stage unreliable in CI.
+            // A06 coverage is instead held by the pinned CVE-override versions in the
+            // service pom's dependencyManagement block. Re-enable only deliberately.
             when {
                 expression { return false }
             }

@@ -13,6 +13,7 @@ import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.SettlementDate;
+import com.das.cleanddd.domain.settlement.entities.SettlementDescription;
 import com.das.cleanddd.domain.settlement.entities.SettlementId;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
@@ -61,7 +62,7 @@ public final class UpdateSettlementUseCase implements UseCase<UpdateSettlementIn
 
             Settlement updated = new Settlement(
                     settlementId,
-                    inputDTO.description(),
+                    new SettlementDescription(inputDTO.description()),
                     new SettlementDate(inputDTO.settlementDate()),
                     existing.get().status(),
                     null,

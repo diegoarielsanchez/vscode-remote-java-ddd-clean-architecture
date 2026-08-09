@@ -112,8 +112,8 @@ class MedicalSalesRepControllerTest {
                         .andExpect(jsonPath("$.email").value("alice@example.com"))
                         .andExpect(jsonPath("$.active").value(false))
                         .andExpect(jsonPath("$.id").isNotEmpty());
-        } else {
-                // TODO handle null value
+        // } else {
+        //         // TODO handle null value
         }
     }
 

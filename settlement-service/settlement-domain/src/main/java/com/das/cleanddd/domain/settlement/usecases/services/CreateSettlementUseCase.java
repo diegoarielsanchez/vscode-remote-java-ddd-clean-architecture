@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.SettlementDate;
+import com.das.cleanddd.domain.settlement.entities.SettlementDescription;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateInvoiceInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.CreateSettlementInputDTO;
 import com.das.cleanddd.domain.settlement.usecases.dtos.SettlementMapper;
@@ -59,7 +60,7 @@ public final class CreateSettlementUseCase implements UseCase<CreateSettlementIn
 
         try {
             Settlement settlement = Settlement.create(
-                    inputDTO.description(),
+                    new SettlementDescription(inputDTO.description()),
                     new SettlementDate(inputDTO.settlementDate()),
                     new MedicalSalesRepId(inputDTO.medicalSalesRepId()));
 
