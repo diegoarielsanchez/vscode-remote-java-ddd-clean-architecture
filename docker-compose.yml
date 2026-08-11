@@ -68,7 +68,10 @@ services:
 
   # ── Medical Sales Rep Service ──────────────────────────────────────────────
   medical-sales-rep-service:
-    container_name: medical-sales-rep-service-ddd-clean
+    # No container_name: Compose needs to name each replica itself (<project>_medical-sales-rep-service_N).
+    # Scale with: docker compose up -d --scale medical-sales-rep-service=3
+    deploy:
+      replicas: 2
     build:
       context: .
       dockerfile: medical-sales-rep-service/msr-application/Dockerfile
@@ -91,7 +94,10 @@ services:
 
   # ── Healthcare Professional Service ────────────────────────────────────────
   healthcare-prof-service:
-    container_name: healthcare-prof-service-ddd-clean
+    # No container_name: Compose needs to name each replica itself (<project>_healthcare-prof-service_N).
+    # Scale with: docker compose up -d --scale healthcare-prof-service=3
+    deploy:
+      replicas: 2
     build:
       context: .
       dockerfile: healthcare-prof-service/hcp-application/Dockerfile
@@ -113,7 +119,10 @@ services:
 
   # ── Visit Service ──────────────────────────────────────────────────────────
   visit-service:
-    container_name: visit-service-ddd-clean
+    # No container_name: Compose needs to name each replica itself (<project>_visit-service_N).
+    # Scale with: docker compose up -d --scale visit-service=3
+    deploy:
+      replicas: 2
     build:
       context: .
       dockerfile: visit-service/visit-application/Dockerfile
@@ -155,7 +164,10 @@ services:
 
   # ── Settlement Service ─────────────────────────────────────────────────────
   settlement-service:
-    container_name: settlement-service-ddd-clean
+    # No container_name: Compose needs to name each replica itself (<project>_settlement-service_N).
+    # Scale with: docker compose up -d --scale settlement-service=3
+    deploy:
+      replicas: 2
     build:
       context: .
       dockerfile: settlement-service/settlement-application/Dockerfile
