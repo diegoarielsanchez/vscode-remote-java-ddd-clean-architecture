@@ -17,8 +17,8 @@ import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 
 public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
 
-    public static final int MAX_SPECIALTIES = 7;
-    public static final String ERROR_MESSAGE_MAX_SPECIALTIES = "Specialties cannot have more than 7 items";
+    public static final int MAX_SPECIALTIES = 9;
+    public static final String ERROR_MESSAGE_MAX_SPECIALTIES = "Specialties cannot have more than 9 items";
 
     private final HealthCareProfId _id;
     private final transient HealthCareProfEmail    _email;
