@@ -85,7 +85,9 @@ class HealthCareProfTest {
             tooMany.add(new Specialty("ORTH", "Orthopedics"));
             tooMany.add(new Specialty("ONCO", "Oncology"));
             tooMany.add(new Specialty("PSYC", "Psychiatry"));
-            tooMany.add(new Specialty("ODON", "Odontology"));  // 8th
+            tooMany.add(new Specialty("TERA", "Terapits"));
+            tooMany.add(new Specialty("NEUM", "Neumology"));
+            tooMany.add(new Specialty("ODON", "Odontology"));  // 10 th
 
             IllegalArgumentException ex = assertThrows(
                     IllegalArgumentException.class,
