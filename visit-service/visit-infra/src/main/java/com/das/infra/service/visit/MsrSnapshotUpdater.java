@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 /**
  * Option B — consumes MSR domain events and keeps the local
  * {@link MsrSnapshotEntity} table up-to-date.
@@ -26,26 +28,36 @@ public class MsrSnapshotUpdater {
     @RabbitListener(queues = "visit-service.msr.queue",
                     containerFactory = "visitRabbitListenerContainerFactory")
     public void onMsrEvent(MsrEventMessage msg) {
-        if (msg == null || msg.id() == null) {
+        if (msg == null) {
+            log.warn("Received null or id-less MSR event message, ignoring");
+            return;
+        }
+        String id = msg.id();
+        if (id == null) {
             log.warn("Received null or id-less MSR event message, ignoring");
             return;
         }
         log.debug("Received MSR event: type={} id={}", msg.eventType(), msg.id());
         switch (msg.eventType()) {
             case "MSR_CREATED", "MSR_UPDATED" -> upsert(msg);
-            case "MSR_ACTIVATED"   -> updateActive(msg.id(), Boolean.TRUE);
+            case "MSR_ACTIVATED"   -> updateActive(id, Boolean.TRUE);
             case "MSR_DEACTIVATED" -> {
-                updateActive(msg.id(), Boolean.FALSE);
-                visitPlanDeactivationService.deactivateByMedicalSalesRepId(msg.id());
+                updateActive(id, Boolean.FALSE);
+                visitPlanDeactivationService.deactivateByMedicalSalesRepId(id);
             }
             default -> log.warn("Unknown MSR event type: {}", msg.eventType());
         }
     }
 
     private void upsert(MsrEventMessage msg) {
-        MsrSnapshotEntity entity = jpaRepo.findById(msg.id())
+        String id = msg.id();
+        if (id == null) {
+            log.warn("Received null or id-less MSR event message, ignoring");
+            return;
+        }
+        MsrSnapshotEntity entity = jpaRepo.findById(id)
                 .orElseGet(MsrSnapshotEntity::new);
-        entity.setId(msg.id());
+        entity.setId(id);
         entity.setName(msg.name());
         entity.setSurname(msg.surname());
         entity.setEmail(msg.email());
@@ -55,7 +67,7 @@ public class MsrSnapshotUpdater {
     }
 
     private void updateActive(String id, boolean active) {
-        jpaRepo.findById(id).ifPresentOrElse(entity -> {
+        jpaRepo.findById(Objects.requireNonNull(id)).ifPresentOrElse(entity -> {
             entity.setActive(active);
             jpaRepo.save(entity);
             log.info("MSR snapshot active updated: id={} active={}", id, active);

@@ -1,5 +1,7 @@
 package com.das.infra.service.visit;
 
+import java.util.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -43,9 +45,10 @@ public class HcpSnapshotUpdater {
     }
 
     private void upsert(HcpEventMessage msg) {
-        HcpSnapshotEntity entity = jpaRepo.findById(msg.id())
+        String id = Objects.requireNonNull(msg.id());
+        HcpSnapshotEntity entity = jpaRepo.findById(id)
                 .orElseGet(HcpSnapshotEntity::new);
-        entity.setId(msg.id());
+        entity.setId(id);
         entity.setName(msg.name());
         entity.setSurname(msg.surname());
         entity.setEmail(msg.email());
@@ -55,7 +58,7 @@ public class HcpSnapshotUpdater {
     }
 
     private void updateActive(String id, boolean active) {
-        jpaRepo.findById(id).ifPresentOrElse(entity -> {
+        jpaRepo.findById(Objects.requireNonNull(id)).ifPresentOrElse(entity -> {
             entity.setActive(active);
             jpaRepo.save(entity);
             log.info("HCP snapshot active updated: id={} active={}", id, active);

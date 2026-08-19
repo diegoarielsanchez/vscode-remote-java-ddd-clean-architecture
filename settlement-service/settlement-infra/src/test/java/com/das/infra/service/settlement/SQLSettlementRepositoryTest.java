@@ -1,12 +1,5 @@
 package com.das.infra.service.settlement;
 
-import com.das.cleanddd.domain.settlement.entities.DueDate;
-import com.das.cleanddd.domain.settlement.entities.Invoice;
-import com.das.cleanddd.domain.settlement.entities.Invoice.InvoiceStatus;
-import com.das.cleanddd.domain.settlement.entities.InvoiceAmount;
-import com.das.cleanddd.domain.settlement.entities.InvoiceId;
-import com.das.cleanddd.domain.settlement.entities.InvoiceNumber;
-import com.das.cleanddd.domain.settlement.entities.IssueDate;
 import com.das.cleanddd.domain.settlement.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.settlement.entities.Settlement;
 import com.das.cleanddd.domain.settlement.entities.Settlement.SettlementStatus;
@@ -20,14 +13,12 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 /**
  * Integration tests for {@link SQLSettlementRepository}.
@@ -67,16 +58,6 @@ class SQLSettlementRepositoryTest {
                 SettlementStatus.OPEN,
                 List.of(),
                 new MedicalSalesRepId(msrId));
-    }
-
-    private Invoice anInvoice(String id, String number) throws BusinessValidationException {
-        return new Invoice(
-                new InvoiceId(id),
-                new InvoiceNumber(number),
-                new IssueDate(LocalDate.now()),
-                new DueDate(LocalDate.now().plusDays(30)),
-                new InvoiceAmount(BigDecimal.valueOf(500)),
-                InvoiceStatus.DRAFT);
     }
 
     // ── save ──────────────────────────────────────────────────────────────────
@@ -150,7 +131,7 @@ class SQLSettlementRepositoryTest {
 
         assertThat(all).hasSize(2);
         assertThat(all)
-                .extracting(Settlement::description)
+            .extracting((Settlement settlement) -> settlement.description())
                 .containsExactlyInAnyOrder("S1", "S2");
     }
 

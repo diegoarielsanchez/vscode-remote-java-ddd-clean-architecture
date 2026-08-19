@@ -2,6 +2,7 @@ package com.das.infra.service.visit;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.http.HttpEntity;
@@ -54,7 +55,7 @@ public class HttpMedicalSalesRepRepository implements IMedicalSalesRepRepository
             HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<MsrResponse> response = restTemplate.exchange(
                     BASE_URL + "/api/v1/medicalsalesrep/" + id.value(),
-                    HttpMethod.GET,
+                    Objects.requireNonNull(HttpMethod.GET),
                     request,
                     MsrResponse.class);
             if (response.getBody() == null) {
@@ -117,7 +118,7 @@ public class HttpMedicalSalesRepRepository implements IMedicalSalesRepRepository
             HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<MsrResponse[]> response = restTemplate.exchange(
                     BASE_URL + "/api/v1/medicalsalesrep/list?firstName=&lastName=&page=1&pageSize=10000",
-                    HttpMethod.POST,
+                    Objects.requireNonNull(HttpMethod.POST),
                     request,
                     MsrResponse[].class);
             if (response.getBody() == null) {

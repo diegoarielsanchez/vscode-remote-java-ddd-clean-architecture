@@ -1,5 +1,7 @@
 package com.das.infra.service.healthcareprof;
 
+import java.util.Objects;
+
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -25,8 +27,8 @@ public class HcpRabbitMqConfig {
     @Bean
     RabbitTemplate hcpRabbitTemplate(ConnectionFactory connectionFactory,
                                       Jackson2JsonMessageConverter hcpJsonMessageConverter) {
-        RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(hcpJsonMessageConverter);
+        RabbitTemplate template = new RabbitTemplate(Objects.requireNonNull(connectionFactory));
+        template.setMessageConverter(Objects.requireNonNull(hcpJsonMessageConverter));
         return template;
     }
 }

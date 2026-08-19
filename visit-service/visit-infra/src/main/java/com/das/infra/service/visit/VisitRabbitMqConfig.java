@@ -67,6 +67,7 @@ public class VisitRabbitMqConfig {
     }
 
     @Bean
+    @SuppressWarnings("null")
     public RabbitTemplate visitRabbitTemplate(ConnectionFactory connectionFactory,
                                                Jackson2JsonMessageConverter visitJsonMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);

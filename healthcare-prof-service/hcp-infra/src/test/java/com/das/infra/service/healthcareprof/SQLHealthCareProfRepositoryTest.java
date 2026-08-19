@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -78,7 +79,7 @@ class SQLHealthCareProfRepositoryTest {
 
         repository.save(anHcp(id, "Alice", "Smith", "alice@example.com", true));
 
-        Optional<HealthCareProfEntity> stored = jpaRepository.findById(id);
+        Optional<HealthCareProfEntity> stored = jpaRepository.findById(Objects.requireNonNull(id));
         assertThat(stored).isPresent();
         assertThat(stored.get().getName()).isEqualTo("Alice");
         assertThat(stored.get().getSurname()).isEqualTo("Smith");
@@ -93,7 +94,8 @@ class SQLHealthCareProfRepositoryTest {
 
         repository.save(anHcp(id, "Alice", "Smith", "updated@example.com", false));
 
-        HealthCareProfEntity stored = jpaRepository.findById(id).orElseThrow();
+        HealthCareProfEntity stored =
+            jpaRepository.findById(Objects.requireNonNull(id)).orElseThrow();
         assertThat(stored.getEmail()).isEqualTo("updated@example.com");
         assertThat(stored.getActive()).isFalse();
     }

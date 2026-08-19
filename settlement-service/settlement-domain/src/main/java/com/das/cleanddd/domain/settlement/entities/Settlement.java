@@ -112,10 +112,10 @@ public final class Settlement extends AggregateRoot<Object> {
 
     public BigDecimal totalAmount() {
         return _invoices.stream()
-                .map(Invoice::amount)
+                .map(invoice -> invoice.amount())
                 .filter(Objects::nonNull)
-                .map(InvoiceAmount::value)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(amount -> amount.value())
+                .reduce(BigDecimal.ZERO, (total, amount) -> total.add(amount));
     }
 
     // ── Queries ───────────────────────────────────────────────────────────

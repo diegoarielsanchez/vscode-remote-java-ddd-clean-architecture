@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
+import java.util.Objects;
+
 @Configuration
 @Profile("!dev")
 public class MsrRabbitMqConfig {
@@ -26,8 +28,8 @@ public class MsrRabbitMqConfig {
     @Bean
     RabbitTemplate msrRabbitTemplate(ConnectionFactory connectionFactory,
                                      Jackson2JsonMessageConverter msrJsonMessageConverter) {
-        RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(msrJsonMessageConverter);
+        RabbitTemplate template = new RabbitTemplate(Objects.requireNonNull(connectionFactory));
+        template.setMessageConverter(Objects.requireNonNull(msrJsonMessageConverter));
         return template;
     }
 }

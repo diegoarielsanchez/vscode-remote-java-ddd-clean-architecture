@@ -1,6 +1,7 @@
 package com.das.infra.service.visit;
 
 import java.util.Optional;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,13 +51,13 @@ public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidato
         try {
             ResponseEntity<ActiveStatusResponse> response = restTemplate.exchange(
                     MSR_BASE_URL + "/api/v1/medicalsalesrep/{id}/active-status",
-                    HttpMethod.GET,
+                    Objects.requireNonNull(HttpMethod.GET),
                     HttpEntity.EMPTY,
                     ActiveStatusResponse.class,
                     id);
             boolean active = response.getStatusCode().is2xxSuccessful()
-                    && Optional.ofNullable(response.getBody())
-                            .map(ActiveStatusResponse::active)
+                        && Optional.ofNullable(response.getBody())
+                            .map(status -> status.active())
                             .orElse(false);
 
             // Keep the local snapshot's active flag in sync for the fallback path.

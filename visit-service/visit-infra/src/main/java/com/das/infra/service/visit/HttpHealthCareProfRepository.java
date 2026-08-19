@@ -55,7 +55,7 @@ public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
             HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<HcpResponse> response = restTemplate.exchange(
                     BASE_URL + "/api/v1/healthcareprof/" + id.value(),
-                    HttpMethod.GET,
+                    HttpMethod.valueOf("GET"),
                     request,
                     HcpResponse.class);
             if (response.getBody() == null) {
@@ -136,7 +136,7 @@ public class HttpHealthCareProfRepository implements IHealthCareProfRepository {
             HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<HcpResponse[]> response = restTemplate.exchange(
                     BASE_URL + "/api/v1/healthcareprof/list?firstName=&lastName=&page=1&pageSize=10000",
-                    HttpMethod.POST,
+                    HttpMethod.valueOf("POST"),
                     request,
                     HcpResponse[].class);
             if (response.getBody() == null) {

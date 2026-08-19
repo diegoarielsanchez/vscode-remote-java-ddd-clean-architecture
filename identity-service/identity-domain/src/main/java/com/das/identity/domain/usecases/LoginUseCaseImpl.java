@@ -54,7 +54,7 @@ public class LoginUseCaseImpl implements LoginUseCase {
         return new LoginOutputDTO(
             token,
             user.getUsername(),
-            user.getRoles().stream().map(Enum::name).collect(Collectors.toList())
+            user.getRoles().stream().map(role -> role.name()).collect(Collectors.toList())
         );
     }
 }

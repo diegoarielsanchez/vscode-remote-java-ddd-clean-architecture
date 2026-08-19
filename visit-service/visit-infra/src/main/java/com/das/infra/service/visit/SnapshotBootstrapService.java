@@ -1,6 +1,7 @@
 package com.das.infra.service.visit;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
-import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
 
@@ -61,9 +61,12 @@ public class SnapshotBootstrapService {
             int seeded = 0;
             for (MedicalSalesRep msr : msrList) {
                 // Only seed if not already present (events may have arrived first)
-                if (msr.getId() != null && msrSnapshotJpaRepo.findById(msr.getId().value()).isEmpty()) {
-                    msrSnapshotJpaRepo.save(toMsrSnapshotEntity(msr));
-                    seeded++;
+                if (msr.getId() != null) {
+                    String id = msr.getId().value();
+                    if (id != null && msrSnapshotJpaRepo.findById(id).isEmpty()) {
+                        msrSnapshotJpaRepo.save(Objects.requireNonNull(toMsrSnapshotEntity(msr)));
+                        seeded++;
+                    }
                 }
             }
             log.info("MSR snapshot bootstrap complete: {} new records seeded", seeded);
@@ -82,8 +85,9 @@ public class SnapshotBootstrapService {
             }
             int seeded = 0;
             for (HealthCareProf hcp : hcpList) {
-                if (hcp.getId() != null && hcpSnapshotJpaRepo.findById(hcp.getId().value()).isEmpty()) {
-                    hcpSnapshotJpaRepo.save(toHcpSnapshotEntity(hcp));
+                String id = hcp.getId() != null ? hcp.getId().value() : null;
+                if (id != null && hcpSnapshotJpaRepo.findById(id).isEmpty()) {
+                    hcpSnapshotJpaRepo.save(Objects.requireNonNull(toHcpSnapshotEntity(hcp)));
                     seeded++;
                 }
             }
@@ -112,7 +116,9 @@ public class SnapshotBootstrapService {
         entity.setEmail(hcp.getEmail() != null ? hcp.getEmail().value() : null);
         entity.setActive(hcp.getActive() != null ? hcp.getActive().value() : null);
         if (hcp.getSpecialties() != null && !hcp.getSpecialties().isEmpty()) {
-            entity.setSpecialties(hcp.getSpecialties().stream().map(Specialty::code).collect(Collectors.joining(",")));
+                entity.setSpecialties(hcp.getSpecialties().stream()
+                    .map(specialty -> specialty.code())
+                    .collect(Collectors.joining(",")));
         }
         return entity;
     }

@@ -1,6 +1,7 @@
 package com.das.infra.service.visit;
 
 import java.util.Optional;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,7 @@ public class HealthCareProfValidatorAdapter implements IHealthCareProfValidator 
         try {
             ResponseEntity<ActiveStatusResponse> response = restTemplate.exchange(
                     HCP_BASE_URL + "/api/v1/healthcareprof/{id}/active-status",
-                    HttpMethod.GET,
+                    Objects.requireNonNull(HttpMethod.GET),
                     HttpEntity.EMPTY,
                     ActiveStatusResponse.class,
                     id);

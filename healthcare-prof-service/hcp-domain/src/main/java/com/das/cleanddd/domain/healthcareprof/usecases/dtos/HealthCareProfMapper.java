@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProf;
-import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
 
 @Service
 public class HealthCareProfMapper {
@@ -19,7 +18,7 @@ public class HealthCareProfMapper {
         entity.getActive().value(),
         entity.getSpecialties() == null
             ? null
-            : entity.getSpecialties().stream().map(Specialty::name).toList()
+            : entity.getSpecialties().stream().map(specialty -> specialty.name()).toList()
       );
     }
     

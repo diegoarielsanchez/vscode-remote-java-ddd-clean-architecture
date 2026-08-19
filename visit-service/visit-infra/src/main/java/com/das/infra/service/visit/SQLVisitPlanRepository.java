@@ -40,10 +40,11 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
 
     @Override
     public Optional<VisitPlan> search(Identifier id) {
-        if (id == null || id.value() == null) {
+        String idValue = id == null ? null : id.value();
+        if (idValue == null) {
             return Optional.empty();
         }
-        return visitPlanJpaRepository.findById(id.value()).map(this::toDomain);
+        return visitPlanJpaRepository.findById(idValue).map(this::toDomain);
     }
 
     @Override

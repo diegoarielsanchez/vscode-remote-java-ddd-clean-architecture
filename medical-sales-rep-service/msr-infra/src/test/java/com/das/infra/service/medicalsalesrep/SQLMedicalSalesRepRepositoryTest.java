@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,7 +65,7 @@ class SQLMedicalSalesRepRepositoryTest {
 
         repository.save(aMsr(id, "Alice", "Smith", "alice@example.com", false));
 
-        Optional<MedicalSalesRepEntity> stored = jpaRepository.findById(id);
+        Optional<MedicalSalesRepEntity> stored = jpaRepository.findById(Objects.requireNonNull(id));
         assertThat(stored).isPresent();
         assertThat(stored.get().getName()).isEqualTo("Alice");
         assertThat(stored.get().getSurname()).isEqualTo("Smith");
@@ -79,7 +80,7 @@ class SQLMedicalSalesRepRepositoryTest {
 
         repository.save(aMsr(id, "Alice", "Smith", "updated@example.com", true));
 
-        MedicalSalesRepEntity stored = jpaRepository.findById(id).orElseThrow();
+        MedicalSalesRepEntity stored = jpaRepository.findById(Objects.requireNonNull(id)).orElseThrow();
         assertThat(stored.getEmail()).isEqualTo("updated@example.com");
         assertThat(stored.getActive()).isTrue();
     }

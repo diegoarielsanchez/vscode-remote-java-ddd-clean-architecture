@@ -34,7 +34,7 @@ public class JwtTokenAdapter implements TokenPort {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("authorities", user.getRoles().stream()
-                        .map(Enum::name)
+                        .map(role -> role.name())
                         .collect(Collectors.toList()))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
