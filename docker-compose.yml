@@ -22,8 +22,8 @@ services:
   eureka-server:
     container_name: eureka-server-ddd-clean
     build:
-      context: .
-      dockerfile: eureka-server/Dockerfile
+      context: eureka-server
+      dockerfile: Dockerfile
     networks: [frontend, backend]   # frontend allows host access on port 8761
     ports:
       - "8761:8761"             # Publish so the UI is accessible from the host
@@ -45,8 +45,8 @@ services:
   api-gateway:
     container_name: api-gateway-ddd-clean
     build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
+      context: api-gateway
+      dockerfile: Dockerfile
     networks: [frontend, backend]   # bridges public traffic into the backend
     ports:
       - "8080:8080"                 # ONLY port reachable from the host
@@ -73,8 +73,10 @@ services:
     deploy:
       replicas: 2
     build:
-      context: .
-      dockerfile: medical-sales-rep-service/msr-application/Dockerfile
+      context: medical-sales-rep-service
+      dockerfile: msr-application/Dockerfile
+      additional_contexts:
+        domain-commons: domain-commons
     networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -99,8 +101,10 @@ services:
     deploy:
       replicas: 2
     build:
-      context: .
-      dockerfile: healthcare-prof-service/hcp-application/Dockerfile
+      context: healthcare-prof-service
+      dockerfile: hcp-application/Dockerfile
+      additional_contexts:
+        domain-commons: domain-commons
     networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -124,8 +128,10 @@ services:
     deploy:
       replicas: 2
     build:
-      context: .
-      dockerfile: visit-service/visit-application/Dockerfile
+      context: visit-service
+      dockerfile: visit-application/Dockerfile
+      additional_contexts:
+        domain-commons: domain-commons
     networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -148,8 +154,8 @@ services:
   identity-service:
     container_name: identity-service-ddd-clean
     build:
-      context: .
-      dockerfile: identity-service/identity-application/Dockerfile
+      context: identity-service
+      dockerfile: identity-application/Dockerfile
     networks: [frontend, backend]   # frontend allows direct host access on port 8090
     ports:
       - "8090:8090"
@@ -169,8 +175,10 @@ services:
     deploy:
       replicas: 2
     build:
-      context: .
-      dockerfile: settlement-service/settlement-application/Dockerfile
+      context: settlement-service
+      dockerfile: settlement-application/Dockerfile
+      additional_contexts:
+        domain-commons: domain-commons
     networks: [backend, ddd-clean-net]  # ddd-clean-net allows reaching MySQL on the Docker host (172.17.0.1)
     environment:
       SPRING_PROFILES_ACTIVE: prod

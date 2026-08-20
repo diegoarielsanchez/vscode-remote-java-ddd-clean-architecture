@@ -25,6 +25,7 @@ pipeline {
 
     environment {
         // ── Module paths ──────────────────────────────────────────────────────
+        SERVICE_DIR   = 'visit-service'
         DOMAIN_MODULE = 'visit-service/visit-domain'
         INFRA_MODULE  = 'visit-service/visit-infra'
         APP_MODULE    = 'visit-service/visit-application'
@@ -182,17 +183,21 @@ pipeline {
         }
 
         // ── Stage 8: Build Docker Image ───────────────────────────────────────
+        // Build context is the service's own directory; visit-application also
+        // depends on the shared domain-commons module (a sibling directory
+        // outside this context), supplied as a separate named build context.
         stage('Build Docker Image') {
             when {
                 expression { sh(script: 'which docker > /dev/null 2>&1', returnStatus: true) == 0 }
             }
             steps {
                 sh """
-                    docker build \
-                        -f ${APP_MODULE}/Dockerfile \
+                    DOCKER_BUILDKIT=1 docker build \
+                        --build-context domain-commons=domain-commons \
+                        -f visit-application/Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
-                        .
+                        ${SERVICE_DIR}
                 """
             }
         }

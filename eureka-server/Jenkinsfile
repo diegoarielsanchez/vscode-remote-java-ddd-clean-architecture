@@ -128,17 +128,19 @@ pipeline {
         }
 
         // ── Stage 6: Build Docker Image ───────────────────────────────────────
+        // Build context is this service's own directory (single-module, no
+        // dependency on domain-commons, so no extra build context is needed).
         stage('Build Docker Image') {
             when {
                 expression { sh(script: 'which docker > /dev/null 2>&1', returnStatus: true) == 0 }
             }
             steps {
                 sh """
-                    docker build \
-                        -f ${MODULE}/Dockerfile \
+                    DOCKER_BUILDKIT=1 docker build \
+                        -f Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
-                        .
+                        ${MODULE}
                 """
             }
         }
