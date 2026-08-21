@@ -4,6 +4,15 @@
 #   frontend  (bridge, host-accessible) — gateway only, port 8080 published
 #   backend   (internal: true)          — all services; no host access to 8086-8089
 #
+# Observability: every service is auto-instrumented via the OpenTelemetry Java
+# agent (baked into each image) and exports OTLP traces + metrics + logs to
+# otel-collector, which fans them out to Jaeger (traces), Prometheus (metrics),
+# and Loki (logs); Grafana is pre-wired with all three as datasources.
+#   Jaeger UI:     http://localhost:16686
+#   Prometheus UI: http://localhost:9090
+#   Loki API:      http://localhost:3100  (queried through Grafana, not a UI)
+#   Grafana UI:    http://localhost:3000  (admin / see GRAFANA_ADMIN_PASSWORD)
+#
 # Required env vars: copy .env.example → .env and fill in secrets before running.
 #   docker compose up -d
 
@@ -32,6 +41,12 @@ services:
       EUREKA_USER: ${EUREKA_USER}
       EUREKA_PASSWORD: ${EUREKA_PASSWORD}
       EUREKA_HOSTNAME: eureka-server
+      OTEL_SERVICE_NAME: eureka-server
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8761/actuator/health"]
       interval: 15s
@@ -55,6 +70,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      OTEL_SERVICE_NAME: api-gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -88,6 +109,12 @@ services:
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      OTEL_SERVICE_NAME: medical-sales-rep-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -116,6 +143,12 @@ services:
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      OTEL_SERVICE_NAME: healthcare-prof-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -145,6 +178,12 @@ services:
       RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      OTEL_SERVICE_NAME: visit-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -163,6 +202,12 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       JWT_SECRET: ${JWT_SECRET}
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      OTEL_SERVICE_NAME: identity-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -190,6 +235,12 @@ services:
       MSR_SERVICE_BASE_URL: http://medical-sales-rep-service
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
       INVOICE_FILE_STORAGE_PATH: /var/settlement-service/invoice-files
+      OTEL_SERVICE_NAME: settlement-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
     volumes:
       - invoice-files:/var/settlement-service/invoice-files
     depends_on:
@@ -222,6 +273,77 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # ── Observability: Loki (log storage) ──────────────────────────────────────
+  loki:
+    container_name: loki
+    image: grafana/loki:3.1.1
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki-data:/loki
+    networks: [frontend, backend]
+    ports:
+      - "3100:3100"             # Loki API (used by Grafana + the collector)
+    restart: unless-stopped
+
+  # ── Observability: OpenTelemetry Collector ─────────────────────────────────
+  otel-collector:
+    container_name: otel-collector
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    networks: [frontend, backend]
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ── Observability: Jaeger (trace storage + UI) ─────────────────────────────
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:1.62
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks: [frontend, backend]
+    ports:
+      - "16686:16686"           # Jaeger UI
+    restart: unless-stopped
+
+  # ── Observability: Prometheus (metrics storage) ────────────────────────────
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.55.0
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [frontend, backend]
+    ports:
+      - "9090:9090"             # Prometheus UI
+    restart: unless-stopped
+
+  # ── Observability: Grafana (dashboards) ────────────────────────────────────
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks: [frontend, backend]
+    ports:
+      - "3000:3000"             # Grafana UI
+    depends_on:
+      - prometheus
+      - jaeger
+      - loki
+    restart: unless-stopped
+
 volumes:
   invoice-files:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  loki-data:
     driver: local

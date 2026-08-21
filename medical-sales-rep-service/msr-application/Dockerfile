@@ -9,8 +9,12 @@ COPY . .
 RUN mvn -pl msr-application -am clean package -DskipTests --no-transfer-progress
 
 FROM eclipse-temurin:25-jre-noble
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+ARG OTEL_JAVA_AGENT_VERSION=2.31.0
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /otel \
+    && curl -sSL -o /otel/opentelemetry-javaagent.jar \
+       "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_JAVA_AGENT_VERSION}/opentelemetry-javaagent.jar"
 WORKDIR /app
 COPY --from=builder /build/msr-application/target/*.jar app.jar
 EXPOSE 8086
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-javaagent:/otel/opentelemetry-javaagent.jar", "-jar", "app.jar"]
