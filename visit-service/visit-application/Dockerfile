@@ -5,6 +5,17 @@ WORKDIR /build
 # Jenkinsfile / docker-compose.yml) and installed into the local repo first.
 COPY --from=domain-commons . /domain-commons-src
 RUN mvn -f /domain-commons-src/pom.xml install -DskipTests --no-transfer-progress
+
+# visit-infra depends directly on msr-domain and hcp-domain (cross-service
+# reads used by its anti-corruption layer). Each of those poms declares a
+# <relativePath>../pom.xml</relativePath> (explicit or default) to its own
+# service's aggregator pom, so the whole sibling service tree — not just the
+# domain module — has to be supplied as a named build context to resolve it.
+COPY --from=medical-sales-rep-service . /medical-sales-rep-service-src
+RUN mvn -f /medical-sales-rep-service-src/msr-domain/pom.xml install -DskipTests --no-transfer-progress
+COPY --from=healthcare-prof-service . /healthcare-prof-service-src
+RUN mvn -f /healthcare-prof-service-src/hcp-domain/pom.xml install -DskipTests --no-transfer-progress
+
 COPY . .
 RUN mvn -pl visit-application -am clean package -DskipTests --no-transfer-progress
 

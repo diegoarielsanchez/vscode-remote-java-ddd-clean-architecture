@@ -165,6 +165,8 @@ services:
       dockerfile: visit-application/Dockerfile
       additional_contexts:
         domain-commons: domain-commons
+        medical-sales-rep-service: medical-sales-rep-service
+        healthcare-prof-service: healthcare-prof-service
     networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
     environment:
       SPRING_PROFILES_ACTIVE: prod

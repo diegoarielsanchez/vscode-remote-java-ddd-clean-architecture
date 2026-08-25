@@ -184,8 +184,10 @@ pipeline {
 
         // ── Stage 8: Build Docker Image ───────────────────────────────────────
         // Build context is the service's own directory; visit-application also
-        // depends on the shared domain-commons module (a sibling directory
-        // outside this context), supplied as a separate named build context.
+        // depends on the shared domain-commons module, plus msr-domain and
+        // hcp-domain (visit-infra's cross-service anti-corruption reads) — all
+        // sibling directories outside this context, supplied as named build
+        // contexts.
         stage('Build Docker Image') {
             when {
                 expression { sh(script: 'which docker > /dev/null 2>&1', returnStatus: true) == 0 }
@@ -194,6 +196,8 @@ pipeline {
                 sh """
                     DOCKER_BUILDKIT=1 docker build \
                         --build-context domain-commons=domain-commons \
+                        --build-context medical-sales-rep-service=medical-sales-rep-service \
+                        --build-context healthcare-prof-service=healthcare-prof-service \
                         -f ${SERVICE_DIR}/visit-application/Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
