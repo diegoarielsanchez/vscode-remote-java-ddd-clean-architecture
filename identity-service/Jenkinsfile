@@ -197,7 +197,7 @@ pipeline {
             steps {
                 sh """
                     DOCKER_BUILDKIT=1 docker build \
-                        -f identity-application/Dockerfile \
+                        -f ${SERVICE_DIR}/identity-application/Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
                         ${SERVICE_DIR}

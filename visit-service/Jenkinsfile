@@ -194,7 +194,7 @@ pipeline {
                 sh """
                     DOCKER_BUILDKIT=1 docker build \
                         --build-context domain-commons=domain-commons \
-                        -f visit-application/Dockerfile \
+                        -f ${SERVICE_DIR}/visit-application/Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
                         ${SERVICE_DIR}

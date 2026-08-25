@@ -199,7 +199,7 @@ pipeline {
                 sh """
                     DOCKER_BUILDKIT=1 docker build \
                         --build-context domain-commons=domain-commons \
-                        -f settlement-application/Dockerfile \
+                        -f ${SERVICE_DIR}/settlement-application/Dockerfile \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest \
                         ${SERVICE_DIR}
