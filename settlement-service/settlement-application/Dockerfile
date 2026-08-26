@@ -1,3 +1,10 @@
+# Build context MUST be settlement-service/ (this Dockerfile's parent
+# directory), not the repo root. From the repo root:
+#   DOCKER_BUILDKIT=1 docker build \
+#     --build-context domain-commons=domain-commons \
+#     -f settlement-service/settlement-application/Dockerfile \
+#     -t settlement-service:local settlement-service
+# or simply: ./settlement-service/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 # domain-commons is a sibling module outside this service's own directory, so it

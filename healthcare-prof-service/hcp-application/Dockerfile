@@ -1,3 +1,10 @@
+# Build context MUST be healthcare-prof-service/ (this Dockerfile's parent
+# directory), not the repo root. From the repo root:
+#   DOCKER_BUILDKIT=1 docker build \
+#     --build-context domain-commons=domain-commons \
+#     -f healthcare-prof-service/hcp-application/Dockerfile \
+#     -t healthcare-prof-service:local healthcare-prof-service
+# or simply: ./healthcare-prof-service/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 # domain-commons is a sibling module outside this service's own directory, so it

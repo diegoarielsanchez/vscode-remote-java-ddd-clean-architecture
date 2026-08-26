@@ -1,3 +1,10 @@
+# Build context MUST be medical-sales-rep-service/ (this Dockerfile's parent
+# directory), not the repo root. From the repo root:
+#   DOCKER_BUILDKIT=1 docker build \
+#     --build-context domain-commons=domain-commons \
+#     -f medical-sales-rep-service/msr-application/Dockerfile \
+#     -t medical-sales-rep-service:local medical-sales-rep-service
+# or simply: ./medical-sales-rep-service/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 # domain-commons is a sibling module outside this service's own directory, so it

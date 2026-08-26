@@ -1,3 +1,10 @@
+# Build context MUST be identity-service/ (this Dockerfile's parent directory),
+# not the repo root — `COPY . .` below expects to land identity-service's own
+# reactor pom at /build. identity-service has no dependency on domain-commons,
+# so no --build-context flag is needed. From the repo root:
+#   docker build -f identity-service/identity-application/Dockerfile \
+#     -t identity-service:local identity-service
+# or simply: ./identity-service/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 COPY . .

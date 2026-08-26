@@ -1,3 +1,13 @@
+# Build context MUST be visit-service/ (this Dockerfile's parent directory),
+# not the repo root. This service also needs two sibling service trees as
+# extra named contexts (see below). From the repo root:
+#   DOCKER_BUILDKIT=1 docker build \
+#     --build-context domain-commons=domain-commons \
+#     --build-context medical-sales-rep-service=medical-sales-rep-service \
+#     --build-context healthcare-prof-service=healthcare-prof-service \
+#     -f visit-service/visit-application/Dockerfile \
+#     -t visit-service:local visit-service
+# or simply: ./visit-service/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 # domain-commons is a sibling module outside this service's own directory, so it

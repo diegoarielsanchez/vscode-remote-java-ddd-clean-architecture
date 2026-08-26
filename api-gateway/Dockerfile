@@ -1,3 +1,8 @@
+# Build context MUST be this directory (api-gateway/), not the repo root —
+# `COPY . .` below expects to land the service's own pom.xml at /build, not
+# the monorepo's aggregator pom. From the repo root:
+#   docker build -f api-gateway/Dockerfile -t api-gateway:local api-gateway
+# or simply: ./api-gateway/build.sh
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 COPY . .
