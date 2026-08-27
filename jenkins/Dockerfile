@@ -12,7 +12,7 @@
 FROM jenkins/jenkins:lts-jdk25
 USER root
 
-ARG DOCKER_GID=999
+ARG DOCKER_GID=997
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl gnupg && \
