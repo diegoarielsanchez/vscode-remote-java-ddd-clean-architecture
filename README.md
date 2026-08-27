@@ -565,11 +565,27 @@ docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitm
 
 ---
 
+Each service's build command is also captured in a `<service>/build.sh` script —
+`./eureka-server/build.sh`, `./visit-service/build.sh`, etc. — so the correct
+context and `--build-context` flags never have to be reconstructed by hand.
+Every Dockerfile also carries a header comment stating its own required
+build context. The commands below are what those scripts run.
+
+> **Build context matters.** Every Dockerfile does `COPY . .` expecting the
+> service's *own* directory as the build context — not the repo root. Passing
+> `.` instead sends the whole monorepo in, and the build fails, either at
+> `COPY --from=<name>` (Docker tries to pull `<name>` as a registry image
+> instead of using the named context you meant) or later at `mvn -pl
+> <module>` (`Could not find the selected project in the reactor` — the
+> module lives two directories deeper than Maven is looking).
+
 ### 1. Eureka Server
 
 ```bash
 # Build
-docker build -f eureka-server/Dockerfile -t eureka-server .
+./eureka-server/build.sh
+# equivalent to:
+docker build -f eureka-server/Dockerfile -t eureka-server:local eureka-server
 
 # Run
 docker run -d --name eureka-server --network ddd-clean-net -p 8761:8761 \
@@ -577,7 +593,7 @@ docker run -d --name eureka-server --network ddd-clean-net -p 8761:8761 \
   -e EUREKA_USER=eureka \
   -e EUREKA_PASSWORD=eureka \
   -e EUREKA_HOSTNAME=eureka-server \
-  eureka-server
+  eureka-server:local
 ```
 
 Dashboard: `http://localhost:8761` (eureka / eureka)
@@ -588,7 +604,9 @@ Dashboard: `http://localhost:8761` (eureka / eureka)
 
 ```bash
 # Build
-docker build -f api-gateway/Dockerfile -t api-gateway .
+./api-gateway/build.sh
+# equivalent to:
+docker build -f api-gateway/Dockerfile -t api-gateway:local api-gateway
 
 # Run
 docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
@@ -596,7 +614,7 @@ docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
   -e JWT_SECRET=your-secret-32-chars-minimum \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
-  api-gateway
+  api-gateway:local
 ```
 
 ---
@@ -605,14 +623,17 @@ docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
 
 ```bash
 # Build
-docker build -f identity-service/identity-application/Dockerfile -t identity-service .
+./identity-service/build.sh
+# equivalent to:
+docker build -f identity-service/identity-application/Dockerfile \
+  -t identity-service:local identity-service
 
 # Run
 docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=your-secret-32-chars-minimum \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
-  identity-service
+  identity-service:local
 ```
 
 Auth endpoint: `POST http://localhost:8090/auth/login`
@@ -623,7 +644,13 @@ Auth endpoint: `POST http://localhost:8090/auth/login`
 
 ```bash
 # Build
-docker build -f medical-sales-rep-service/msr-application/Dockerfile -t msr-service .
+./medical-sales-rep-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  -f medical-sales-rep-service/msr-application/Dockerfile \
+  -t medical-sales-rep-service:local \
+  medical-sales-rep-service
 
 # Run
 docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
@@ -636,7 +663,7 @@ docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
   -e RABBITMQ_HOST=rabbitmq \
   -e RABBITMQ_USERNAME=guest \
   -e RABBITMQ_PASSWORD=guest \
-  msr-service
+  medical-sales-rep-service:local
 ```
 
 ---
@@ -645,7 +672,13 @@ docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
 
 ```bash
 # Build
-docker build -f healthcare-prof-service/hcp-application/Dockerfile -t hcp-service .
+./healthcare-prof-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  -f healthcare-prof-service/hcp-application/Dockerfile \
+  -t healthcare-prof-service:local \
+  healthcare-prof-service
 
 # Run
 docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
@@ -658,7 +691,7 @@ docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
   -e RABBITMQ_HOST=rabbitmq \
   -e RABBITMQ_USERNAME=guest \
   -e RABBITMQ_PASSWORD=guest \
-  hcp-service
+  healthcare-prof-service:local
 ```
 
 ---
@@ -669,7 +702,15 @@ docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
 
 ```bash
 # Build
-docker build -f visit-service/visit-application/Dockerfile -t visit-service .
+./visit-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  --build-context medical-sales-rep-service=medical-sales-rep-service \
+  --build-context healthcare-prof-service=healthcare-prof-service \
+  -f visit-service/visit-application/Dockerfile \
+  -t visit-service:local \
+  visit-service
 
 # Run
 docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
@@ -680,15 +721,21 @@ docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e DB_USERNAME=sa \
   -e DB_PASSWORD=Riverplate1! \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-  -e MSR_BASE_URL=http://msr-service:8086 \
-  -e HCP_BASE_URL=http://hcp-service:8087 \
   -e RABBITMQ_HOST=rabbitmq \
   -e RABBITMQ_USERNAME=guest \
   -e RABBITMQ_PASSWORD=guest \
-  visit-service
+  visit-service:local
 ```
 
 > `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+>
+> visit-service reaches MSR and HCP through Eureka client-side load balancing
+> (their base URLs are hardcoded to the Eureka service ids
+> `medical-sales-rep-service` / `healthcare-prof-service`, resolved by the
+> `@LoadBalanced` `RestTemplate` — not by container DNS), so it only needs
+> `EUREKA_URL` here, not `MSR_BASE_URL` / `HCP_BASE_URL`. Both services must
+> be registered and healthy in Eureka before visit-service starts handling
+> requests that call them.
 
 ---
 
@@ -698,7 +745,13 @@ docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
 
 ```bash
 # Build
-docker build -f settlement-service/settlement-application/Dockerfile -t settlement-service .
+./settlement-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  -f settlement-service/settlement-application/Dockerfile \
+  -t settlement-service:local \
+  settlement-service
 
 # Run
 docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
@@ -709,13 +762,19 @@ docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
   -e DB_USERNAME=root \
   -e DB_PASSWORD=yourpassword \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-  -e MSR_SERVICE_BASE_URL=http://msr-service:8086 \
+  -e MSR_SERVICE_BASE_URL=http://medical-sales-rep-service \
   -e INVOICE_FILE_STORAGE_PATH=/var/settlement-service/invoice-files \
   -v settlement-invoice-files:/var/settlement-service/invoice-files \
-  settlement-service
+  settlement-service:local
 ```
 
 > `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+>
+> Unlike MSR/HCP's hardcoded lookup, settlement-service's `msr.service.base-url`
+> **is** read from `MSR_SERVICE_BASE_URL` (see `SettlementController`'s
+> dependency on `MedicalSalesRepHttpAdapter`) and is also `@LoadBalanced`, so
+> the value must be the Eureka service id — `http://medical-sales-rep-service`
+> — not a container hostname.
 
 ---
 
@@ -734,9 +793,9 @@ docker logs -f visit-service
 ### Rebuild a single service after code changes
 
 ```bash
-docker build -f <service>/Dockerfile -t <image-name> .
+./<service>/build.sh          # e.g. ./visit-service/build.sh
 docker rm -f <container-name>
-docker run -d ... <image-name>   # reuse the run command above
+docker run -d ... <service>:local   # reuse the run command above
 ```
 
 ---
