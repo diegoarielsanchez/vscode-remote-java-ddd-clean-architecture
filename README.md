@@ -80,7 +80,7 @@ The `domain-commons` module provides shared DDD building blocks (`AggregateRoot`
 
 | Tool | Version |
 |---|---|
-| Java (JDK) | 21 |
+| Java (JDK) | 25 |
 | Maven | 3.9+ |
 | Docker & Docker Compose | 24+ (for Option B or local databases) |
 | Git | any |
@@ -88,7 +88,7 @@ The `domain-commons` module provides shared DDD building blocks (`AggregateRoot`
 Verify:
 
 ```bash
-java -version    # openjdk 21
+java -version    # openjdk 25
 mvn -version     # Apache Maven 3.9.x
 docker --version # Docker 24.x
 ```
@@ -111,17 +111,17 @@ docker --version # Docker 24.x
 │   ├── msr-domain/             # Entities, use-cases, interfaces
 │   └── msr-infra/              # JPA repos, HTTP clients
 ├── healthcare-prof-service/
-│   ├── hcp-application/
-│   ├── hcp-domain/
-│   └── hcp-infra/
+│   ├── hcp-application/        # Spring Boot app, controllers, security
+│   ├── hcp-domain/             # Entities, use-cases, interfaces
+│   └── hcp-infra/              # JPA repos, HTTP clients
 ├── visit-service/
-│   ├── visit-application/
-│   ├── visit-domain/
-│   └── visit-infra/
+│   ├── visit-application/      # Spring Boot app, controllers, security
+│   ├── visit-domain/           # Entities, use-cases, interfaces
+│   └── visit-infra/            # JPA repos, HTTP clients
 ├── settlement-service/
-│   ├── settlement-application/
-│   ├── settlement-domain/
-│   └── settlement-infra/
+│   ├── settlement-application/ # Spring Boot app, controllers, security
+│   ├── settlement-domain/      # Entities, use-cases, interfaces
+│   └── settlement-infra/       # JPA repos, HTTP clients
 ├── docker-compose.yml          # Full stack (prod profile)
 ├── .env.example                # Environment variable template
 └── pom.xml                     # Parent POM
@@ -653,7 +653,7 @@ DOCKER_BUILDKIT=1 docker build \
   medical-sales-rep-service
 
 # Run
-docker run -d --name msr-service --network ddd-clean-net -p 8086:8086 \
+docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8086 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=your-secret-32-chars-minimum \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
@@ -681,7 +681,7 @@ DOCKER_BUILDKIT=1 docker build \
   healthcare-prof-service
 
 # Run
-docker run -d --name hcp-service --network ddd-clean-net -p 8087:8087 \
+docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:8087 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=your-secret-32-chars-minimum \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
