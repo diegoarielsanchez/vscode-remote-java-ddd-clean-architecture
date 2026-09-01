@@ -8,6 +8,7 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
@@ -23,6 +24,7 @@ public final class Visit extends AggregateRoot<Object> {
     private TextValueObject _visitComments;
     private MedicalSalesRepId _medicalSalesRepId;
     private Identifier _visitSiteId;
+    private AddressValueObject _address;
     private final List<VisitItem> _visitItems = new ArrayList<>();
     //private final Set<ShoppingItem> shoppingItems = new LinkedHashSet<>();
     private final List<LargeFileValueObject> _productPromoAttachments = new ArrayList<>();
@@ -34,6 +36,18 @@ public final class Visit extends AggregateRoot<Object> {
         , Identifier visitSiteId
         , List<VisitItem> visitItems
         , MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
+        this(visitId, visitDate, healthCareProfId, visitComments, visitSiteId, visitItems, medicalSalesRepId, null);
+    }
+
+    /** Address is optional: the visit site address may not be on file. */
+    public Visit(VisitId visitId
+        , VisitDateTime visitDate
+        , HealthCareProfId healthCareProfId
+        , TextValueObject visitComments
+        , Identifier visitSiteId
+        , List<VisitItem> visitItems
+        , MedicalSalesRepId medicalSalesRepId
+        , AddressValueObject address) throws BusinessValidationException {
 
         validateVisitDate(visitDate);
         validateRequiredReferences(medicalSalesRepId, healthCareProfId);
@@ -44,6 +58,7 @@ public final class Visit extends AggregateRoot<Object> {
         this._visitComments     = visitComments;
         this._visitSiteId       = visitSiteId;
         this._medicalSalesRepId = medicalSalesRepId;
+        this._address           = address;
     }
 
     /**
@@ -51,6 +66,7 @@ public final class Visit extends AggregateRoot<Object> {
      * invariants enforced at creation time (visit date window, required references).
      * Keeping validation centralized here ensures the rules cannot be bypassed by
      * whichever use case (create or update) manipulates this aggregate.
+     * <p>Does not touch the address — see the overload below to change it.</p>
      */
     public void update(
         VisitDateTime visitDate,
@@ -68,6 +84,19 @@ public final class Visit extends AggregateRoot<Object> {
         this._visitComments     = visitComments;
         this._visitSiteId       = visitSiteId;
         this._medicalSalesRepId = medicalSalesRepId;
+    }
+
+    /** Same as {@link #update} but also replaces the visit site address. */
+    public void update(
+        VisitDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address
+    ) throws BusinessValidationException {
+        update(visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId);
+        this._address = address;
     }
 
     private static void validateVisitDate(VisitDateTime visitDate) throws BusinessValidationException {
@@ -107,6 +136,21 @@ public final class Visit extends AggregateRoot<Object> {
         List<VisitItem> visitItems,
         MedicalSalesRepId medicalSalesRepId
     ) {
+        return reconstruct(visitId, visitDate, healthCareProfId, visitComments, visitSiteId, visitItems,
+                medicalSalesRepId, null);
+    }
+
+    /** Same as {@link #reconstruct} but also rehydrates the visit site address. */
+    public static Visit reconstruct(
+        VisitId visitId,
+        VisitDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        List<VisitItem> visitItems,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address
+    ) {
         Visit visit = new Visit();
         visit._visitId           = visitId;
         visit._visitDate         = visitDate;
@@ -114,6 +158,7 @@ public final class Visit extends AggregateRoot<Object> {
         visit._visitComments     = visitComments;
         visit._visitSiteId       = visitSiteId;
         visit._medicalSalesRepId = medicalSalesRepId;
+        visit._address           = address;
         if (visitItems != null) {
             visit._visitItems.addAll(visitItems);
         }
@@ -126,6 +171,7 @@ public final class Visit extends AggregateRoot<Object> {
         _healthCareProfId  = null;
         _visitComments     = null;
         _visitSiteId       = null;
+        _address           = null;
         _medicalSalesRepId = null;
     }
 
@@ -162,6 +208,10 @@ public final class Visit extends AggregateRoot<Object> {
 
     public Identifier visitSideId() {
         return _visitSiteId;
+    }
+
+    public AddressValueObject address() {
+        return _address;
     }
 
     public TextValueObject visitComments() {

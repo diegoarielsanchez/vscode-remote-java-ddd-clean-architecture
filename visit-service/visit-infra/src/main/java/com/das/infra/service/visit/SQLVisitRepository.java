@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
@@ -104,8 +105,18 @@ public final class SQLVisitRepository implements IVisitRepository {
                 visitComments,
                 visitSiteId,
                 List.of(),
-                new MedicalSalesRepId(msrId)
+                new MedicalSalesRepId(msrId),
+                addressFromEntity(entity.getAddressStreet(), entity.getAddressCity(),
+                        entity.getAddressState(), entity.getAddressPostalCode(), entity.getAddressCountry())
         );
+    }
+
+    /** Street is the marker for "no address on file" — see the same pattern in SQLMedicalSalesRepRepository. */
+    private AddressValueObject addressFromEntity(String street, String city, String state, String postalCode, String country) {
+        if (street == null) {
+            return null;
+        }
+        return new AddressValueObject(street, city, state, postalCode, country);
     }
 
     private VisitEntity toEntity(Visit visit) {
@@ -119,6 +130,14 @@ public final class SQLVisitRepository implements IVisitRepository {
         entity.setVisitSiteId(visit.visitSideId() != null ? visit.visitSideId().value() : null);
         entity.setHealthCareProfId(visit.healthCareProfId() != null ? visit.healthCareProfId().value() : null);
         entity.setMedicalSalesRepId(visit.medicalSalesRepId() != null ? visit.medicalSalesRepId().value() : null);
+        AddressValueObject address = visit.address();
+        if (address != null) {
+            entity.setAddressStreet(address.street());
+            entity.setAddressCity(address.city());
+            entity.setAddressState(address.state());
+            entity.setAddressPostalCode(address.postalCode());
+            entity.setAddressCountry(address.country());
+        }
         return entity;
     }
 }

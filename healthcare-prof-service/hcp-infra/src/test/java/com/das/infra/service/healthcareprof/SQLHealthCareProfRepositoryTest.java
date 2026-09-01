@@ -6,6 +6,7 @@ import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfEmail;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfName;
 import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -268,5 +269,63 @@ class SQLHealthCareProfRepositoryTest {
         List<HealthCareProf> page1 = repository.findBySpecialty("CARD", 1, 2);
 
         assertThat(page1).hasSize(2);
+    }
+
+    // ---------------------------------------------------------------------------
+    // addresses
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void save_persistsMultipleAddresses() {
+        String id = UUID.randomUUID().toString();
+        AddressValueObject officeOne = new AddressValueObject("100 Hospital Dr", "Boston", "MA", "02114", "USA");
+        AddressValueObject officeTwo = new AddressValueObject("200 Clinic Ave", "Cambridge", "MA", "02139", "USA");
+        HealthCareProf hcp = new HealthCareProf(
+                new HealthCareProfId(id),
+                new HealthCareProfName("Doc"),
+                new HealthCareProfName("Smith"),
+                new HealthCareProfEmail("doc@example.com"),
+                new HealthCareProfActive(true),
+                List.of(),
+                List.of(officeOne, officeTwo));
+
+        repository.save(hcp);
+
+        HealthCareProfEntity stored = jpaRepository.findById(Objects.requireNonNull(id)).orElseThrow();
+        assertThat(stored.getAddresses()).hasSize(2);
+    }
+
+    @Test
+    void findById_roundTripsAddresses_includingOneWithNoState() {
+        String id = UUID.randomUUID().toString();
+        // No state — France doesn't use one. Also exercises the pipe-delimited encoding's
+        // empty middle field, the exact spot a decode-side split() bug would show up.
+        AddressValueObject noState = new AddressValueObject("Rue de Rivoli", "Paris", null, "75001", "France");
+        AddressValueObject withState = new AddressValueObject("100 Hospital Dr", "Boston", "MA", "02114", "USA");
+        repository.save(new HealthCareProf(
+                new HealthCareProfId(id),
+                new HealthCareProfName("Doc"),
+                new HealthCareProfName("Smith"),
+                new HealthCareProfEmail("doc@example.com"),
+                new HealthCareProfActive(true),
+                List.of(),
+                List.of(noState, withState)));
+
+        HealthCareProf found = repository.findById(new HealthCareProfId(id)).orElseThrow();
+
+        assertThat(found.getAddresses()).containsExactlyInAnyOrder(noState, withState);
+        assertThat(found.getAddresses()).filteredOn(a -> a.country().equals("France"))
+                .extracting(AddressValueObject::state)
+                .containsExactly((String) null);
+    }
+
+    @Test
+    void findById_returnsEmptyAddressList_whenNoneWasEverSaved() {
+        String id = UUID.randomUUID().toString();
+        repository.save(anHcp(id, "Doc", "Smith", "doc@example.com", true));
+
+        HealthCareProf found = repository.findById(new HealthCareProfId(id)).orElseThrow();
+
+        assertThat(found.getAddresses()).isEmpty();
     }
 }

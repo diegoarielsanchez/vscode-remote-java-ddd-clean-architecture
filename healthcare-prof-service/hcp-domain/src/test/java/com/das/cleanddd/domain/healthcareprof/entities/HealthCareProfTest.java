@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.healthcareprof.entities;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 import org.junit.jupiter.api.BeforeEach;
@@ -292,6 +293,137 @@ class HealthCareProfTest {
                     new HealthCareProfActive(false), specialties);
             HealthCareProf result = hcp.setDeactivate();
             assertSame(hcp, result);
+        }
+    }
+
+    // ── addresses ─────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Addresses")
+    class Addresses {
+
+        private AddressValueObject officeOne;
+        private AddressValueObject officeTwo;
+
+        @BeforeEach
+        void setUpAddresses() {
+            officeOne = new AddressValueObject("100 Hospital Dr", "Boston", "MA", "02114", "USA");
+            officeTwo = new AddressValueObject("200 Clinic Ave", "Cambridge", "MA", "02139", "USA");
+        }
+
+        @Test
+        @DisplayName("should default to no addresses when omitted")
+        void shouldDefaultToNoAddresses() {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties);
+
+            assertNull(hcp.getAddresses());
+        }
+
+        @Test
+        @DisplayName("should expose the addresses it was constructed with")
+        void shouldExposeAddresses() {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne, officeTwo));
+
+            assertEquals(List.of(officeOne, officeTwo), hcp.getAddresses());
+        }
+
+        @Test
+        @DisplayName("should reject more than MAX_ADDRESSES entries")
+        void shouldRejectTooManyAddresses() {
+            List<AddressValueObject> tooMany = new ArrayList<>();
+            for (int i = 0; i < HealthCareProf.MAX_ADDRESSES + 1; i++) {
+                tooMany.add(new AddressValueObject("St " + i, "City", "ST", "00000", "USA"));
+            }
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> new HealthCareProf(null, name, surname, email, activeTrue, specialties, tooMany));
+            assertEquals(HealthCareProf.ERROR_MESSAGE_MAX_ADDRESSES, ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("addAddress should append a new address")
+        void addAddressShouldAppend() throws BusinessException {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne));
+
+            HealthCareProf updated = hcp.addAddress(officeTwo);
+
+            assertEquals(List.of(officeOne, officeTwo), updated.getAddresses());
+        }
+
+        @Test
+        @DisplayName("addAddress should return the same instance for a duplicate address")
+        void addAddressShouldBeIdempotent() throws BusinessException {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne));
+
+            HealthCareProf result = hcp.addAddress(officeOne);
+
+            assertSame(hcp, result);
+        }
+
+        @Test
+        @DisplayName("addAddress should throw RequiredFieldException for null")
+        void addAddressShouldRejectNull() {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties);
+
+            assertThrows(RequiredFieldException.class, () -> hcp.addAddress(null));
+        }
+
+        @Test
+        @DisplayName("removeAddress should remove a matching address")
+        void removeAddressShouldRemove() throws BusinessException {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne, officeTwo));
+
+            HealthCareProf updated = hcp.removeAddress(officeOne);
+
+            assertEquals(List.of(officeTwo), updated.getAddresses());
+        }
+
+        @Test
+        @DisplayName("removeAddress should allow the last address to be removed — unlike specialties, an empty list is valid")
+        void removeAddressCanEmptyTheList() throws BusinessException {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne));
+
+            HealthCareProf updated = hcp.removeAddress(officeOne);
+
+            assertEquals(List.of(), updated.getAddresses());
+        }
+
+        @Test
+        @DisplayName("setActivate should preserve addresses")
+        void activateShouldPreserveAddresses() {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email,
+                    new HealthCareProfActive(false), specialties, List.of(officeOne));
+
+            HealthCareProf activated = hcp.setActivate();
+
+            assertEquals(List.of(officeOne), activated.getAddresses());
+        }
+
+        @Test
+        @DisplayName("changeName should preserve addresses")
+        void changeNameShouldPreserveAddresses() throws BusinessException {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne));
+
+            HealthCareProf updated = hcp.changeName(new HealthCareProfName("Jane"));
+
+            assertEquals(List.of(officeOne), updated.getAddresses());
+        }
+
+        @Test
+        @DisplayName("withUpdatedDetails without an addresses argument should preserve the existing addresses")
+        void withUpdatedDetailsShouldPreserveAddressesByDefault() {
+            HealthCareProf hcp = new HealthCareProf(null, name, surname, email, activeTrue, specialties,
+                    List.of(officeOne));
+
+            HealthCareProf updated = hcp.withUpdatedDetails(name, surname, email, specialties);
+
+            assertEquals(List.of(officeOne), updated.getAddresses());
         }
     }
 }

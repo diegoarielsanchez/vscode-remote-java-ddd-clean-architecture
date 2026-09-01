@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -249,6 +250,39 @@ class VisitPlanTest {
             VisitPlan p1 = buildValid();
             VisitPlan p2 = buildValid();
             assertThat(p1.hashCode()).isEqualTo(p2.hashCode());
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    @Nested
+    class Address {
+
+        private final AddressValueObject site = new AddressValueObject(
+                "1 Clinic Rd", "Springfield", "IL", "62701", "USA");
+
+        @Test
+        void shouldDefaultToNoAddress() throws BusinessValidationException {
+            assertThat(buildValid().address()).isNull();
+        }
+
+        @Test
+        void shouldExposeAddressItWasConstructedWith() throws BusinessValidationException {
+            VisitPlan plan = new VisitPlan(
+                    new VisitId(VISIT_ID), new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("planned check") {}, new Identifier(SITE_ID) {}, List.of(),
+                    new MedicalSalesRepId(MSR_ID), true, site);
+
+            assertThat(plan.address()).isEqualTo(site);
+        }
+
+        @Test
+        void eightArgConstructorWithoutAddressShouldLeaveAddressNull() throws BusinessValidationException {
+            VisitPlan plan = new VisitPlan(
+                    new VisitId(VISIT_ID), new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("planned check") {}, new Identifier(SITE_ID) {}, List.of(),
+                    new MedicalSalesRepId(MSR_ID), true);
+
+            assertThat(plan.address()).isNull();
         }
     }
 }

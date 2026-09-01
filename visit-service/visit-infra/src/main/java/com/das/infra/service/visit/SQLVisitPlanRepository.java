@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
@@ -134,10 +135,20 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
                     visitSiteId,
                     List.of(),
                     new MedicalSalesRepId(msrId),
-                    entity.getActive() == null ? true : entity.getActive());
+                    entity.getActive() == null ? true : entity.getActive(),
+                    addressFromEntity(entity.getAddressStreet(), entity.getAddressCity(),
+                            entity.getAddressState(), entity.getAddressPostalCode(), entity.getAddressCountry()));
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Failed to reconstruct VisitPlan from database: " + e.getMessage(), e);
         }
+    }
+
+    /** Street is the marker for "no address on file" — see the same pattern in SQLMedicalSalesRepRepository. */
+    private AddressValueObject addressFromEntity(String street, String city, String state, String postalCode, String country) {
+        if (street == null) {
+            return null;
+        }
+        return new AddressValueObject(street, city, state, postalCode, country);
     }
 
     private VisitPlanEntity toEntity(VisitPlan visitPlan) {
@@ -152,6 +163,14 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
         entity.setHealthCareProfId(visitPlan.healthCareProfId() != null ? visitPlan.healthCareProfId().value() : null);
         entity.setMedicalSalesRepId(visitPlan.medicalSalesRepId() != null ? visitPlan.medicalSalesRepId().value() : null);
         entity.setActive(visitPlan.isActive());
+        AddressValueObject address = visitPlan.address();
+        if (address != null) {
+            entity.setAddressStreet(address.street());
+            entity.setAddressCity(address.city());
+            entity.setAddressState(address.state());
+            entity.setAddressPostalCode(address.postalCode());
+            entity.setAddressCountry(address.country());
+        }
         return entity;
     }
 }

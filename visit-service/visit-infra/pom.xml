@@ -62,6 +62,13 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Embedded DB for @DataJpaTest — production uses SQL Server, but repository
+             mapping tests only need a real JPA provider, not the production dialect. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

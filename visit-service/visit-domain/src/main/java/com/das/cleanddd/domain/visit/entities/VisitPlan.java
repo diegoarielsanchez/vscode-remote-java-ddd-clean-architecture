@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
@@ -20,6 +21,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
     private TextValueObject _visitComments;
     private MedicalSalesRepId _medicalSalesRepId;
     private Identifier _visitSiteId;
+    private AddressValueObject _address;
     private boolean _active;
     private final List<VisitItem> _visitItems = new ArrayList<>();
 
@@ -30,7 +32,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
         , Identifier visitSiteId
         , List<VisitItem> visitItems
         , MedicalSalesRepId medicalSalesRepId) throws BusinessValidationException {
-        this(visitId, visitDateTime, healthCareProfId, visitComments, visitSiteId, visitItems, medicalSalesRepId, true);
+        this(visitId, visitDateTime, healthCareProfId, visitComments, visitSiteId, visitItems, medicalSalesRepId, true, null);
     }
 
     public VisitPlan(VisitId visitId
@@ -41,6 +43,19 @@ public final class VisitPlan extends AggregateRoot<Object> {
         , List<VisitItem> visitItems
         , MedicalSalesRepId medicalSalesRepId
         , boolean active) throws BusinessValidationException {
+        this(visitId, visitDateTime, healthCareProfId, visitComments, visitSiteId, visitItems, medicalSalesRepId, active, null);
+    }
+
+    /** Address is optional: the visit site address may not be on file. */
+    public VisitPlan(VisitId visitId
+        , VisitDateTime visitDateTime
+        , HealthCareProfId healthCareProfId
+        , TextValueObject visitComments
+        , Identifier visitSiteId
+        , List<VisitItem> visitItems
+        , MedicalSalesRepId medicalSalesRepId
+        , boolean active
+        , AddressValueObject address) throws BusinessValidationException {
 
         if (visitDateTime == null) {
             throw new BusinessValidationException("Visit date/time is required.");
@@ -59,6 +74,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
         this._visitSiteId       = visitSiteId;
         this._medicalSalesRepId = medicalSalesRepId;
         this._active            = active;
+        this._address           = address;
     }
 
     @SuppressWarnings("unused")
@@ -69,6 +85,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
         _visitComments     = null;
         _visitSiteId       = null;
         _medicalSalesRepId = null;
+        _address           = null;
         _active            = true;
     }
 
@@ -90,6 +107,10 @@ public final class VisitPlan extends AggregateRoot<Object> {
 
     public Identifier visitSideId() {
         return _visitSiteId;
+    }
+
+    public AddressValueObject address() {
+        return _address;
     }
 
     public TextValueObject visitComments() {

@@ -16,6 +16,7 @@ import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfId;
 import com.das.cleanddd.domain.healthcareprof.entities.HealthCareProfName;
 import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository;
 import com.das.cleanddd.domain.healthcareprof.entities.Specialty;
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 
 @Primary
@@ -94,14 +95,33 @@ public final class SQLHealthCareProfRepository implements IHealthCareProfReposit
                         })
                         .collect(Collectors.toList());
 
+        List<AddressValueObject> addresses = entity.getAddresses() == null
+                ? new ArrayList<>()
+                : entity.getAddresses().stream()
+                        .map(this::decodeAddress)
+                        .collect(Collectors.toList());
+
         return new HealthCareProf(
                 new HealthCareProfId(entity.getId()),
                 new HealthCareProfName(entity.getName()),
                 new HealthCareProfName(entity.getSurname()),
                 new HealthCareProfEmail(entity.getEmail()),
                 new HealthCareProfActive(entity.getActive()),
-                specialties
+                specialties,
+                addresses
         );
+    }
+
+    /** Encodes as "street|city|state|postalCode|country"; state may be empty. */
+    private String encodeAddress(AddressValueObject address) {
+        String state = address.state() == null ? "" : address.state();
+        return address.street() + "|" + address.city() + "|" + state + "|"
+                + address.postalCode() + "|" + address.country();
+    }
+
+    private AddressValueObject decodeAddress(String encoded) {
+        String[] parts = encoded.split("\\|", -1);
+        return new AddressValueObject(parts[0], parts[1], parts[2], parts[3], parts[4]);
     }
 
     private HealthCareProfEntity toEntity(HealthCareProf domain) {
@@ -117,6 +137,12 @@ public final class SQLHealthCareProfRepository implements IHealthCareProfReposit
                         .map(s -> s.code() + "|" + s.name())
                         .collect(Collectors.toList());
         entity.setSpecialties(specialties);
+        List<String> addresses = domain.getAddresses() == null
+                ? new ArrayList<>()
+                : domain.getAddresses().stream()
+                        .map(this::encodeAddress)
+                        .collect(Collectors.toList());
+        entity.setAddresses(addresses);
         return entity;
     }
 }

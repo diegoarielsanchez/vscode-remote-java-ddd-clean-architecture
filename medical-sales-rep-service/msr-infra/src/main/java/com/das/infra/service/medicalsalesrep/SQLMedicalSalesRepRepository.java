@@ -14,6 +14,7 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
 import com.das.cleanddd.domain.medicalsalesrep.entities.IMedicalSalesRepRepository;
 import org.springframework.context.annotation.Primary;
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 
 @Primary
@@ -78,8 +79,27 @@ public final class SQLMedicalSalesRepRepository implements IMedicalSalesRepRepos
                 new MedicalSalesRepName(entity.getName()),
                 new MedicalSalesRepName(entity.getSurname()),
                 new MedicalSalesRepEmail(entity.getEmail()),
-                new MedicalSalesRepActive(entity.getActive())
+                new MedicalSalesRepActive(entity.getActive()),
+                addressFromEntity(entity)
         );
+    }
+
+    /**
+     * Street is the marker for "no address on file": AddressValueObject requires
+     * street/city/postalCode/country, so a row that was saved without an address has
+     * all four columns null and must not be forced through the value object's
+     * constructor.
+     */
+    private AddressValueObject addressFromEntity(MedicalSalesRepEntity entity) {
+        if (entity.getAddressStreet() == null) {
+            return null;
+        }
+        return new AddressValueObject(
+                entity.getAddressStreet(),
+                entity.getAddressCity(),
+                entity.getAddressState(),
+                entity.getAddressPostalCode(),
+                entity.getAddressCountry());
     }
 
     private MedicalSalesRepEntity toEntity(MedicalSalesRep domain) {
@@ -89,6 +109,14 @@ public final class SQLMedicalSalesRepRepository implements IMedicalSalesRepRepos
         entity.setSurname(domain.getSurname().value());
         entity.setEmail(domain.getEmail().value());
         entity.setActive(domain.getActive().value());
+        AddressValueObject address = domain.getAddress();
+        if (address != null) {
+            entity.setAddressStreet(address.street());
+            entity.setAddressCity(address.city());
+            entity.setAddressState(address.state());
+            entity.setAddressPostalCode(address.postalCode());
+            entity.setAddressCountry(address.country());
+        }
         return entity;
     }
 }

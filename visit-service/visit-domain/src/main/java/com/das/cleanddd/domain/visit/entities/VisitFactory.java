@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -19,6 +20,17 @@ public class VisitFactory {
         Identifier visitSiteId,
         MedicalSalesRepId medicalSalesRepId
     ) throws BusinessValidationException {
+        return createVisit(visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null);
+    }
+
+    public Visit createVisit(
+        VisitDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address
+    ) throws BusinessValidationException {
         return new Visit(
             new VisitId(UUID.randomUUID().toString()),
             visitDate,
@@ -26,7 +38,8 @@ public class VisitFactory {
             visitComments,
             visitSiteId,
             List.of(),
-            medicalSalesRepId
+            medicalSalesRepId,
+            address
         );
     }
 }

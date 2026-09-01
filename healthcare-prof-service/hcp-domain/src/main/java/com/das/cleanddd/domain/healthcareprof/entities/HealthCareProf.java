@@ -8,6 +8,7 @@ import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpDeactivatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpDomainEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
@@ -20,11 +21,15 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
     public static final int MAX_SPECIALTIES = 9;
     public static final String ERROR_MESSAGE_MAX_SPECIALTIES = "Specialties cannot have more than 9 items";
 
+    public static final int MAX_ADDRESSES = 5;
+    public static final String ERROR_MESSAGE_MAX_ADDRESSES = "Addresses cannot have more than 5 items";
+
     private final HealthCareProfId _id;
     private final transient HealthCareProfEmail    _email;
     private final transient HealthCareProfActive _active;
     private final transient ValidationUtils _validationUtils;
     private final List<Specialty> specialties;
+    private final List<AddressValueObject> addresses;
 
     public HealthCareProf(HealthCareProfId id
             , HealthCareProfName name
@@ -32,7 +37,20 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
             , HealthCareProfEmail email
             , HealthCareProfActive active
             , List<Specialty> specialties
-        ) 
+        )
+        {
+        this(id, name, surname, email, active, specialties, null);
+    }
+
+    /** Addresses are optional: a health care professional may have zero, one, or several practice locations on file. */
+    public HealthCareProf(HealthCareProfId id
+            , HealthCareProfName name
+            , HealthCareProfName surname
+            , HealthCareProfEmail email
+            , HealthCareProfActive active
+            , List<Specialty> specialties
+            , List<AddressValueObject> addresses
+        )
         {
         this._id      = id == null ? HealthCareProfId.random() : id;
         this._firstName    = name.toString();
@@ -40,13 +58,21 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         this._email   = email == null ? new HealthCareProfEmail(null) : email;
         this._active =  active == null ? new HealthCareProfActive(false) : active;
         this.specialties = specialties == null ? null : List.copyOf(specialties);
+        this.addresses = addresses == null ? null : List.copyOf(addresses);
         this._validationUtils = (new UtilsFactory()).getValidationUtils();
         this.ensureSpecialtiesMaxSize(this.specialties);
+        this.ensureAddressesMaxSize(this.addresses);
     }
 
     private void ensureSpecialtiesMaxSize(List<Specialty> specialties) {
         if (specialties != null && specialties.size() > MAX_SPECIALTIES) {
             throw new IllegalArgumentException(ERROR_MESSAGE_MAX_SPECIALTIES);
+        }
+    }
+
+    private void ensureAddressesMaxSize(List<AddressValueObject> addresses) {
+        if (addresses != null && addresses.size() > MAX_ADDRESSES) {
+            throw new IllegalArgumentException(ERROR_MESSAGE_MAX_ADDRESSES);
         }
     }
 
@@ -78,7 +104,11 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         return this._id;
     }
     public static HealthCareProf create(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, HealthCareProfActive active, List<Specialty> specialties) {
-        HealthCareProf healthCareProf = new HealthCareProf(id, name, surname, email, active, specialties);
+        return create(id, name, surname, email, active, specialties, null);
+    }
+
+    public static HealthCareProf create(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, HealthCareProfActive active, List<Specialty> specialties, List<AddressValueObject> addresses) {
+        HealthCareProf healthCareProf = new HealthCareProf(id, name, surname, email, active, specialties, addresses);
         healthCareProf.record(new HcpCreatedEvent(
                 healthCareProf.getId().toString(),
                 healthCareProf.getFirstName(),
@@ -91,17 +121,21 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
     public static HealthCareProf create(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties) {
         return new HealthCareProf(null, name, surname, email, null, specialties);
     }
- 
+
+    public static HealthCareProf create(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, List<AddressValueObject> addresses) {
+        return new HealthCareProf(null, name, surname, email, null, specialties, addresses);
+    }
+
     public HealthCareProf changeName(HealthCareProfName newName) throws BusinessException {
-        return new HealthCareProf(this._id, newName, new HealthCareProfName(this._lastName), this._email, this._active, this.specialties);
+        return new HealthCareProf(this._id, newName, new HealthCareProfName(this._lastName), this._email, this._active, this.specialties, this.addresses);
     }
 
     public HealthCareProf changeSurname(HealthCareProfName newSurname) throws BusinessException {
-        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), newSurname, this._email, this._active, this.specialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), newSurname, this._email, this._active, this.specialties, this.addresses);
     }
 
     public HealthCareProf changeEmail(HealthCareProfEmail newEmail) throws BusinessException {
-        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), newEmail, this._active, this.specialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), newEmail, this._active, this.specialties, this.addresses);
     }
 
     public HealthCareProf changeSpecialties(List<Specialty> newSpecialties) throws BusinessException {
@@ -114,7 +148,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
             return this;
         }
 
-        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, normalizedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, normalizedSpecialties, this.addresses);
     }
 
     public HealthCareProf addSpecialty(Specialty specialty) throws BusinessException {
@@ -131,7 +165,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         }
 
         updatedSpecialties.add(specialty);
-        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties, this.addresses);
     }
 
     public HealthCareProf removeSpecialty(Specialty specialty) throws BusinessException {
@@ -151,11 +185,61 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
             throw new RequiredFieldException("specialties");
         }
 
-        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, updatedSpecialties, this.addresses);
     }
 
     public List<Specialty> getSpecialties() {
         return this.specialties;
+    }
+
+    public List<AddressValueObject> getAddresses() {
+        return this.addresses;
+    }
+
+    public HealthCareProf changeAddresses(List<AddressValueObject> newAddresses) throws BusinessException {
+        List<AddressValueObject> normalizedAddresses = newAddresses == null ? null : List.copyOf(newAddresses);
+        if (this.addresses == null && normalizedAddresses == null) {
+            return this;
+        }
+        if (this.addresses != null && this.addresses.equals(normalizedAddresses)) {
+            return this;
+        }
+
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, this.specialties, normalizedAddresses);
+    }
+
+    public HealthCareProf addAddress(AddressValueObject address) throws BusinessException {
+        if (address == null) {
+            throw new RequiredFieldException("address");
+        }
+
+        List<AddressValueObject> updatedAddresses = this.addresses == null
+                ? new ArrayList<>()
+                : new ArrayList<>(this.addresses);
+
+        if (updatedAddresses.contains(address)) {
+            return this;
+        }
+
+        updatedAddresses.add(address);
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, this.specialties, updatedAddresses);
+    }
+
+    public HealthCareProf removeAddress(AddressValueObject address) throws BusinessException {
+        if (address == null) {
+            throw new RequiredFieldException("address");
+        }
+        if (this.addresses == null || this.addresses.isEmpty()) {
+            return this;
+        }
+
+        List<AddressValueObject> updatedAddresses = new ArrayList<>(this.addresses);
+        boolean removed = updatedAddresses.remove(address);
+        if (!removed) {
+            return this;
+        }
+
+        return new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, this._active, this.specialties, updatedAddresses);
     }
 
     public void validate() throws BusinessException {
@@ -164,15 +248,15 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         if(this._validationUtils.isNullOrEmpty(this._lastName)) throw new RequiredFieldException("lastName");
         if(this._validationUtils.isNullOrEmpty(this._email.toString())) throw new RequiredFieldException("email");
         if(this.specialties == null || this.specialties.isEmpty()) throw new RequiredFieldException("specialties");
-        //if(this.validationUtils.isNull(this.address)) throw new RequiredFieldException("address");
-        //this.address.validate();
+        // Addresses are optional — no requiredness check. AddressValueObject validates
+        // its own fields at construction, so every entry here is already well-formed.
         }
 
     public HealthCareProf setActivate() {
         if (this._active != null && this._active.value()) {
             return this;
         }
-        HealthCareProf activated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties);
+        HealthCareProf activated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties, this.addresses);
         activated.record(new HcpActivatedEvent(activated.getId().toString(), activated.isActive()));
         return activated;
     }
@@ -180,13 +264,17 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         if (this._active != null && !this._active.value()) {
             return this;
         }
-        HealthCareProf deactivated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties);
+        HealthCareProf deactivated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties, this.addresses);
         deactivated.record(new HcpDeactivatedEvent(deactivated.getId().toString(), deactivated.isActive()));
         return deactivated;
     }
 
     public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties) {
-        HealthCareProf updated = new HealthCareProf(this._id, name, surname, email, this._active, specialties);
+        return withUpdatedDetails(name, surname, email, specialties, this.addresses);
+    }
+
+    public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, List<AddressValueObject> addresses) {
+        HealthCareProf updated = new HealthCareProf(this._id, name, surname, email, this._active, specialties, addresses);
         updated.record(new HcpUpdatedEvent(
                 updated.getId().toString(),
                 updated.getFirstName(),

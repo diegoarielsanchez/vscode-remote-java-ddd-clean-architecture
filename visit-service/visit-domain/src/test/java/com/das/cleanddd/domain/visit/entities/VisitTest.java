@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.das.cleanddd.domain.shared.TextValueObject;
@@ -318,6 +319,64 @@ class VisitTest {
             Visit v1 = buildValid();
             Visit v2 = buildValid();
             assertThat(v1.hashCode()).isEqualTo(v2.hashCode());
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    @Nested
+    class Address {
+
+        private final AddressValueObject site = new AddressValueObject(
+                "1 Clinic Rd", "Springfield", "IL", "62701", "USA");
+
+        @Test
+        void shouldDefaultToNoAddress() throws BusinessValidationException {
+            assertThat(buildValid().address()).isNull();
+        }
+
+        @Test
+        void shouldExposeAddressItWasConstructedWith() throws BusinessValidationException {
+            Visit visit = new Visit(
+                    new VisitId(VISIT_ID), new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("routine check") {}, new Identifier(SITE_ID) {}, List.of(),
+                    new MedicalSalesRepId(MSR_ID), site);
+
+            assertThat(visit.address()).isEqualTo(site);
+        }
+
+        @Test
+        void updateWithoutAddressArgumentShouldNotTouchExistingAddress() throws BusinessValidationException {
+            Visit visit = new Visit(
+                    new VisitId(VISIT_ID), new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("routine check") {}, new Identifier(SITE_ID) {}, List.of(),
+                    new MedicalSalesRepId(MSR_ID), site);
+
+            visit.update(new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("updated") {}, new Identifier(SITE_ID) {}, new MedicalSalesRepId(MSR_ID));
+
+            assertThat(visit.address()).isEqualTo(site);
+        }
+
+        @Test
+        void updateWithAddressArgumentShouldReplaceIt() throws BusinessValidationException {
+            Visit visit = buildValid();
+            AddressValueObject newSite = new AddressValueObject("2 Clinic Rd", "Springfield", "IL", "62701", "USA");
+
+            visit.update(new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("updated") {}, new Identifier(SITE_ID) {}, new MedicalSalesRepId(MSR_ID),
+                    newSite);
+
+            assertThat(visit.address()).isEqualTo(newSite);
+        }
+
+        @Test
+        void reconstructShouldRehydrateAddress() {
+            Visit visit = Visit.reconstruct(
+                    new VisitId(VISIT_ID), new VisitDateTime(VALID_DATE), new HealthCareProfId(HCP_ID),
+                    new TextValueObject("routine check") {}, new Identifier(SITE_ID) {}, List.of(),
+                    new MedicalSalesRepId(MSR_ID), site);
+
+            assertThat(visit.address()).isEqualTo(site);
         }
     }
 }

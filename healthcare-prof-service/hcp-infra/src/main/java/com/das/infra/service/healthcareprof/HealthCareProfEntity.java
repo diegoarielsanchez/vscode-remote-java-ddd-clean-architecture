@@ -28,6 +28,14 @@ public class HealthCareProfEntity {
     @Column(name = "specialty_code_name")
     private List<String> specialties = new ArrayList<>();
 
+    // Each entry is "street|city|state|postalCode|country", state may be empty.
+    // Delimiter-encoded rather than an @Embeddable to match the specialties
+    // column above — this codebase has no existing @Embeddable precedent.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "health_care_prof_addresses", joinColumns = @JoinColumn(name = "health_care_prof_id"))
+    @Column(name = "address_line", length = 600)
+    private List<String> addresses = new ArrayList<>();
+
     public HealthCareProfEntity() {}
 
     public String getId() { return id; }
@@ -47,4 +55,7 @@ public class HealthCareProfEntity {
 
     public List<String> getSpecialties() { return specialties; }
     public void setSpecialties(List<String> specialties) { this.specialties = specialties; }
+
+    public List<String> getAddresses() { return addresses; }
+    public void setAddresses(List<String> addresses) { this.addresses = addresses; }
 }

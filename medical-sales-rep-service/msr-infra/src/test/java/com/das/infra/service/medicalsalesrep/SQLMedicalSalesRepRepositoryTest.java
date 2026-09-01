@@ -5,6 +5,7 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepActive;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepEmail;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRepName;
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -211,5 +212,58 @@ class SQLMedicalSalesRepRepositoryTest {
                 2, 3);
 
         assertThat(page2).hasSize(2);
+    }
+
+    // ---------------------------------------------------------------------------
+    // address
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void save_persistsAddress_whenPresent() {
+        String id = UUID.randomUUID().toString();
+        AddressValueObject address = new AddressValueObject("1 Pharma Way", "Boston", "MA", "02110", "USA");
+        MedicalSalesRep msr = new MedicalSalesRep(
+                new MedicalSalesRepId(id),
+                new MedicalSalesRepName("Alice"),
+                new MedicalSalesRepName("Smith"),
+                new MedicalSalesRepEmail("alice@example.com"),
+                new MedicalSalesRepActive(true),
+                address);
+
+        repository.save(msr);
+
+        MedicalSalesRepEntity stored = jpaRepository.findById(Objects.requireNonNull(id)).orElseThrow();
+        assertThat(stored.getAddressStreet()).isEqualTo("1 Pharma Way");
+        assertThat(stored.getAddressCity()).isEqualTo("Boston");
+        assertThat(stored.getAddressState()).isEqualTo("MA");
+        assertThat(stored.getAddressPostalCode()).isEqualTo("02110");
+        assertThat(stored.getAddressCountry()).isEqualTo("USA");
+    }
+
+    @Test
+    void findById_roundTripsAddress() {
+        String id = UUID.randomUUID().toString();
+        AddressValueObject address = new AddressValueObject("1 Pharma Way", "Boston", "MA", "02110", "USA");
+        repository.save(new MedicalSalesRep(
+                new MedicalSalesRepId(id),
+                new MedicalSalesRepName("Alice"),
+                new MedicalSalesRepName("Smith"),
+                new MedicalSalesRepEmail("alice@example.com"),
+                new MedicalSalesRepActive(true),
+                address));
+
+        MedicalSalesRep found = repository.findById(new MedicalSalesRepId(id)).orElseThrow();
+
+        assertThat(found.getAddress()).isEqualTo(address);
+    }
+
+    @Test
+    void findById_returnsNullAddress_whenNoneWasEverSaved() {
+        String id = UUID.randomUUID().toString();
+        repository.save(aMsr(id, "Alice", "Smith", "alice@example.com", true));
+
+        MedicalSalesRep found = repository.findById(new MedicalSalesRepId(id)).orElseThrow();
+
+        assertThat(found.getAddress()).isNull();
     }
 }

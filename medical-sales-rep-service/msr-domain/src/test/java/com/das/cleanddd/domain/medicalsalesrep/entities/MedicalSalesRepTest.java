@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.medicalsalesrep.entities;
 
+import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -167,6 +168,83 @@ class MedicalSalesRepTest {
             assertThrows(RequiredFieldException.class,
                     () -> factory.recreateExistingMedicalSalesRepresentative(
                             null, name, surname, email, new MedicalSalesRepActive(false)));
+        }
+    }
+
+    // ── address ───────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Address")
+    class Address {
+
+        private AddressValueObject address;
+
+        @BeforeEach
+        void setUpAddress() {
+            address = new AddressValueObject("1 Pharma Way", "Boston", "MA", "02110", "USA");
+        }
+
+        @Test
+        @DisplayName("should default to no address when omitted")
+        void shouldDefaultToNoAddress() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(true));
+
+            assertNull(msr.getAddress());
+        }
+
+        @Test
+        @DisplayName("should expose the address it was constructed with")
+        void shouldExposeAddress() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(true), address);
+
+            assertEquals(address, msr.getAddress());
+        }
+
+        @Test
+        @DisplayName("setActivate should preserve the address")
+        void activateShouldPreserveAddress() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(false), address);
+
+            MedicalSalesRep activated = msr.setActivate();
+
+            assertEquals(address, activated.getAddress());
+        }
+
+        @Test
+        @DisplayName("setDeactivate should preserve the address")
+        void deactivateShouldPreserveAddress() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(true), address);
+
+            MedicalSalesRep deactivated = msr.setDeactivate();
+
+            assertEquals(address, deactivated.getAddress());
+        }
+
+        @Test
+        @DisplayName("withUpdatedDetails without an address argument should preserve the existing address")
+        void withUpdatedDetailsShouldPreserveAddressByDefault() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(true), address);
+
+            MedicalSalesRep updated = msr.withUpdatedDetails(name, surname, email);
+
+            assertEquals(address, updated.getAddress());
+        }
+
+        @Test
+        @DisplayName("withUpdatedDetails should replace the address when a new one is supplied")
+        void withUpdatedDetailsShouldReplaceAddress() {
+            MedicalSalesRep msr = new MedicalSalesRep(
+                    MedicalSalesRepId.random(), name, surname, email, new MedicalSalesRepActive(true), address);
+            AddressValueObject newAddress = new AddressValueObject("2 Pharma Way", "Cambridge", "MA", "02139", "USA");
+
+            MedicalSalesRep updated = msr.withUpdatedDetails(name, surname, email, newAddress);
+
+            assertEquals(newAddress, updated.getAddress());
         }
     }
 }
