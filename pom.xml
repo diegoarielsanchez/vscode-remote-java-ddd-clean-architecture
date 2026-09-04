@@ -28,6 +28,8 @@
         <module>settlement-service</module>
         <!-- Microservice: Product Catalog -->
         <module>product-catalog-service</module>
+        <!-- Microservice: Order -->
+        <module>order-service</module>
         <!-- API Gateway -->
         <module>api-gateway</module>
         <!-- Service Registry (Eureka Server) -->

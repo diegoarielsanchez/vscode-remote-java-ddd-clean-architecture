@@ -78,6 +78,17 @@ spring:
                     name: catalogCircuitBreaker
                     fallbackUri: forward:/fallback/unavailable
 
+            # ── Order Service ────────────────────────────────────────────────────
+            - id: order
+              uri: lb://order-service
+              predicates:
+                - Path=/api/v1/orders/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: orderCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
+
           # Global CORS (also enforced via SecurityConfig)
           globalcors:
             cors-configurations:
