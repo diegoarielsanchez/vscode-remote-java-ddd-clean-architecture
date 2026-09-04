@@ -191,6 +191,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Product Catalog Service ────────────────────────────────────────────────
+  product-catalog-service:
+    # No container_name: Compose needs to name each replica itself (<project>_product-catalog-service_N).
+    # Scale with: docker compose up -d --scale product-catalog-service=3
+    deploy:
+      replicas: 2
+    build:
+      context: product-catalog-service
+      dockerfile: catalog-application/Dockerfile
+      additional_contexts:
+        domain-commons: domain-commons
+    networks: [backend, ddd-clean-net]  # ddd-clean-net for rabbitmq-ddd-clean hostname
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET: ${JWT_SECRET}
+      DB_URL: ${CATALOG_DB_URL}
+      PG_USERNAME: ${CATALOG_PG_USERNAME}
+      PG_PASSWORD: ${CATALOG_PG_PASSWORD}
+      EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      OTEL_SERVICE_NAME: product-catalog-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=ddd-clean-architecture
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    restart: unless-stopped
+    # No ports: — only reachable via gateway through Eureka discovery
+
   # ── Identity Service ──────────────────────────────────────────────────────
   identity-service:
     container_name: identity-service-ddd-clean

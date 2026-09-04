@@ -67,6 +67,17 @@ spring:
                     name: settlementCircuitBreaker
                     fallbackUri: forward:/fallback/unavailable
 
+            # ── Product Catalog Service ─────────────────────────────────────────────
+            - id: product-catalog
+              uri: lb://product-catalog-service
+              predicates:
+                - Path=/api/v1/products/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: catalogCircuitBreaker
+                    fallbackUri: forward:/fallback/unavailable
+
           # Global CORS (also enforced via SecurityConfig)
           globalcors:
             cors-configurations:

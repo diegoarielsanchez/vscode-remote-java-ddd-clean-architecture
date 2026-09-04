@@ -26,6 +26,8 @@
         <module>visit-service</module>
         <!-- Microservice: Settlement -->
         <module>settlement-service</module>
+        <!-- Microservice: Product Catalog -->
+        <module>product-catalog-service</module>
         <!-- API Gateway -->
         <module>api-gateway</module>
         <!-- Service Registry (Eureka Server) -->
