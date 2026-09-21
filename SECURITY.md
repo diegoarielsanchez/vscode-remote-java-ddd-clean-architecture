@@ -80,11 +80,19 @@ pageSize = Math.min(pageSize, 100);
 ```
 The same cap is applied inside `ListSettlementsUseCase`, `ListVisitsUseCase`, and `ListVisitPlansUseCase` at the domain layer, consistent with DDD clean architecture.
 
+**Finding 3 — Weakly-Typed Date Input (OWASP ASVS 5.1 — Input Validation):** Accepting date fields as raw `String` and hand-parsing them downstream is a common source of format ambiguity (e.g. locale-dependent parsing) and lets malformed values propagate deep into the call stack before failing.
+
+**Fix:** Every date-bearing input field is typed as `java.time.LocalDate`/`LocalDateTime` and parsed once, at the framework boundary, before any handler code runs:
+- JSON request bodies: `@JsonFormat(pattern = "yyyy-MM-dd")` pins Jackson to one strict format (e.g. `AddInvoiceInputDTO`).
+- Multipart/query/form parameters: `@DateTimeFormat(iso = DateTimeFormat.ISO.DATE)` applies the equivalent constraint through Spring's `ConversionService` — necessary because Jackson's `@JsonFormat` has no effect on `@RequestParam` binding, only on JSON body deserialization.
+
+A malformed date can no longer reach a use case; it is rejected by the framework itself.
+
 ---
 
 ### A04 — Insecure Design / Unrestricted Resource Consumption (CWE-400)
 
-**Finding:** `SettlementController.addInvoice()` called `MultipartFile.getBytes()`, which loads the entire file into the JVM heap in one shot. A large or maliciously crafted upload could exhaust memory and cause a denial-of-service.
+**Finding 1:** `SettlementController.addInvoice()` called `MultipartFile.getBytes()`, which loads the entire file into the JVM heap in one shot. A large or maliciously crafted upload could exhaust memory and cause a denial-of-service.
 
 **Fix:** Replaced `getBytes()` with streaming via `InputStream` and added a 10 MB size guard before the stream is read:
 ```java
@@ -92,6 +100,23 @@ if (file.getSize() > MAX_UPLOAD_BYTES) {
     throw new InvalidInputException("File exceeds the 10 MB limit.");
 }
 try (InputStream is = file.getInputStream()) { ... }
+```
+
+**Finding 2 — Business Invariants Enforced Only at the Edge (CWE-20 / OWASP ASVS 5.1 Positive Validation):** Rules such as "an invoice's issue date must fall within the last 60 days" or "a visit plan must be scheduled in the future" were previously re-checked ad hoc inside individual use cases. A new use case or a repository rehydration path could construct an entity in an invalid state simply by forgetting to repeat the check.
+
+**Fix:** These rules were pushed down into immutable domain value objects (`IssueDate`, `DueDate`, `SettlementDate`, `VisitDateTime`) that validate in their constructor and throw `BusinessValidationException` on construction. Because `Invoice`, `Settlement`, `Visit`, and `VisitPlan` only accept these types — never a raw `LocalDate`/`LocalDateTime` — an invalid date can no longer reach the domain layer through any code path, present or future:
+```java
+public final class IssueDate extends DateValueObject {
+    public IssueDate(LocalDate value) throws BusinessValidationException {
+        super(value);
+        if (value == null) {
+            throw new BusinessValidationException("Issue date is required.");
+        }
+        if (value.isBefore(LocalDate.now().minusDays(60))) {
+            throw new BusinessValidationException("Issue date must be within the last 60 days.");
+        }
+    }
+}
 ```
 
 ---
@@ -117,6 +142,22 @@ configuration.setAllowedHeaders(
 private boolean swaggerEnabled;
 ```
 - Added `application-prod.properties` to `identity-service` with `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
+
+**Finding 3 — Inconsistent Handling of Malformed Input (CWE-209 Information Exposure Through an Error Message):** Malformed JSON request bodies (e.g. an unparsable date) were caught by a dedicated handler and returned a clean `400`, but malformed `@RequestParam`/`@PathVariable` values — such as an invalid `issueDate` on the multipart `/invoice/add` endpoint — threw `MethodArgumentTypeMismatchException`, which had no dedicated handler and fell through to the catch-all `Exception` handler. This misreported a client input error as `500 Internal Server Error`, and depending on server configuration risks a framework-default error page leaking implementation details for exceptions not explicitly handled.
+
+**Fix:** `GlobalExceptionHandler` now maps `MethodArgumentTypeMismatchException` to a `400 Bad Request` with a field-scoped message, matching the existing `HttpMessageNotReadableException`/`InvalidFormatException` handler. Every input-validation failure — JSON body, form param, query param, or path variable — now returns a consistent `400` shape. The catch-all `Exception` handler still logs full exception context server-side (`log.error("Unhandled exception", ex)`) but returns only a generic `"An unexpected error occurred."` message to the client, never a stack trace:
+```java
+@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+@ResponseStatus(HttpStatus.BAD_REQUEST)
+public ResponseEntity<Map<String, String>> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+    Map<String, String> errors = new HashMap<>();
+    Class<?> requiredType = ex.getRequiredType();
+    String targetType = requiredType != null ? requiredType.getSimpleName() : "unknown";
+    errors.put(ex.getName(), "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName()
+            + "'. Expected type: " + targetType + ".");
+    return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+}
+```
 
 ---
 

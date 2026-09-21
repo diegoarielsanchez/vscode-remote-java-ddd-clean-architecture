@@ -1,13 +1,13 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/java
 {
-	"name": "Java",
+	"name": "Java 25 - Microsoft OpenJDK",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/java:1-21",
+	"image": "mcr.microsoft.com/devcontainers/java:25",
 
 	"features": {
 		"ghcr.io/devcontainers/features/java:1": {
-			"version": "25",
+			"version": "none",
 			"installMaven": "true",
 			"mavenVersion": "3.8.6",
 			"installGradle": "false"
@@ -20,6 +20,7 @@
 		"vscode": {
 			"settings": {},
 			"extensions": [
+				"vscjava.vscode-java-pack", // Instala el paquete de extensiones de Java
 				"streetsidesoftware.code-spell-checker"
 			]
 		}
