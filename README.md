@@ -26,6 +26,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
+- [Redis — Caching Layer](#redis--caching-layer)
 - [CI with Jenkins](#ci-with-jenkins)
   - [1. Install required plugins](#1-install-required-plugins)
   - [2. Configure tools](#2-configure-tools)
@@ -163,6 +164,7 @@ cp .env.example .env
 | `RABBITMQ_HOST` | All services | RabbitMQ hostname |
 | `RABBITMQ_USERNAME` | All services | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | All services | RabbitMQ password |
+| `REDIS_PASSWORD` | Visit, Order, Product Catalog services | Password for the internal-only `redis` container (see [Redis — Caching Layer](#redis--caching-layer)) |
 | `INVOICE_FILE_STORAGE_PATH` | Settlement service | Absolute path where digital invoice files are stored on disk (default: `/var/settlement-service/invoice-files`) |
 | `MINIO_ENDPOINT` | Settlement service (`minio` profile) | MinIO / S3 endpoint URL (e.g. `http://localhost:9000`) |
 | `MINIO_ACCESS_KEY` | Settlement service (`minio` profile) | MinIO access key (default dev: `minioadmin`) |
@@ -281,6 +283,24 @@ docker run -d --name rabbitmq \
 
 # Management UI: http://localhost:15672  (guest / guest)
 ```
+
+**Redis** (Visit, Order, Product Catalog services — optional, see [Redis — Caching Layer](#redis--caching-layer)):
+
+> Not required to start these services — Spring Data Redis connects lazily, and a missing/unreachable Redis just means every `@Cacheable` lookup falls through to its uncached path (logged as a warning). Run it if you want to exercise the caching behavior locally.
+
+```bash
+docker run -d --name redis-ddd-clean \
+  -p 6379:6379 \
+  redis:7-alpine
+
+# To restart later
+docker start redis-ddd-clean
+
+# Inspect cached keys
+docker exec -it redis-ddd-clean redis-cli keys '*'
+```
+
+No password is set here since the dev `application.properties` default (`spring.data.redis.password=${REDIS_PASSWORD:}`) is blank — matching plaintext RabbitMQ dev credentials elsewhere in this section. Docker Compose (Option B) requires `REDIS_PASSWORD` via `.env` instead.
 
 **MinIO** (Settlement Service — S3-compatible invoice file storage, optional):
 
@@ -1184,6 +1204,53 @@ RABBITMQ_PASSWORD=<password>
 ```
 
 The MSR, HCP, and Visit services read these variables. The Settlement Service does not use RabbitMQ.
+
+---
+
+## Redis — Caching Layer
+
+Redis backs a small set of read-heavy, cross-service lookups to cut down on repeated HTTP round trips and DB reads. It is purely a performance optimization — every cached path already has an uncached fallback, so a missing or unreachable Redis degrades performance, never correctness or availability (see [Fail-open behavior](#fail-open-behavior) below).
+
+### What's cached
+
+| Cache name | Service | Backs | TTL | Eviction |
+|---|---|---|---|---|
+| `hcpActiveStatus` | Visit Service | `HealthCareProfValidatorAdapter.existsAndActive` — the HTTP call to HCP's `GET /{id}/active-status`, made on every visit/visit-plan creation | 60s | `HcpSnapshotUpdater` evicts on every HCP RabbitMQ event (create/update/activate/deactivate) |
+| `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrSnapshotUpdater` evicts on every MSR RabbitMQ event |
+| `msrActiveStatus` | Order Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same HTTP call, made on every order creation | 30s (shorter — this service has no snapshot table or event listener, so TTL is the only staleness bound) | TTL only |
+| `productById` | Product Catalog Service | `SQLProductRepository.findById` | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
+
+**Deliberately not cached:**
+- `GET /{id}/availability` (Product Catalog) — reflects live stock quantity; caching it risks overselling.
+- `POST /list` / name-search endpoints — filter/page-shaped results are hard to evict precisely, and combined with write-triggered eviction the hit rate isn't worth the added cache traffic.
+- `GET /specialties` (Healthcare Prof) — already an in-memory static list with zero I/O.
+
+### Only confirmed results are cached
+
+Every `@Cacheable` active-status lookup uses `unless = "#result == false"`. A `false` here can mean a genuine "inactive" HCP/MSR, a stale local-snapshot fallback (visit-service, after an HTTP failure), or a fail-closed default (order-service, on any error) — none of those should be memoized as if they were a confirmed check, since that would let a transient network blip get amplified into "confirmed inactive" for the whole TTL window. Only an HTTP-verified `true` is ever cached.
+
+### Fail-open behavior
+
+Each service that uses caching (`visit-application`, `order-application`, `catalog-application`) registers a custom `CacheErrorHandler` (in its `CacheConfig`) that logs and swallows Redis connectivity failures instead of the Spring default, which rethrows. Without this, a Redis outage would break visit/order creation and RabbitMQ message processing — paths that were already designed to tolerate the *origin service* being unavailable (visit-service's HTTP → local-snapshot fallback), but not designed to tolerate the *cache* being unavailable. With it, losing Redis just means every annotated method runs as if caching were never added.
+
+### Running locally
+
+See the **Redis** block under [Option A — Run Locally](#option-a--run-locally-development). Not required for these services to start.
+
+### In Docker Compose (Option B)
+
+Unlike RabbitMQ, Redis **is** bundled in `docker-compose.yml` as an internal-only `redis` service — no published host port, `--requirepass` sourced from `REDIS_PASSWORD` in `.env`, and `--maxmemory 256mb --maxmemory-policy allkeys-lru` so an unexpectedly large key space self-evicts (LRU) instead of growing unbounded. `visit-service`, `order-service`, and `product-catalog-service` depend on it (`service_healthy`) and are wired with `REDIS_HOST=redis`, `REDIS_PORT=6379`, `REDIS_PASSWORD=${REDIS_PASSWORD}`.
+
+```bash
+# Inspect cached keys after generating some traffic
+docker compose exec redis redis-cli -a $REDIS_PASSWORD keys '*'
+
+# Verify the fail-open behavior
+docker compose stop redis
+# retry a visit/order-creating request — should still succeed; check service
+# logs for "Cache GET/PUT failed, falling through to source"
+docker compose start redis
+```
 
 ---
 
