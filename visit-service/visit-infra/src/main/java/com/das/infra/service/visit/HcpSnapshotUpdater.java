@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,8 +26,17 @@ public class HcpSnapshotUpdater {
         this.visitPlanDeactivationService = visitPlanDeactivationService;
     }
 
+    /**
+     * Evicts the cached active-status result for this HCP on every event so a
+     * deactivation (or reactivation) is reflected immediately instead of
+     * waiting out the cache's TTL. Applied here — the public listener method —
+     * rather than on the private {@code upsert}/{@code updateActive} helpers,
+     * since Spring's proxy-based AOP cannot intercept their internal,
+     * self-invoked ({@code this.}-qualified) calls.
+     */
     @RabbitListener(queues = "visit-service.hcp.queue",
                     containerFactory = "visitRabbitListenerContainerFactory")
+    @CacheEvict(cacheNames = "hcpActiveStatus", key = "#msg.id()", condition = "#msg != null && #msg.id() != null")
     public void onHcpEvent(HcpEventMessage msg) {
         if (msg == null || msg.id() == null) {
             log.warn("Received null or id-less HCP event message, ignoring");

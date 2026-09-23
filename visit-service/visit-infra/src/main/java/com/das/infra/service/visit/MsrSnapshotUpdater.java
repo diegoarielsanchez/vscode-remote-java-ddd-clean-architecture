@@ -3,6 +3,7 @@ package com.das.infra.service.visit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
@@ -25,8 +26,17 @@ public class MsrSnapshotUpdater {
         this.visitPlanDeactivationService = visitPlanDeactivationService;
     }
 
+    /**
+     * Evicts the cached active-status result for this MSR on every event so a
+     * deactivation (or reactivation) is reflected immediately instead of
+     * waiting out the cache's TTL. Applied here — the public listener method —
+     * rather than on the private {@code upsert}/{@code updateActive} helpers,
+     * since Spring's proxy-based AOP cannot intercept their internal,
+     * self-invoked ({@code this.}-qualified) calls.
+     */
     @RabbitListener(queues = "visit-service.msr.queue",
                     containerFactory = "visitRabbitListenerContainerFactory")
+    @CacheEvict(cacheNames = "msrActiveStatus", key = "#msg.id()", condition = "#msg != null && #msg.id() != null")
     public void onMsrEvent(MsrEventMessage msg) {
         if (msg == null) {
             log.warn("Received null or id-less MSR event message, ignoring");

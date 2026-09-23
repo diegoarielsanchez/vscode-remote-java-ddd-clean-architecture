@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -20,9 +22,15 @@ import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
+/**
+ * Not {@code final} — Spring Boot's default CGLIB-based AOP proxying (used
+ * here for {@code @Cacheable}/{@code @CacheEvict}) cannot subclass a final
+ * class. Still a singleton {@code @Service} bean, never meant to be
+ * subclassed by application code.
+ */
 @Primary
 @Service
-public final class SQLProductRepository implements IProductRepository {
+public class SQLProductRepository implements IProductRepository {
 
     @Autowired
     private ProductJpaRepository jpaRepository;
@@ -34,7 +42,13 @@ public final class SQLProductRepository implements IProductRepository {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Busts the cached read for this product so create/update/activate/
+     * deactivate is visible on the next {@link #findById} immediately,
+     * rather than waiting out {@code productById}'s TTL.
+     */
     @Override
+    @CacheEvict(cacheNames = "productById", key = "#product.id().value()")
     public void save(Product product) {
         ProductEntity entity = toEntity(product);
         if (entity != null) {
@@ -67,7 +81,14 @@ public final class SQLProductRepository implements IProductRepository {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Only a found product is cached — {@code unless} excludes an empty
+     * {@link Optional} so a "not found" lookup (e.g. right after creation,
+     * before the id exists) can never be memoized past the moment it becomes
+     * valid.
+     */
     @Override
+    @Cacheable(cacheNames = "productById", key = "#identifier.value()", unless = "#result == null || #result.isEmpty()")
     public Optional<Product> findById(ProductId identifier) {
         String id = identifier.value();
         if (id == null) {
@@ -78,16 +99,19 @@ public final class SQLProductRepository implements IProductRepository {
     }
 
     @Override
+    @CacheEvict(cacheNames = "productById", key = "#id.value()")
     public boolean tryReserveStock(ProductId id, int quantity) {
         return jpaRepository.reserveStock(id.value(), quantity) == 1;
     }
 
     @Override
+    @CacheEvict(cacheNames = "productById", key = "#id.value()")
     public void releaseStock(ProductId id, int quantity) {
         jpaRepository.addStock(id.value(), quantity);
     }
 
     @Override
+    @CacheEvict(cacheNames = "productById", key = "#id.value()")
     public void restock(ProductId id, int quantity) {
         jpaRepository.addStock(id.value(), quantity);
     }

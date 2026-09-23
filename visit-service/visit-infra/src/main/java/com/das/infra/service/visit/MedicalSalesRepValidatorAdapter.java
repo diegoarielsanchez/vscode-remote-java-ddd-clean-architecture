@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +44,15 @@ public class MedicalSalesRepValidatorAdapter implements IMedicalSalesRepValidato
         this.restTemplate = loadBalancedRestTemplate;
     }
 
+    /**
+     * Only a confirmed {@code true} (an HTTP-verified active MSR) is cached —
+     * {@code unless} deliberately excludes {@code false}, since a {@code false}
+     * here may be a snapshot-fallback or fail-closed result after an HTTP
+     * failure, not a confirmed "inactive". Caching a transient failure would
+     * amplify a blip into "confirmed inactive" for the whole TTL window.
+     */
     @Override
+    @Cacheable(cacheNames = "msrActiveStatus", key = "#id", unless = "#result == false")
     public boolean existsAndActive(String id) {
         if (id == null || id.isBlank()) {
             return false;
