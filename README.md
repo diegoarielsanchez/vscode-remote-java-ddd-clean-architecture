@@ -583,6 +583,22 @@ docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitm
 
 > If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
 
+RabbitMQ's built-in `guest` user only accepts connections from inside the RabbitMQ container
+itself, so the services cannot log in with it. Create the broker with a real user, and Redis
+(required by visit-service in the `prod` profile) with a password, directly on `ddd-clean-net`
+if they do not exist yet:
+
+```bash
+docker run -d --name rabbitmq-ddd-clean --network ddd-clean-net \
+  -p 5672:5672 -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=admin -e RABBITMQ_DEFAULT_PASS=admin \
+  rabbitmq:3-management
+
+docker run -d --name redis-ddd-clean --network ddd-clean-net \
+  -p 6379:6379 \
+  redis:7-alpine --requirepass redispass
+```
+
 Generate one shared JWT secret and export it in the terminal you will run every `docker run` from.
 identity-service signs tokens with HS256, which rejects keys shorter than 32 bytes (login then fails
 with a 500), and every other service must use the identical value or it rejects the tokens (403).
@@ -690,9 +706,9 @@ docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=admin \
+  -e RABBITMQ_PASSWORD=admin \
   medical-sales-rep-service:local
 ```
 
@@ -718,9 +734,9 @@ docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:808
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=admin \
+  -e RABBITMQ_PASSWORD=admin \
   healthcare-prof-service:local
 ```
 
@@ -749,15 +765,22 @@ docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:sqlserver://sqlserver-ddd-clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true" \
   -e DB_USERNAME=sa \
-  -e DB_PASSWORD=Riverplate1! \
+  -e DB_PASSWORD='Riverplate1!' \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=admin \
+  -e RABBITMQ_PASSWORD=admin \
+  -e REDIS_HOST=redis-ddd-clean \
+  -e REDIS_PORT=6379 \
+  -e REDIS_PASSWORD=redispass \
   visit-service:local
 ```
 
 > `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run. Remove it on subsequent runs.
+>
+> The `prod` profile has no defaults for `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` —
+> startup fails if any is missing. Keep `'Riverplate1!'` single-quoted: inside double
+> quotes bash treats `!` as history expansion.
 >
 > visit-service reaches MSR and HCP through Eureka client-side load balancing
 > (their base URLs are hardcoded to the Eureka service ids
