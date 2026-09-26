@@ -583,6 +583,16 @@ docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitm
 
 > If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
 
+Generate one shared JWT secret and export it in the terminal you will run every `docker run` from.
+identity-service signs tokens with HS256, which rejects keys shorter than 32 bytes (login then fails
+with a 500), and every other service must use the identical value or it rejects the tokens (403).
+Environment variables are fixed at container creation — after changing the secret, `docker rm -f`
+and re-run the containers rather than `docker restart`.
+
+```bash
+export JWT_SECRET=$(openssl rand -base64 48)
+```
+
 ---
 
 Each service's build command is also captured in a `<service>/build.sh` script —
@@ -631,7 +641,7 @@ docker build -f api-gateway/Dockerfile -t api-gateway:local api-gateway
 # Run
 docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
   api-gateway:local
@@ -651,7 +661,7 @@ docker build -f identity-service/identity-application/Dockerfile \
 # Run
 docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   identity-service:local
 ```
@@ -675,7 +685,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8086 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
   -e PG_USERNAME=root \
@@ -703,7 +713,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:8087 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
   -e PG_USERNAME=root \
@@ -735,7 +745,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:sqlserver://sqlserver-ddd-clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true" \
   -e DB_USERNAME=sa \
@@ -776,7 +786,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET="$JWT_SECRET" \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
   -e DB_USERNAME=root \
@@ -989,10 +999,11 @@ Authorization: Bearer <token>
 |---|---|---|
 | `POST` | `/api/v1/medicalsalesrep/create` | Create a new medical sales rep |
 | `PUT` | `/api/v1/medicalsalesrep/update` | Update an existing rep |
-| `POST` | `/api/v1/medicalsalesrep/activate` | Activate a rep |
-| `POST` | `/api/v1/medicalsalesrep/deactivate` | Deactivate a rep |
-| `GET` | `/api/v1/medicalsalesrep/get?id=<uuid>` | Get a rep by ID |
-| `POST` | `/api/v1/medicalsalesrep/list` | List reps (with criteria filter) |
+| `POST` | `/api/v1/medicalsalesrep/{id}/activate` | Activate a rep |
+| `POST` | `/api/v1/medicalsalesrep/{id}/deactivate` | Deactivate a rep |
+| `GET` | `/api/v1/medicalsalesrep/{id}` | Get a rep by ID |
+| `GET` | `/api/v1/medicalsalesrep/{id}/active-status` | `{"active": true\|false}` — public, no token (service-to-service) |
+| `POST` | `/api/v1/medicalsalesrep/list?firstName=&lastName=&page=1&pageSize=10` | List reps by name (query params; `pageSize` capped at 100) |
 
 ---
 
