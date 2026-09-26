@@ -22,5 +22,5 @@ jobs:
           check-latest: false
           cache: 'maven'
       - name: Build with Maven
-        run: 'mvn package'
+        run: './mvnw package'
         shell: bash
