@@ -583,15 +583,16 @@ docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitm
 
 > If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
 
-RabbitMQ's built-in `guest` user only accepts connections from inside the RabbitMQ container
-itself, so the services cannot log in with it. Create the broker with a real user, and Redis
-(required by visit-service in the `prod` profile) with a password, directly on `ddd-clean-net`
-if they do not exist yet:
+If RabbitMQ and Redis (required by visit-service in the `prod` profile) do not exist yet, create
+them directly on `ddd-clean-net`. The services reach the broker by the container name
+`rabbitmq-ddd-clean`, so a broker started under another name (e.g. `rabbitmq` from Option A) is
+not found (`UnknownHostException`). The official image allows the `guest` user from other
+containers (`loopback_users.guest = false`); if you change its password, pass the same value as
+`RABBITMQ_PASSWORD` to every service.
 
 ```bash
 docker run -d --name rabbitmq-ddd-clean --network ddd-clean-net \
   -p 5672:5672 -p 15672:15672 \
-  -e RABBITMQ_DEFAULT_USER=admin -e RABBITMQ_DEFAULT_PASS=admin \
   rabbitmq:3-management
 
 docker run -d --name redis-ddd-clean --network ddd-clean-net \
@@ -707,8 +708,8 @@ docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
   -e RABBITMQ_HOST=rabbitmq-ddd-clean \
-  -e RABBITMQ_USERNAME=admin \
-  -e RABBITMQ_PASSWORD=admin \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
   medical-sales-rep-service:local
 ```
 
@@ -735,8 +736,8 @@ docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:808
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
   -e RABBITMQ_HOST=rabbitmq-ddd-clean \
-  -e RABBITMQ_USERNAME=admin \
-  -e RABBITMQ_PASSWORD=admin \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
   healthcare-prof-service:local
 ```
 
@@ -768,8 +769,8 @@ docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e DB_PASSWORD='Riverplate1!' \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e RABBITMQ_HOST=rabbitmq-ddd-clean \
-  -e RABBITMQ_USERNAME=admin \
-  -e RABBITMQ_PASSWORD=admin \
+  -e RABBITMQ_USERNAME=guest \
+  -e RABBITMQ_PASSWORD=guest \
   -e REDIS_HOST=redis-ddd-clean \
   -e REDIS_PORT=6379 \
   -e REDIS_PASSWORD=redispass \
