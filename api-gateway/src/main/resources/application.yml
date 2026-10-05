@@ -15,6 +15,8 @@ spring:
             - AddResponseHeader=X-Frame-Options, DENY
             - AddResponseHeader=X-XSS-Protection, "1; mode=block"
             - AddResponseHeader=Strict-Transport-Security, "max-age=31536000; includeSubDomains"
+            # API responses carry personal data: keep them out of browser/proxy/service-worker caches
+            - SetResponseHeader=Cache-Control, no-store
 
           routes:
             # ── Authentication (Identity Service) ────────────────────────────────
