@@ -123,6 +123,8 @@ docker --version # Docker 24.x
 │   ├── settlement-application/ # Spring Boot app, controllers, security
 │   ├── settlement-domain/      # Entities, use-cases, interfaces
 │   └── settlement-infra/       # JPA repos, HTTP clients
+├── mobile-android/             # Kotlin/Compose MVVM client (see mobile-android/README.md)
+├── pwa/                        # React PWA, MVVM + OWASP hardening (see pwa/README.md)
 ├── docker-compose.yml          # Full stack (prod profile)
 ├── .env.example                # Environment variable template
 └── pom.xml                     # Parent POM
@@ -860,6 +862,7 @@ This starts:
 | `healthcare-prof-service` | none | `prod` |
 | `visit-service` | none | `prod` |
 | `settlement-service` | none | `prod` |
+| `pwa` | `8082` (http://localhost:8082) | nginx, proxies `/api` + `/auth` to the gateway |
 
 > In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
 >
@@ -945,6 +948,8 @@ docker compose up -d --build settlement-service
 | Visit | 8088 | `visit-service/visit-application` | SQL Server `visitdb` |
 | Settlement | 8089 | `settlement-service/settlement-application` | MySQL `settlementdb` |
 | RabbitMQ | 5672 / 15672 | external (user-managed) | — |
+| MedRep PWA | 5174 (`npm run dev`) / 8082 (compose) | `pwa` | — |
+| Android app | — (emulator → gateway `10.0.2.2:8080`) | `mobile-android` | — |
 
 ---
 
