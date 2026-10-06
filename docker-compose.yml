@@ -13,6 +13,8 @@
 #   Loki API:      http://localhost:3100  (queried through Grafana, not a UI)
 #   Grafana UI:    http://localhost:3000  (admin / see GRAFANA_ADMIN_PASSWORD)
 #
+# MedRep PWA: http://localhost:8082 (proxies /api and /auth to the gateway)
+#
 # Required env vars: copy .env.example → .env and fill in secrets before running.
 #   docker compose up -d
 
@@ -385,6 +387,42 @@ services:
         condition: service_started
       identity-service:
         condition: service_started
+    restart: unless-stopped
+
+  # ── MedRep PWA (installable web app for sales reps) ───────────────────────
+  # Unprivileged nginx serving the built app and reverse-proxying /api and /auth to the
+  # gateway, so the browser sees a single origin (no CORS). Security headers + CSP live in
+  # pwa/nginx/. Put TLS in front of it outside local use (service workers need HTTPS
+  # except on localhost).
+  pwa:
+    container_name: pwa-ddd-clean
+    build:
+      context: pwa
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /
+        VITE_IDLE_TIMEOUT_MINUTES: ${PWA_IDLE_TIMEOUT_MINUTES:-15}
+    networks: [frontend]            # only needs to reach api-gateway; no backend access
+    ports:
+      - "8082:8080"
+    environment:
+      GATEWAY_URL: http://api-gateway:8080
+      API_ORIGIN: ""                # same-origin deployment → CSP connect-src 'self'
+    read_only: true
+    tmpfs:
+      - /tmp                        # nginx pid + temp files
+      - /etc/nginx/conf.d           # rendered from the template at startup
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # ── Observability: Loki (log storage) ──────────────────────────────────────
