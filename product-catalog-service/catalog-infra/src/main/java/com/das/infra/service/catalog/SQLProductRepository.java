@@ -85,10 +85,11 @@ public class SQLProductRepository implements IProductRepository {
      * Only a found product is cached — {@code unless} excludes an empty
      * {@link Optional} so a "not found" lookup (e.g. right after creation,
      * before the id exists) can never be memoized past the moment it becomes
-     * valid.
+     * valid. Spring's cache abstraction unwraps {@code Optional}: {@code #result}
+     * is the {@link Product} itself, or {@code null} when the Optional is empty.
      */
     @Override
-    @Cacheable(cacheNames = "productById", key = "#identifier.value()", unless = "#result == null || #result.isEmpty()")
+    @Cacheable(cacheNames = "productById", key = "#identifier.value()", unless = "#result == null")
     public Optional<Product> findById(ProductId identifier) {
         String id = identifier.value();
         if (id == null) {
