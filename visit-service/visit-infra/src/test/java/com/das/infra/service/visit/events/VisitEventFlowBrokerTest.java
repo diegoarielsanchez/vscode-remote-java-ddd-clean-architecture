@@ -6,9 +6,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-/** {@link AbstractHcpEventFlowBrokerTest} against a throw-away RabbitMQ container (CI). Skipped without Docker. */
+/** {@link AbstractVisitEventFlowBrokerTest} against a throw-away RabbitMQ container (CI). Skipped without Docker. */
 @Testcontainers(disabledWithoutDocker = true)
-class HcpEventFlowBrokerTest extends AbstractHcpEventFlowBrokerTest {
+class VisitEventFlowBrokerTest extends AbstractVisitEventFlowBrokerTest {
 
     @Container
     @ServiceConnection

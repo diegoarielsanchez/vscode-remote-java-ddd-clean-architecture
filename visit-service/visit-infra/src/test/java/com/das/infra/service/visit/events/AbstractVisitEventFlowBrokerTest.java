@@ -34,15 +34,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.das.cleanddd.domain.visit.usecases.services.DeactivateVisitPlanService;
 import com.das.infra.service.visit.HcpSnapshotJpaRepository;
+import com.das.infra.service.visit.MsrSnapshotJpaRepository;
 import com.das.infra.service.visit.VisitRabbitMqConfig;
 
 /**
- * The consumer against a real RabbitMQ: topology (quorum queues, dead-letter exchange), retry and
+ * The HCP and MSR consumers against a real RabbitMQ: topology (quorum queues, dead-letter exchange), retry and
  * dead-lettering behave as configured.
- * Runs against a RabbitMQ container ({@link HcpEventFlowBrokerTest}, CI) or an existing broker
- * ({@link HcpEventFlowExternalBrokerTest}).
+ * Runs against a RabbitMQ container ({@link VisitEventFlowBrokerTest}, CI) or an existing broker
+ * ({@link VisitEventFlowExternalBrokerTest}).
  */
-@SpringBootTest(classes = AbstractHcpEventFlowBrokerTest.BrokerTestConfig.class)
+@SpringBootTest(classes = AbstractVisitEventFlowBrokerTest.BrokerTestConfig.class)
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:visitbroker;DB_CLOSE_DELAY=-1",
         "spring.datasource.driver-class-name=org.h2.Driver",
@@ -50,14 +51,15 @@ import com.das.infra.service.visit.VisitRabbitMqConfig;
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
         "visit.events.retry.max-attempts=3"
 })
-abstract class AbstractHcpEventFlowBrokerTest {
+abstract class AbstractVisitEventFlowBrokerTest {
 
 
     @Configuration
     @EnableAutoConfiguration(exclude = {RedisAutoConfiguration.class, RedisRepositoriesAutoConfiguration.class})
     @EntityScan(basePackageClasses = HcpSnapshotJpaRepository.class) // includes the events subpackage
     @EnableJpaRepositories(basePackageClasses = HcpSnapshotJpaRepository.class)
-    @Import({VisitRabbitMqConfig.class, HcpEventTranslator.class, HcpEventHandler.class, HcpEventListener.class})
+    @Import({VisitRabbitMqConfig.class, HcpEventTranslator.class, HcpEventHandler.class, HcpEventListener.class,
+             MsrEventTranslator.class, MsrEventHandler.class, MsrEventListener.class})
     static class BrokerTestConfig {
     }
 
@@ -65,6 +67,7 @@ abstract class AbstractHcpEventFlowBrokerTest {
 
     @Autowired private RabbitTemplate rabbit;
     @Autowired private HcpSnapshotJpaRepository snapshots;
+    @Autowired private MsrSnapshotJpaRepository msrSnapshots;
     @Autowired private ProcessedEventJpaRepository processed;
     @MockitoBean private DeactivateVisitPlanService visitPlanDeactivation;
 
@@ -72,6 +75,7 @@ abstract class AbstractHcpEventFlowBrokerTest {
     void cleanUp() {
         processed.deleteAll();
         snapshots.deleteAll();
+        msrSnapshots.deleteAll();
         rabbit.receive(VisitRabbitMqConfig.HCP_DLQ, 100); // drain at most one leftover
         reset(visitPlanDeactivation);
     }
@@ -145,5 +149,20 @@ abstract class AbstractHcpEventFlowBrokerTest {
         assertNotNull(dead, "exhausted message must reach the dead-letter queue");
         verify(visitPlanDeactivation, times(3)).deactivateByHealthCareProfId(HCP);
         assertFalse(processed.existsById(eventId), "a failed attempt must not be recorded as processed");
+    }
+
+    @Test
+    void appliesAPublishedMsrEvent() throws Exception {
+        String msr = "5b1d6c2e-0f4a-4e7b-9c3d-2a8f6e1b7c90";
+        UUID eventId = UUID.randomUUID();
+        rabbit.send("msr.events", "msr.deactivated", message("""
+            {"eventId":"%s","eventType":"msr.deactivated","schemaVersion":1,"aggregateId":"%s",
+             "aggregateVersion":1,"occurredAt":"2026-10-08T10:00:00Z","producer":"medical-sales-rep-service",
+             "data":{"active":false}}
+            """.formatted(eventId, msr)));
+
+        await(() -> processed.existsById(eventId), "msr event processed");
+        assertFalse(msrSnapshots.findById(msr).orElseThrow().getActive());
+        verify(visitPlanDeactivation, times(1)).deactivateByMedicalSalesRepId(msr);
     }
 }

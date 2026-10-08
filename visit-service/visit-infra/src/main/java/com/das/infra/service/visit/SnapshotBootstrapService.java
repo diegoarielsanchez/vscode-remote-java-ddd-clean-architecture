@@ -22,7 +22,7 @@ import com.das.cleanddd.domain.medicalsalesrep.entities.MedicalSalesRep;
  * snapshot tables. If the upstream services are unavailable or the
  * call fails for any reason (e.g. missing JWT at startup), the error
  * is logged and the service continues. Snapshot tables are then kept
- * current by {@link MsrSnapshotUpdater} / {@link com.das.infra.service.visit.events.HcpEventHandler}.
+ * current by {@link com.das.infra.service.visit.events.MsrEventHandler} / {@link com.das.infra.service.visit.events.HcpEventHandler}.
  */
 @Service
 public class SnapshotBootstrapService {

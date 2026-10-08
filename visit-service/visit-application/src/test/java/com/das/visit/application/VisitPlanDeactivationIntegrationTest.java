@@ -31,16 +31,16 @@ import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
-import com.das.infra.service.visit.MsrEventMessage;
-import com.das.infra.service.visit.MsrSnapshotUpdater;
 import com.das.infra.service.visit.VisitPlanJpaRepository;
 import com.das.infra.service.visit.events.HcpEventListener;
+import com.das.infra.service.visit.events.MsrEventListener;
 
 /**
  * Verifies that upstream deactivation events deactivate future VisitPlans.
  * RabbitMQ is disabled in tests, so the listener methods are invoked directly
  * against the real Spring beans and the real SQLServerVisitPlanRepository. HCP events go
- * through the full inbound path: raw AMQP message → anti-corruption translator → handler.
+ * through the full inbound path: raw AMQP message → anti-corruption translator → handler
+ * (the same for MSR events).
  */
 @SpringBootTest
 @TestPropertySource(locations = "classpath:application-test.properties")
@@ -58,7 +58,7 @@ class VisitPlanDeactivationIntegrationTest {
     private VisitPlanJpaRepository visitPlanJpaRepository;
 
     @Autowired
-    private MsrSnapshotUpdater msrSnapshotUpdater;
+    private MsrEventListener msrEventListener;
 
     @Autowired
     private HcpEventListener hcpEventListener;
@@ -85,14 +85,11 @@ class VisitPlanDeactivationIntegrationTest {
         VisitPlan futurePlan = buildFutureVisitPlan();
         visitPlanRepository.save(futurePlan);
 
-        msrSnapshotUpdater.onMsrEvent(new MsrEventMessage(
-                "MSR_DEACTIVATED",
-                MSR_ID,
-                null,
-                null,
-                null,
-                false,
-                LocalDateTime.now().toString()));
+        msrEventListener.onMessage(amqpMessage("""
+                {"eventId":"%s","eventType":"msr.deactivated","schemaVersion":1,"aggregateId":"%s",
+                 "aggregateVersion":1,"occurredAt":"2026-10-08T10:00:00Z","producer":"medical-sales-rep-service",
+                 "data":{"active":false}}
+                """.formatted(UUID.randomUUID(), MSR_ID)));
 
         VisitPlan saved = visitPlanRepository.search(new VisitId(VISIT_ID)).orElseThrow();
         assertThat(saved.isActive()).isFalse();
