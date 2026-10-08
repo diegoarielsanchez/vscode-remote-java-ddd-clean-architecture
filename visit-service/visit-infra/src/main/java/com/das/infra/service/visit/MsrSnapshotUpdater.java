@@ -34,7 +34,7 @@ public class MsrSnapshotUpdater {
      * since Spring's proxy-based AOP cannot intercept their internal,
      * self-invoked ({@code this.}-qualified) calls.
      */
-    @RabbitListener(queues = "visit-service.msr.queue",
+    @RabbitListener(queues = VisitRabbitMqConfig.MSR_QUEUE,
                     containerFactory = "visitRabbitListenerContainerFactory")
     @CacheEvict(cacheNames = "msrActiveStatus", key = "#msg.id()", condition = "#msg != null && #msg.id() != null")
     public void onMsrEvent(MsrEventMessage msg) {
