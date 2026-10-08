@@ -35,7 +35,7 @@ public class OrderMapper {
             line.productId().value(),
             line.productNameSnapshot(),
             line.quantity().value(),
-            line.unitPrice().value(),
+            line.unitPrice() == null ? null : line.unitPrice().value(),
             line.lineTotal()
         );
     }

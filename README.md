@@ -28,6 +28,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Event-Driven Architecture (EDA)](#event-driven-architecture-eda)
   - [How EDA maps onto DDD and clean architecture](#how-eda-maps-onto-ddd-and-clean-architecture)
   - [EDA in each service](#eda-in-each-service)
+  - [The order stock saga](#the-order-stock-saga)
   - [Example: deactivating a medical sales rep](#example-deactivating-a-medical-sales-rep)
   - [Adding EDA to another service](#adding-eda-to-another-service)
   - [Testing EDA](#testing-eda)
@@ -1170,6 +1171,8 @@ The domain layer knows nothing about disk or hashing algorithms — it only defi
 
 Services that own reference data (HCPs, medical sales reps) **publish integration events** when that data changes. Services that need it **keep a local snapshot** current from those events. This means a request like "create a visit plan" or "create a settlement" doesn't depend on the owning service being up at that moment. The trade-off is **eventual consistency**: a change reaches the consumers within about a second, not instantly.
 
+Events also drive a workflow across two services: **order creation** is a choreographed saga in which product-catalog-service reserves stock from `order.created` and order-service reacts to the answer (see [The order stock saga](#the-order-stock-saga)).
+
 Topology, delivery guarantees and upgrade steps are in [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging). This section explains how EDA is applied in each service and how to add it to another one.
 
 ### How EDA maps onto DDD and clean architecture
@@ -1208,8 +1211,8 @@ Domain events stay private to their bounded context. Only the **integration even
 | medical-sales-rep-service | Producer | `msr.events` | — | Transactional outbox |
 | visit-service | Consumer | — | `hcp.events`, `msr.events` | Idempotent, ordered consumer → local HCP and MSR snapshots |
 | settlement-service | Consumer | — | `msr.events` | Idempotent, ordered consumer → local MSR status snapshot |
-| order-service | Producer | `order.events` | — | Transactional outbox |
-| product-catalog-service | Producer | `catalog.events` | — | Transactional outbox (stock changes and their events commit together) |
+| order-service | Producer + consumer | `order.events` | `catalog.events` | Transactional outbox; stock saga (choreography) |
+| product-catalog-service | Producer + consumer | `catalog.events` | `order.events` | Transactional outbox (stock changes and their events commit together); stock saga |
 | identity-service, api-gateway | — | — | — | Synchronous by design (authentication, routing) |
 
 #### healthcare-prof-service: producer (`hcp.events`)
@@ -1264,27 +1267,73 @@ The same design as HCP, class for class: `MedicalSalesRep` records events; the `
 - **Config:** `settlement.events.retry.max-attempts`, `settlement.events.prefetch`.
 - **Schema:** `settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`.
 
-#### order-service: producer (`order.events`)
+#### order-service: producer (`order.events`) and saga consumer (`catalog.events`)
 
-- **Events:** `order.created`, `order.submitted-for-approval`, `order.approved`, `order.rejected`, `order.delivered`. Payload `data`: `medicalSalesRepId`, `lineCount`, `totalAmount` (created); `decidedBy` and `reason` (approved, rejected).
-- **Domain:** `Order` is immutable, so each transition returns a new instance. It calls `carryOverEventsFrom(previous)` (in `AggregateRoot`) so chained transitions like `create().submitForApproval()` keep every event.
-  - `Approve/Reject/ConfirmOrderDeliveryUseCase` and the persistence part of `CreateOrderUseCase` run in a `UnitOfWork`.
-- **Stock reservations** are still synchronous REST calls to product-catalog-service (`IProductStockPort`), deliberately **outside** the database transaction:
-  - `CreateOrderUseCase` reserves every line first, then saves the order and records its events in one unit of work. If building or saving the order fails, it releases every reservation.
-  - `RejectOrderUseCase` commits the rejection and its event first, then releases the stock.
-- **Infrastructure** (`order-infra/.../outbox`): `OutboxOrderEventPublisher`, `OrderOutboxRelay`, `OrderIntegrationEvents`; `OrderRabbitMqConfig` declares the exchange.
-- **Config:** `order.outbox.*`.
-- **Schema:** `order-infra/src/main/resources/db/outbox-postgresql.sql`.
+- **Order creation is asynchronous.** `POST /api/v1/orders/create` checks the rep, stores the order as `AWAITING_STOCK` and answers **202 Accepted** with `Location: /api/v1/orders/{id}`. Clients poll that URL until the status is `PENDING_APPROVAL` (stock reserved, lines priced) or `STOCK_REJECTED` (with `rejectionReason`). See [the stock saga](#the-order-stock-saga).
+- **Events:** `order.created`, `order.submitted-for-approval`, `order.stock-rejected`, `order.approved`, `order.rejected`, `order.delivered`. Payload `data` (fields that don't apply are left out):
+  - `order.created`: `medicalSalesRepId`, `lineCount`, `lines` (`productId`, `quantity`) — no prices yet;
+  - `order.submitted-for-approval`: `totalAmount`;
+  - `order.stock-rejected`: `reason`;
+  - `order.approved` / `order.rejected`: `decidedBy`, plus `reason` on rejection.
+- **Domain:** `Order` is immutable, so each transition returns a new instance and calls `carryOverEventsFrom(previous)` (in `AggregateRoot`).
+  - Workflow: `AWAITING_STOCK` → `confirmStock(prices)` → `PENDING_APPROVAL` → `APPROVED`/`REJECTED` → `DELIVERED`, or `AWAITING_STOCK` → `rejectForStock(reason)` → `STOCK_REJECTED`. Lines are unpriced until the catalog answers; an order has at most 20 lines (`Order.MAX_LINES`).
+  - Every write use case runs in a `UnitOfWork`, including the saga steps `ConfirmOrderStockUseCase` and `RejectOrderForStockUseCase` (both ignore an order that has already left `AWAITING_STOCK`).
+  - Order no longer calls product-catalog over REST: `IProductStockPort` and its adapter are gone.
+- **Infrastructure:**
+  - `outbox/`: `OutboxOrderEventPublisher`, `OrderOutboxRelay`, `OrderIntegrationEvents`.
+  - `events/`: `CatalogEventListener` → `CatalogEventTranslator` (anti-corruption layer; prices must be non-negative with at most 4 decimals, names are bounded) → `CatalogEventHandler` (`@Transactional`, dedup via `processed_event`).
+  - `OrderRabbitMqConfig`: the `order.events` exchange, plus `order-service.catalog.queue` bound to `catalog.events` with `catalog.#` and its DLQ `order-service.catalog.dlq`.
+  - `SQLOrderRepository` reads in a read-only transaction, because `lines` is lazy and open-in-view is off.
+- **Config:** `order.outbox.*`, `order.events.{retry.max-attempts,prefetch,listener.auto-startup}`.
+- **Schema:** `order-infra/src/main/resources/db/outbox-postgresql.sql` (outbox and `processed_event`).
 
-#### product-catalog-service: producer (`catalog.events`)
+#### product-catalog-service: producer (`catalog.events`) and saga consumer (`order.events`)
 
-- **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`. Product events carry `name`, `description`, `price`, `unit`, `active`; stock events carry `stockDelta` and `remainingStock`.
-- **Domain:** all seven write use cases run in a `UnitOfWork`. The stock use cases change stock with atomic SQL (`tryReserveStock`, `releaseStock`, `restock`) and record their event in the same transaction, so a stock change is never published without happening, or the other way round.
-- **Infrastructure** (`catalog-infra/.../outbox`): `OutboxProductEventPublisher`, `ProductOutboxRelay`, `ProductIntegrationEvents`; `ProductRabbitMqConfig` declares the exchange.
-- **Config:** `catalog.outbox.*`.
-- **Schema:** `catalog-infra/src/main/resources/db/outbox-postgresql.sql`.
+- **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`, and the saga's answers `catalog.reservation.confirmed`, `.rejected`, `.released`.
+  - Product events carry `name`, `description`, `price`, `unit`, `active`; stock events carry `stockDelta` and `remainingStock`.
+  - Reservation events have aggregate type `reservation`, and their `aggregateId` is the order id. `confirmed` carries `lines` (`productId`, `quantity`, `productName`, `unitPrice`); `rejected` carries `reason`.
+- **Domain:**
+  - All product write use cases run in a `UnitOfWork`. Stock changes use atomic SQL (`tryReserveStock`, `releaseStock`, `restock`) and record their event in the same transaction.
+  - `reservation/`: the `StockReservation` aggregate (one per order: `RESERVED`, `REJECTED`, `RELEASED`, `FULFILLED`) and the saga steps `ReserveStockForOrderUseCase` (all or nothing), `ReleaseStockForOrderUseCase` (compensation) and `FulfilStockReservationUseCase`. All three are idempotent per order.
+- **Infrastructure:**
+  - `outbox/`: `OutboxProductEventPublisher` and `OutboxStockReservationEventPublisher` write to the same outbox; `ProductOutboxRelay` publishes both.
+  - `reservation/`: `stock_reservation` and `stock_reservation_line` tables.
+  - `events/`: `OrderEventListener` → `OrderEventTranslator` → `OrderEventHandler` (same validation and dedup as order-service).
+  - `ProductRabbitMqConfig`: the `catalog.events` exchange, plus `catalog-service.order.queue` bound to `order.events` with `order.#` and its DLQ `catalog-service.order.dlq`.
+  - The stock `@Modifying` queries flush before they clear the persistence context, so rows written earlier in the same transaction (outbox, `processed_event`) are kept.
+- **Config:** `catalog.outbox.*`, `catalog.events.{retry.max-attempts,prefetch,listener.auto-startup}`.
+- **Schema:** `catalog-infra/src/main/resources/db/outbox-postgresql.sql` (outbox, reservations and `processed_event`).
+- The REST endpoints `/{id}/reserve-stock` and `/{id}/release-stock` remain for manual operations; order-service no longer calls them.
 
-**Not done yet: an event-driven stock saga.** Order still reserves stock over REST, so order creation fails while catalog is down. The choreography alternative is: `order.created` → catalog reserves → `catalog.product.stock-reserved` or a rejection → the order is approved or rejected, with `stock-released` as the compensation. That makes order creation **asynchronous**: the order would wait in a new "awaiting stock" state, and prices would arrive with the reservation. It changes the API contract, so it's a product decision first. Both services now publish reliably, which a saga would build on.
+### The order stock saga
+
+Order creation is a choreographed saga between order-service and product-catalog-service. Nobody calls anybody: each service reacts to the other's events, and each step commits its state change and its next event together (transactional outbox).
+
+```
+client            POST /api/v1/orders/create ──► 202 Accepted, Location: /api/v1/orders/{id}   (AWAITING_STOCK)
+order-service     one transaction: INSERT orders ; INSERT outbox_event (order.created + lines)
+catalog-service   OrderEventHandler, one transaction:
+                    INSERT processed_event
+                    every line: atomic conditional UPDATE products SET stock = stock - qty
+                      ├─ all reserved → INSERT stock_reservation (RESERVED, name + price snapshot)
+                      │                 outbox: catalog.product.stock-reserved ×n, catalog.reservation.confirmed
+                      └─ a line short → give back the lines already taken (same transaction)
+                                        INSERT stock_reservation (REJECTED) ; outbox: catalog.reservation.rejected
+order-service     CatalogEventHandler, one transaction:
+                    confirmed → lines priced, PENDING_APPROVAL ; outbox: order.submitted-for-approval
+                    rejected  → STOCK_REJECTED (rejectionReason)  ; outbox: order.stock-rejected
+client            GET /api/v1/orders/{id} → PENDING_APPROVAL with prices, or STOCK_REJECTED
+
+later             POST /{id}/reject  → order.rejected  → catalog releases the stock (RELEASED, catalog.reservation.released)
+                  POST /{id}/confirm-delivery → order.delivered → catalog closes the reservation (FULFILLED)
+```
+
+- **All or nothing.** A reservation is never partial. Unknown or inactive products and short stock reject the whole order, and nothing stays held.
+- **Prices come from the catalog** at reservation time and are stored as a snapshot on the order lines, so a later price change never reprices an order.
+- **Resilient.** If catalog-service is down, orders wait in `AWAITING_STOCK` and `order.created` waits in `catalog-service.order.queue`. Once the catalog is back, the saga finishes. If the broker is down, events wait in the outboxes.
+- **Idempotent at every step.** Each consumer deduplicates by `eventId`; a second `order.created` for an order returns the stored reservation; releases and fulfilments happen once; a late answer for an order that has moved on changes nothing.
+- **Why bind the whole namespace.** Both relays publish with `mandatory` and stop at an unroutable event, to keep per-aggregate order. If an event type nobody consumes yet (say `order.approved`) were unroutable, it would hold back every event queued behind it, saga answers included. So each saga queue binds `order.#` / `catalog.#`, and the translators acknowledge and skip valid events they don't act on. Malformed messages are still dead-lettered.
+- **dev profile.** The saga needs the broker, so it doesn't run in `dev` (listeners, outbox publishers and relays are `@Profile("!dev")`). There, orders stay `AWAITING_STOCK`.
 
 #### identity-service and api-gateway
 
@@ -1322,7 +1371,7 @@ If the broker is down at step 3, the event waits in `outbox_event` and is publis
 
 **Consumer:**
 
-1. Declare a quorum queue bound to the exchange, with a dead-letter exchange and queue, `x-max-length` and `reject-publish`. Set up a listener container factory with `setDefaultRequeueRejected(false)` and a retry policy that never retries `InvalidIntegrationEventException`.
+1. Declare a quorum queue bound to the exchange, with a dead-letter exchange and queue, `x-max-length` and `reject-publish`. If you are the only consumer of a producer that publishes with `mandatory`, bind its whole namespace (`<context>.#`) and skip the types you don't need, or an event nobody routes will stall its outbox. Set up a listener container factory with `setDefaultRequeueRejected(false)` and a retry policy that never retries `InvalidIntegrationEventException`.
 2. Write the **listener** (raw `Message`), the **translator** (reuse `EnvelopeParser`; read only the fields you need) and the **handler** (`@Transactional`: dedup via `processed_event`, version check, update the snapshot, call domain services for side effects).
 3. Keep the snapshot minimal (data minimization), and decide what to do for ids the snapshot hasn't seen: bootstrap, an HTTP fallback, or reject.
 4. Ship the DDL script and deploy the consumer **before** the producer, so the outbox has a queue to route to.
@@ -1334,6 +1383,7 @@ If the broker is down at step 3, the event waits in `outbox_event` and is publis
 | Domain | Aggregates record the right events; use cases save and publish inside the `UnitOfWork` | `*-domain` tests |
 | Producer infra (H2) | Envelope contract, per-aggregate versions, atomic rollback, relay on ack/nack/unroutable/timeout, DDL script matches the entities | `*-infra/.../outbox/*Test` |
 | Consumer infra (H2) | Translator rules, dedup, stale versions, out-of-order arrival, fallback behaviour | `visit-infra/.../events`, `settlement-infra` |
+| Stock saga | Order workflow and pricing, all-or-nothing reservation, compensation, idempotency, handlers on a real schema, DDL scripts | `order-domain`, `catalog-domain/.../reservation`, `order-infra/.../events`, `catalog-infra/.../events` |
 | Real broker | Confirms, returns, quorum/DLQ topology, retry then dead-letter | `*BrokerTest` (Testcontainers, CI) and `*ExternalBrokerTest` |
 
 The `*ExternalBrokerTest` variants run against an existing RabbitMQ, for example when developing in a container without Docker. Use a dedicated vhost:
@@ -1358,7 +1408,7 @@ EDA_TEST_RABBITMQ_USERNAME=<user> EDA_TEST_RABBITMQ_PASSWORD=<password> \
 
 RabbitMQ provides an optional **asynchronous messaging layer** between microservices. It decouples the Medical Sales Rep and Healthcare Prof services from the Visit Service, allowing the Visit Service to maintain local read-model snapshots of MSR and HCP data without making synchronous HTTP calls at query time.
 
-> **Note:** Publishing is disabled in the `dev` Spring profile for the producer services (HCP, MSR, Order, Product Catalog) (their outbox publishers and relays are `@Profile("!dev")`). To publish events, run with a profile other than `dev` (e.g. `prod`) and a reachable RabbitMQ with non-guest credentials.
+> **Note:** Publishing is disabled in the `dev` Spring profile for the producer services (HCP, MSR, Order, Product Catalog) (their outbox publishers and relays are `@Profile("!dev")`), and so is the order stock saga: in `dev`, new orders stay `AWAITING_STOCK`. To publish events, run with a profile other than `dev` (e.g. `prod`) and a reachable RabbitMQ with non-guest credentials.
 
 ### Message Topology
 
@@ -1368,8 +1418,8 @@ RabbitMQ provides an optional **asynchronous messaging layer** between microserv
 |---|---|---|---|
 | `msr.events` | Topic | MSR Service via its **transactional outbox** (`msr-infra/outbox/MsrOutboxRelay`) | `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated` |
 | `hcp.events` | Topic | HCP Service via its **transactional outbox** (`hcp-infra/outbox/HcpOutboxRelay`) | `hcp.created`, `hcp.updated`, `hcp.activated`, `hcp.deactivated` |
-| `order.events` | Topic | Order Service via its **transactional outbox** (`order-infra/outbox/OrderOutboxRelay`) | `order.created`, `order.submitted-for-approval`, `order.approved`, `order.rejected`, `order.delivered` |
-| `catalog.events` | Topic | Product Catalog Service via its **transactional outbox** (`catalog-infra/outbox/ProductOutboxRelay`) | `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked` |
+| `order.events` | Topic | Order Service via its **transactional outbox** (`order-infra/outbox/OrderOutboxRelay`) | `order.created`, `order.submitted-for-approval`, `order.stock-rejected`, `order.approved`, `order.rejected`, `order.delivered` |
+| `catalog.events` | Topic | Product Catalog Service via its **transactional outbox** (`catalog-infra/outbox/ProductOutboxRelay`) | `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`; `catalog.reservation.confirmed`, `.rejected`, `.released` |
 
 **Consumers**
 
@@ -1378,6 +1428,8 @@ RabbitMQ provides an optional **asynchronous messaging layer** between microserv
 | `visit-service.msr.v2.queue` | `msr.events` | `msr.#` | Visit — `events/MsrEventListener` → `MsrEventHandler` | `visit-service.msr.dlq` |
 | `visit-service.hcp.v2.queue` | `hcp.events` | `hcp.#` | Visit — `events/HcpEventListener` → `HcpEventHandler` | `visit-service.hcp.dlq` |
 | `settlement-service.msr.queue` | `msr.events` | `msr.#` | Settlement — `events/MsrEventListener` → `MsrEventHandler` | `settlement-service.msr.dlq` |
+| `catalog-service.order.queue` | `order.events` | `order.#` | Product Catalog — `events/OrderEventListener` → `OrderEventHandler` (acts on `order.created`, `.rejected`, `.delivered`; skips the rest) | `catalog-service.order.dlq` |
+| `order-service.catalog.queue` | `catalog.events` | `catalog.#` | Order — `events/CatalogEventListener` → `CatalogEventHandler` (acts on `catalog.reservation.confirmed`, `.rejected`; skips the rest) | `order-service.catalog.dlq` |
 
 Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-publish`) and dead-lettered through each service's `<service>.dlx` direct exchange.
 
@@ -1398,15 +1450,17 @@ Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-
 - **No lost events (transactional outbox).** The write use cases of every producer (HCP, MSR, Order, Product Catalog) run inside a `UnitOfWork`. The aggregate row and an `outbox_event` row commit in the same database transaction. Each service's relay (`HcpOutboxRelay`, `MsrOutboxRelay`, `OrderOutboxRelay`, `ProductOutboxRelay`) publishes pending rows every second with **publisher confirms**, and marks a row published only when the broker acked it and routed it to a queue. If the broker is down or nothing is bound to the exchange yet, events wait in the outbox. Published rows are deleted after 7 days.
 - **At-least-once, applied once.** Consumers record every `eventId` in their own `processed_event` table, in the same transaction as the snapshot update, so redeliveries are skipped.
 - **Ordered per aggregate.** `aggregateVersion` increases by one per change. Events not newer than the snapshot's `event_version` are ignored; a late `created` event can still fill in a missing name.
-- **Poison messages don't loop.** Invalid messages (wrong schema version, unknown type, non-UUID ids, oversized fields, malformed JSON) go straight to the consumer's dead-letter queue. Processing failures are retried 3 times with backoff and then dead-lettered.
+- **Poison messages don't loop.** Invalid messages (wrong schema version, unknown type, non-UUID ids, oversized fields, malformed JSON) go straight to the consumer's dead-letter queue. The saga consumers acknowledge and skip valid events of their bound namespace they don't act on (see [why](#the-order-stock-saga)). Processing failures are retried 3 times with backoff and then dead-lettered.
 - **Data minimization.** E-mail addresses are not part of either contract; they stay inside the owning service. Settlement stores only each rep's active status.
 
-Configuration: `hcp.outbox.*` / `msr.outbox.*` / `order.outbox.*` / `catalog.outbox.*` (producers), `visit.events.*` and `settlement.events.*` (consumers).
+Configuration: `hcp.outbox.*` / `msr.outbox.*` / `order.outbox.*` / `catalog.outbox.*` (producers), `visit.events.*`, `settlement.events.*`, `order.events.*` and `catalog.events.*` (consumers).
 
 ### What the consumers do
 
 - **Visit Service — `HcpEventHandler` / `MsrEventHandler`** apply events to the local `hcp_snapshot` / `msr_snapshot` tables (idempotent and ordered, as above). Deactivating an HCP or a rep deactivates their future visit plans, and the cached active status is evicted.
 - **Settlement Service — `MsrEventHandler`** keeps `msr_snapshot` (rep id + active status only). `MedicalSalesRepStatusAdapter` answers the "is this rep active?" rule from it. For a rep the snapshot has never seen, it asks msr-service over HTTP once and records the answer. If neither can answer, the rule fails closed. Broker problems, including refused credentials, never stop settlement from starting.
+
+- **Product Catalog — `OrderEventHandler`** and **Order — `CatalogEventHandler`** run the [order stock saga](#the-order-stock-saga): reserve or reject, price the order, release on rejection, fulfil on delivery.
 
 These local snapshots remove the synchronous HTTP dependency on MSR/HCP services when the Visit Service creates or queries visits.
 
@@ -1415,8 +1469,8 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
 1. **Database (prod profile uses `ddl-auto=validate`).** Run the idempotent scripts before deploying:
    - HCP (PostgreSQL): `healthcare-prof-service/hcp-infra/src/main/resources/db/outbox-postgresql.sql`
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
-   - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql`
-   - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql`
+   - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
+   - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
@@ -1427,8 +1481,13 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    rabbitmqctl delete_queue visit-service.hcp.queue
    rabbitmqctl delete_queue visit-service.msr.queue
    ```
-4. **Watch:**
-   - The `visit-service.*.dlq` depth; anything there needs attention.
+4. **Stock saga (order + catalog).**
+   - Deploy product-catalog-service before order-service, so `order.created` has a queue to route to. Either order works, though: unroutable events wait in the outbox.
+   - Clients of `POST /api/v1/orders/create` must accept **202** and poll `Location` (it used to answer 201 with a priced order). No UI or script in this repository calls it.
+   - Orders created before the upgrade reserved their stock over REST and have no `stock_reservation` row, so rejecting one later won't give its stock back. Release it manually with `POST /api/v1/products/{id}/release-stock` for each line.
+5. **Watch:**
+   - The `visit-service.*.dlq`, `catalog-service.order.dlq` and `order-service.catalog.dlq` depth; anything there needs attention.
+   - Orders stuck in `AWAITING_STOCK`: `SELECT count(*), min(created_at) FROM orders WHERE status = 'AWAITING_STOCK'`.
    - Outbox lag: `SELECT count(*), min(occurred_at) FROM outbox_event WHERE published_at IS NULL`.
 
 ### Running RabbitMQ locally (Option A)

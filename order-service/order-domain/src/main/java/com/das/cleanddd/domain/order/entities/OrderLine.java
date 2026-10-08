@@ -7,6 +7,9 @@ import java.util.Objects;
  * Plain value holder — not its own aggregate root. Mirrors the
  * Settlement/Invoice child pattern (settlement-domain): lives only inside its
  * parent Order, is never fetched or saved independently.
+ *
+ * <p>A line starts unpriced (no name or unit price) while its order waits for stock; product-catalog
+ * fills both in when it reserves the stock (see {@link #priced}).
  */
 public final class OrderLine {
 
@@ -45,7 +48,24 @@ public final class OrderLine {
         return _unitPrice;
     }
 
+    public static OrderLine unpriced(ProductId productId, OrderLineQuantity quantity) {
+        return new OrderLine(null, productId, null, quantity, null);
+    }
+
+    /** A copy of this line (same id) carrying the catalog's name and price snapshot. */
+    public OrderLine priced(String productName, OrderLineUnitPrice unitPrice) {
+        return new OrderLine(_id, _productId, productName, _quantity, unitPrice);
+    }
+
+    public boolean isPriced() {
+        return _unitPrice != null;
+    }
+
+    /** {@code null} until the line is priced. */
     public BigDecimal lineTotal() {
+        if (_unitPrice == null) {
+            return null;
+        }
         return _unitPrice.value().multiply(BigDecimal.valueOf(_quantity.value()));
     }
 

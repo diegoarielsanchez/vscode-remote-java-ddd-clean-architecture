@@ -3,10 +3,10 @@ package com.das.order.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Date;
@@ -28,8 +28,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.ports.IProductStockPort;
-import com.das.cleanddd.domain.order.ports.IProductStockPort.StockReservationResult;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.infra.service.order.OrderJpaRepository;
@@ -43,9 +41,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 
 /**
- * Production wiring (non-dev profile): an HTTP create goes through the transactional use case
- * and leaves exactly one outbox row whose envelope names the authenticated user as actor.
- * The relay bean exists but its first run is delayed beyond the test, so no broker is needed.
+ * Production wiring (non-dev profile): an HTTP create is accepted (202, AWAITING_STOCK) and leaves
+ * exactly one outbox row, {@code order.created} with the lines to reserve, whose envelope names the
+ * authenticated user as actor. The relay's first run is delayed beyond the test and the catalog
+ * listener does not start, so no broker is needed.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -61,6 +60,7 @@ import io.jsonwebtoken.Jwts;
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
         "order.outbox.relay.initial-delay-ms=3600000",
+        "order.events.listener.auto-startup=false",
         "jwt.secret=" + OutboxWiringTest.JWT_SECRET
 })
 class OutboxWiringTest {
@@ -71,7 +71,6 @@ class OutboxWiringTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private IOrderEventPublisher publisher;
     @MockitoBean private IMedicalSalesRepValidator medicalSalesRepValidator; // remote: msr-service
-    @MockitoBean private IProductStockPort productStockPort;                 // remote: product-catalog-service
     @Autowired private OrderOutboxRelay relay;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private OrderJpaRepository rows;
@@ -100,27 +99,29 @@ class OutboxWiringTest {
     }
 
     @Test
-    void createWritesBothLifecycleEventsCarryingTheAuthenticatedActor() throws Exception {
+    void createIsAcceptedAndWritesOnlyOrderCreatedCarryingTheAuthenticatedActor() throws Exception {
         String msr = java.util.UUID.randomUUID().toString();
         String product = java.util.UUID.randomUUID().toString();
         when(medicalSalesRepValidator.existsAndActive(msr)).thenReturn(true);
-        when(productStockPort.reserve(anyString(), anyInt()))
-                .thenReturn(new StockReservationResult(true, 8, new java.math.BigDecimal("12.50"), "Amoxicillin 500mg"));
         var body = new CreateOrderInputDTO(msr, List.of(new OrderLineInputDTO(product, 2)));
 
         mockMvc.perform(post("/api/v1/orders/create")
                         .header("Authorization", "Bearer " + jwtFor("rep.manager"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("AWAITING_STOCK"))
+                .andExpect(header().string("Location", "/api/v1/orders/" + rows.findAll().get(0).getId()));
 
         List<OutboxEventEntity> events = outbox.findAll().stream()
                 .sorted(java.util.Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
-        assertEquals(List.of("order.created", "order.submitted-for-approval"),
+        assertEquals(List.of("order.created"),
                 events.stream().map(OutboxEventEntity::getEventType).toList());
         JsonNode created = objectMapper.readTree(events.get(0).getPayload());
         assertEquals("rep.manager", created.get("actor").asText());
         assertEquals(msr, created.at("/data/medicalSalesRepId").asText());
+        assertEquals(product, created.at("/data/lines/0/productId").asText());
+        assertEquals(2, created.at("/data/lines/0/quantity").asInt());
         assertEquals(rows.findAll().get(0).getId(), created.get("aggregateId").asText());
     }
 

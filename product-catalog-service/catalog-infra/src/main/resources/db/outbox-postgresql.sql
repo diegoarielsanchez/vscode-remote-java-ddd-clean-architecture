@@ -21,3 +21,30 @@ CREATE TABLE IF NOT EXISTS outbox_aggregate_version (
     aggregate_key VARCHAR(120) PRIMARY KEY,                     -- "<aggregate type>:<id>"
     last_version  BIGINT       NOT NULL
 );
+
+-- Order stock saga: the stock held for each order (one row per order) and its lines.
+CREATE TABLE IF NOT EXISTS stock_reservation (
+    order_id   VARCHAR(36)                 PRIMARY KEY,
+    status     VARCHAR(20)                 NOT NULL,             -- RESERVED, REJECTED, RELEASED, FULFILLED
+    reason     VARCHAR(500),
+    created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    version    BIGINT                      NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stock_reservation_line (
+    order_id     VARCHAR(36)   NOT NULL REFERENCES stock_reservation (order_id),
+    line_no      INTEGER       NOT NULL,
+    product_id   VARCHAR(36)   NOT NULL,
+    quantity     INTEGER       NOT NULL,
+    product_name VARCHAR(200),                                   -- snapshot; null when rejected
+    unit_price   NUMERIC(38, 2),
+    PRIMARY KEY (order_id, line_no)
+);
+
+-- Inbox for the stock saga: order.* events already applied (idempotent consumer).
+CREATE TABLE IF NOT EXISTS processed_event (
+    event_id     VARCHAR(36)                 PRIMARY KEY,
+    event_type   VARCHAR(100)                NOT NULL,
+    processed_at TIMESTAMP(6) WITH TIME ZONE NOT NULL
+);

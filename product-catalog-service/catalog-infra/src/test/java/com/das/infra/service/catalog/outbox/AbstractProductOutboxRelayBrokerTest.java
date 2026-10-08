@@ -97,8 +97,9 @@ abstract class AbstractProductOutboxRelayBrokerTest {
 
     @Test
     void keepsAnUnroutableEventInTheOutbox() {
-        admin.declareExchange(catalogEventsExchange); // no queue bound
-        OutboxEventEntity event = pending("catalog.product.updated");
+        admin.declareExchange(catalogEventsExchange); // nothing binds this key: the saga consumers bind
+        // order.# / catalog.#, so a real event type would be routable on a shared broker
+        OutboxEventEntity event = pending("test.unroutable");
 
         assertEquals(0, relay().relayBatch());
 

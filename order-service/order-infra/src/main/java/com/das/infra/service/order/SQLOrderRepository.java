@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.entities.MedicalSalesRepId;
@@ -22,9 +23,13 @@ import com.das.cleanddd.domain.order.entities.ProductId;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 
+/**
+ * Reads are transactional: {@code OrderEntity.lines} is lazy and open-in-view is off, so the
+ * entity must be mapped to the domain model while its session is still open.
+ */
 @Primary
 @Service
-public final class SQLOrderRepository implements IOrderRepository {
+public class SQLOrderRepository implements IOrderRepository {
 
     @Autowired
     private OrderJpaRepository jpaRepository;
@@ -38,6 +43,7 @@ public final class SQLOrderRepository implements IOrderRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Order> findById(OrderId id) {
         String idValue = id.value();
         if (idValue == null) {
@@ -47,6 +53,7 @@ public final class SQLOrderRepository implements IOrderRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Order> findByMedicalSalesRepId(MedicalSalesRepId medicalSalesRepId, int page, int pageSize) {
         return jpaRepository.findByMedicalSalesRepId(medicalSalesRepId.value(), PageRequest.of(page - 1, pageSize))
                 .stream()
@@ -60,6 +67,7 @@ public final class SQLOrderRepository implements IOrderRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Order> searchAll() {
         return jpaRepository.findAll().stream()
                 .map(this::toDomain)
@@ -98,7 +106,7 @@ public final class SQLOrderRepository implements IOrderRepository {
                     new ProductId(le.getProductId()),
                     le.getProductNameSnapshot(),
                     new OrderLineQuantity(le.getQuantity()),
-                    new OrderLineUnitPrice(le.getUnitPrice()));
+                    le.getUnitPrice() == null ? null : new OrderLineUnitPrice(le.getUnitPrice()));
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Corrupt order line record " + le.getId() + ": " + e.getMessage(), e);
         }
@@ -131,7 +139,7 @@ public final class SQLOrderRepository implements IOrderRepository {
         le.setProductId(line.productId().value());
         le.setProductNameSnapshot(line.productNameSnapshot());
         le.setQuantity(line.quantity().value());
-        le.setUnitPrice(line.unitPrice().value());
+        le.setUnitPrice(line.unitPrice() == null ? null : line.unitPrice().value());
         le.setOrder(parent);
         return le;
     }

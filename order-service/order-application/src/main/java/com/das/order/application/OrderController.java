@@ -1,5 +1,6 @@
 package com.das.order.application;
 
+import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -56,11 +57,20 @@ public class OrderController {
         this.listOrdersUseCase = factory.getListOrdersUseCase();
     }
 
+    /**
+     * Asynchronous: the order is accepted AWAITING_STOCK and product-catalog-service reserves its stock
+     * from the {@code order.created} event. Clients poll {@code Location} until the status is
+     * PENDING_APPROVAL (priced) or STOCK_REJECTED.
+     */
     @PostMapping("/create")
-    @Operation(summary = "Create an order (MSR ordering products from the Pharma Lab) — validates the MSR and reserves stock for every line")
-    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Accept an order (MSR ordering products from the Pharma Lab) — validates the MSR; stock is "
+            + "reserved asynchronously, poll GET /{id} until PENDING_APPROVAL or STOCK_REJECTED")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ResponseEntity<Object> createOrder(@Valid @RequestBody CreateOrderInputDTO inputDTO) throws DomainException {
-        return ResponseEntity.status(HttpStatus.CREATED).body(createOrderUseCase.execute(inputDTO));
+        OrderOutputDTO accepted = createOrderUseCase.execute(inputDTO);
+        return ResponseEntity.accepted()
+                .location(URI.create("/api/v1/orders/" + accepted.id()))
+                .body(accepted);
     }
 
     /**
@@ -76,7 +86,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/reject")
-    @Operation(summary = "Reject an order pending approval — releases every line's reserved stock")
+    @Operation(summary = "Reject an order pending approval — product-catalog-service then releases its reserved stock")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> rejectOrder(@PathVariable String id, @RequestBody RejectOrderRequest body,
                                                Authentication authentication) throws DomainException {

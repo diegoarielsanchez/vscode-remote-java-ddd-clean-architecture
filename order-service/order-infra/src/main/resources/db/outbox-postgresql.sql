@@ -21,3 +21,10 @@ CREATE TABLE IF NOT EXISTS outbox_aggregate_version (
     aggregate_key VARCHAR(120) PRIMARY KEY,                     -- "<aggregate type>:<id>"
     last_version  BIGINT       NOT NULL
 );
+
+-- Inbox for the stock saga: catalog.reservation.* events already applied (idempotent consumer).
+CREATE TABLE IF NOT EXISTS processed_event (
+    event_id     VARCHAR(36)                 PRIMARY KEY,
+    event_type   VARCHAR(100)                NOT NULL,
+    processed_at TIMESTAMP(6) WITH TIME ZONE NOT NULL
+);

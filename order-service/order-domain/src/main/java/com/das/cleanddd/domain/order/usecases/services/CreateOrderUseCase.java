@@ -11,12 +11,9 @@ import com.das.cleanddd.domain.order.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.order.entities.Order;
 import com.das.cleanddd.domain.order.entities.OrderLine;
 import com.das.cleanddd.domain.order.entities.OrderLineQuantity;
-import com.das.cleanddd.domain.order.entities.OrderLineUnitPrice;
 import com.das.cleanddd.domain.order.entities.ProductId;
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.ports.IProductStockPort;
-import com.das.cleanddd.domain.order.ports.IProductStockPort.StockReservationResult;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
@@ -26,21 +23,12 @@ import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
- * The MSR must exist and be active, and every line's stock must be reservable,
- * BEFORE the order is ever created. Reservation happens synchronously, line by
- * line, over REST to product-catalog-service; if any line fails, every
- * already-reserved line is compensated (released) before failing the whole
- * request.
+ * Accepts an order and returns at once, in AWAITING_STOCK. Stock is no longer reserved here: the
+ * order and its {@code order.created} event commit together in one {@link UnitOfWork} (the
+ * transactional outbox), product-catalog-service reserves every line from that event, and its answer
+ * moves the order on ({@link ConfirmOrderStockUseCase} / {@link RejectOrderForStockUseCase}).
  *
- * This is a best-effort compensating action over synchronous REST calls, NOT a
- * distributed transaction/saga — if the compensating release call itself fails
- * (network blip), stock is left under-released and needs manual reconciliation.
- *
- * Once every line is reserved, creating the order, saving it and recording its events run in one
- * {@link UnitOfWork} (the transactional outbox), so the order and its {@code order.*} events commit
- * together. The REST reservations stay outside that transaction — a database transaction must not
- * be held open across remote calls — and if building or saving the order fails, every reservation
- * is released again so no stock is lost.
+ * <p>The MSR check stays synchronous: an order for an unknown or inactive rep is refused up front.
  */
 @Service
 public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, OrderOutputDTO> {
@@ -51,17 +39,14 @@ public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, Or
     private final OrderMapper mapper;
     private final IOrderEventPublisher publisher;
     private final IMedicalSalesRepValidator medicalSalesRepValidator;
-    private final IProductStockPort productStockPort;
     private final UnitOfWork unitOfWork;
 
     public CreateOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher,
-                               IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort,
-                               UnitOfWork unitOfWork) {
+                               IMedicalSalesRepValidator medicalSalesRepValidator, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
         this.medicalSalesRepValidator = medicalSalesRepValidator;
-        this.productStockPort = productStockPort;
         this.unitOfWork = unitOfWork;
     }
 
@@ -83,52 +68,19 @@ public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, Or
 
         try {
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
-
             List<OrderLine> lines = new ArrayList<>();
-            List<String> reservedProductIds = new ArrayList<>();
-            List<Integer> reservedQuantities = new ArrayList<>();
-            try {
-                for (OrderLineInputDTO lineInput : inputDTO.lines()) {
-                    StockReservationResult result = productStockPort.reserve(lineInput.productId(), lineInput.quantity());
-                    if (!result.reserved()) {
-                        throw new DomainException("Insufficient stock for product " + lineInput.productId());
-                    }
-                    reservedProductIds.add(lineInput.productId());
-                    reservedQuantities.add(lineInput.quantity());
-
-                    lines.add(new OrderLine(
-                            null,
-                            new ProductId(lineInput.productId()),
-                            result.productName(),
-                            new OrderLineQuantity(lineInput.quantity()),
-                            new OrderLineUnitPrice(result.unitPrice())));
-                }
-            } catch (DomainException | IllegalArgumentException e) {
-                // Compensate every reservation that already succeeded before this failure.
-                release(reservedProductIds, reservedQuantities);
-                throw e;
+            for (OrderLineInputDTO lineInput : inputDTO.lines()) {
+                lines.add(OrderLine.unpriced(new ProductId(lineInput.productId()),
+                        new OrderLineQuantity(lineInput.quantity())));
             }
-
-            try {
-                Order created = Order.create(medicalSalesRepId, lines).submitForApproval();
-                unitOfWork.run(() -> {
-                    repository.save(created);
-                    created.pullDomainEvents().forEach(publisher::publish);
-                });
-                return mapper.outputFromEntity(created);
-            } catch (DomainException | RuntimeException e) {
-                // The order was not persisted: give every reservation back.
-                release(reservedProductIds, reservedQuantities);
-                throw e;
-            }
+            Order created = Order.create(medicalSalesRepId, lines);
+            unitOfWork.run(() -> {
+                repository.save(created);
+                created.pullDomainEvents().forEach(publisher::publish);
+            });
+            return mapper.outputFromEntity(created);
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());
-        }
-    }
-
-    private void release(List<String> productIds, List<Integer> quantities) {
-        for (int i = 0; i < productIds.size(); i++) {
-            productStockPort.release(productIds.get(i), quantities.get(i));
         }
     }
 }
