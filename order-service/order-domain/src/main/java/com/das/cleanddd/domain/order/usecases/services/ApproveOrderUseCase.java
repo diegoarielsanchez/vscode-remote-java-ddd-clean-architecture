@@ -13,6 +13,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 @Service
@@ -23,15 +24,25 @@ public final class ApproveOrderUseCase implements UseCase<ApproveOrderInputDTO, 
     @Autowired
     private final OrderMapper mapper;
     private final IOrderEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public ApproveOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher) {
+    public ApproveOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public OrderOutputDTO execute(ApproveOrderInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private OrderOutputDTO doExecute(ApproveOrderInputDTO inputDTO) throws DomainException {
         if (inputDTO.orderId() == null) {
             throw new DomainException("Order Id is required.");
         }

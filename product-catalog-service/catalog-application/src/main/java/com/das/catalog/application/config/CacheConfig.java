@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
+
+import com.das.infra.service.catalog.ProductSnapshot;
 
 /**
  * Backs the {@code productById} cache used by
@@ -45,7 +48,9 @@ public class CacheConfig implements CachingConfigurer {
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(defaults)
                 .withInitialCacheConfigurations(Map.of(
-                        "productById", defaults.entryTtl(Duration.ofMinutes(5))
+                        // Typed JSON of the infra-layer snapshot — never Java serialization (OWASP A08)
+                        ProductSnapshot.CACHE, defaults.entryTtl(Duration.ofMinutes(5))
+                                .serializeValuesWith(SerializationPair.fromSerializer(ProductSnapshot.redisSerializer()))
                 ))
                 .build();
     }

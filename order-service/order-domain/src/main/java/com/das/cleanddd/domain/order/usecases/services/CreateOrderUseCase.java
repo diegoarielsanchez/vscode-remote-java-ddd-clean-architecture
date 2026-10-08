@@ -21,6 +21,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
@@ -34,8 +35,12 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  * This is a best-effort compensating action over synchronous REST calls, NOT a
  * distributed transaction/saga — if the compensating release call itself fails
  * (network blip), stock is left under-released and needs manual reconciliation.
- * That trade-off matches how this codebase already treats cross-service calls
- * (e.g. the AMQP publishers swallow broker errors rather than rolling back).
+ *
+ * Once every line is reserved, creating the order, saving it and recording its events run in one
+ * {@link UnitOfWork} (the transactional outbox), so the order and its {@code order.*} events commit
+ * together. The REST reservations stay outside that transaction — a database transaction must not
+ * be held open across remote calls — and if building or saving the order fails, every reservation
+ * is released again so no stock is lost.
  */
 @Service
 public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, OrderOutputDTO> {
@@ -47,14 +52,17 @@ public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, Or
     private final IOrderEventPublisher publisher;
     private final IMedicalSalesRepValidator medicalSalesRepValidator;
     private final IProductStockPort productStockPort;
+    private final UnitOfWork unitOfWork;
 
     public CreateOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher,
-                               IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort) {
+                               IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort,
+                               UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
         this.medicalSalesRepValidator = medicalSalesRepValidator;
         this.productStockPort = productStockPort;
+        this.unitOfWork = unitOfWork;
     }
 
     @Override
@@ -73,7 +81,6 @@ public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, Or
             throw new DomainException("Medical Sales Representative not found or not active.");
         }
 
-        Order order;
         try {
             MedicalSalesRepId medicalSalesRepId = new MedicalSalesRepId(inputDTO.medicalSalesRepId());
 
@@ -98,18 +105,30 @@ public final class CreateOrderUseCase implements UseCase<CreateOrderInputDTO, Or
                 }
             } catch (DomainException | IllegalArgumentException e) {
                 // Compensate every reservation that already succeeded before this failure.
-                for (int i = 0; i < reservedProductIds.size(); i++) {
-                    productStockPort.release(reservedProductIds.get(i), reservedQuantities.get(i));
-                }
+                release(reservedProductIds, reservedQuantities);
                 throw e;
             }
 
-            order = Order.create(medicalSalesRepId, lines).submitForApproval();
-            repository.save(order);
-            order.pullDomainEvents().forEach(publisher::publish);
-            return mapper.outputFromEntity(order);
+            try {
+                Order created = Order.create(medicalSalesRepId, lines).submitForApproval();
+                unitOfWork.run(() -> {
+                    repository.save(created);
+                    created.pullDomainEvents().forEach(publisher::publish);
+                });
+                return mapper.outputFromEntity(created);
+            } catch (DomainException | RuntimeException e) {
+                // The order was not persisted: give every reservation back.
+                release(reservedProductIds, reservedQuantities);
+                throw e;
+            }
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());
+        }
+    }
+
+    private void release(List<String> productIds, List<Integer> quantities) {
+        for (int i = 0; i < productIds.size(); i++) {
+            productStockPort.release(productIds.get(i), quantities.get(i));
         }
     }
 }

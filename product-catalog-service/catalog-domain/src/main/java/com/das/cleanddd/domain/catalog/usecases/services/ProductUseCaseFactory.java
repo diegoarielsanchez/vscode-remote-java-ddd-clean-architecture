@@ -16,6 +16,7 @@ import com.das.cleanddd.domain.catalog.usecases.dtos.ReserveStockOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.UpdateProductInputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
 
@@ -36,18 +37,18 @@ public class ProductUseCaseFactory {
     private final ReleaseProductStockUseCase releaseProductStockUseCase;
     private final RestockProductUseCase restockProductUseCase;
 
-    public ProductUseCaseFactory(IProductRepository productRepository, IProductEventPublisher eventPublisher) {
+    public ProductUseCaseFactory(IProductRepository productRepository, IProductEventPublisher eventPublisher, UnitOfWork unitOfWork) {
         this.productRepository = productRepository;
-        this.createProductUseCase = new CreateProductUseCase(this.productRepository, this.productMapper, eventPublisher);
-        this.updateProductUseCase = new UpdateProductUseCase(this.productRepository, this.productMapper, eventPublisher);
-        this.activateProductUseCase = new ActivateProductUseCase(this.productRepository, eventPublisher);
-        this.deactivateProductUseCase = new DeactivateProductUseCase(this.productRepository, eventPublisher);
+        this.createProductUseCase = new CreateProductUseCase(this.productRepository, this.productMapper, eventPublisher, unitOfWork);
+        this.updateProductUseCase = new UpdateProductUseCase(this.productRepository, this.productMapper, eventPublisher, unitOfWork);
+        this.activateProductUseCase = new ActivateProductUseCase(this.productRepository, eventPublisher, unitOfWork);
+        this.deactivateProductUseCase = new DeactivateProductUseCase(this.productRepository, eventPublisher, unitOfWork);
         this.getProductByIdUseCase = new GetProductByIdUseCase(this.productRepository, this.productMapper);
         this.findProductsByNameUseCase = new FindProductsByNameUseCase(this.productRepository, this.productMapper);
         this.checkProductAvailabilityUseCase = new CheckProductAvailabilityUseCase(this.productRepository);
-        this.reserveProductStockUseCase = new ReserveProductStockUseCase(this.productRepository, eventPublisher);
-        this.releaseProductStockUseCase = new ReleaseProductStockUseCase(this.productRepository, eventPublisher);
-        this.restockProductUseCase = new RestockProductUseCase(this.productRepository, eventPublisher);
+        this.reserveProductStockUseCase = new ReserveProductStockUseCase(this.productRepository, eventPublisher, unitOfWork);
+        this.releaseProductStockUseCase = new ReleaseProductStockUseCase(this.productRepository, eventPublisher, unitOfWork);
+        this.restockProductUseCase = new RestockProductUseCase(this.productRepository, eventPublisher, unitOfWork);
     }
 
     public UseCase<CreateProductInputDTO, ProductOutputDTO> getCreateProductUseCase() {

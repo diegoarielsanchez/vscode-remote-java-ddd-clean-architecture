@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /** Manual/admin inventory top-up — distinct from {@link ReleaseProductStockUseCase} for audit clarity, same underlying operation. */
@@ -20,14 +21,24 @@ public class RestockProductUseCase implements UseCase<StockQuantityInputDTO, Sto
     @Autowired
     private final IProductRepository repository;
     private final IProductEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public RestockProductUseCase(IProductRepository repository, IProductEventPublisher publisher) {
+    public RestockProductUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public StockQuantityOutputDTO execute(StockQuantityInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private StockQuantityOutputDTO doExecute(StockQuantityInputDTO inputDTO) throws DomainException {
         if (inputDTO.productId() == null) {
             throw new DomainException("Product Id is required.");
         }

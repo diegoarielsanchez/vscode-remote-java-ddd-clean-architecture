@@ -15,6 +15,7 @@ import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 @Service
@@ -25,15 +26,25 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
     @Autowired
     private final ProductMapper mapper;
     private final IProductEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public CreateProductUseCase(IProductRepository repository, ProductMapper mapper, IProductEventPublisher publisher) {
+    public CreateProductUseCase(IProductRepository repository, ProductMapper mapper, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public ProductOutputDTO execute(CreateProductInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private ProductOutputDTO doExecute(CreateProductInputDTO inputDTO) throws DomainException {
         if (inputDTO == null) {
             throw new DomainException("Input DTO cannot be null");
         }

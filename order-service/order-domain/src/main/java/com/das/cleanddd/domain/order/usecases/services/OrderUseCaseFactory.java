@@ -16,6 +16,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
 
 @Service
@@ -33,13 +34,14 @@ public class OrderUseCaseFactory {
     private final ListOrdersUseCase listOrdersUseCase;
 
     public OrderUseCaseFactory(IOrderRepository orderRepository, IOrderEventPublisher eventPublisher,
-                                IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort) {
+                                IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort,
+                                UnitOfWork unitOfWork) {
         this.orderRepository = orderRepository;
         this.createOrderUseCase = new CreateOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher,
-                medicalSalesRepValidator, productStockPort);
-        this.approveOrderUseCase = new ApproveOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher);
-        this.rejectOrderUseCase = new RejectOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, productStockPort);
-        this.confirmOrderDeliveryUseCase = new ConfirmOrderDeliveryUseCase(this.orderRepository, this.orderMapper, eventPublisher);
+                medicalSalesRepValidator, productStockPort, unitOfWork);
+        this.approveOrderUseCase = new ApproveOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
+        this.rejectOrderUseCase = new RejectOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, productStockPort, unitOfWork);
+        this.confirmOrderDeliveryUseCase = new ConfirmOrderDeliveryUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
         this.getOrderByIdUseCase = new GetOrderByIdUseCase(this.orderRepository, this.orderMapper);
         this.getOrderApprovalStatusUseCase = new GetOrderApprovalStatusUseCase(this.orderRepository);
         this.listOrdersUseCase = new ListOrdersUseCase(this.orderRepository, this.orderMapper);

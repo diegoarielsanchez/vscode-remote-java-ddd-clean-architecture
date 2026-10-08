@@ -14,6 +14,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +48,7 @@ class CreateOrderUseCaseTest {
     @BeforeEach
     void setUp() {
         mapper = new OrderMapper();
-        useCase = new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, productStockPort);
+        useCase = new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, productStockPort, UnitOfWork.immediate());
     }
 
     @Nested
@@ -71,6 +72,62 @@ class CreateOrderUseCaseTest {
             verify(repository, times(1)).save(any(Order.class));
             verify(publisher, atLeastOnce()).publish(any());
             verify(productStockPort, never()).release(any(), anyInt());
+        }
+    }
+
+    @Nested
+    @DisplayName("Unit of work (transactional outbox)")
+    class UnitOfWorkBoundary {
+
+        @Test
+        @DisplayName("should save and publish inside the unit of work, but reserve stock outside it")
+        void shouldSaveAndPublishInsideTheUnitOfWork() throws DomainException {
+            java.util.List<String> calls = new java.util.ArrayList<>();
+            boolean[] inside = {false};
+            UnitOfWork recording = new UnitOfWork() {
+                @Override
+                public <T> T execute(Work<T> work) throws DomainException {
+                    inside[0] = true;
+                    try {
+                        return work.run();
+                    } finally {
+                        inside[0] = false;
+                    }
+                }
+            };
+            when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
+            when(productStockPort.reserve(eq(productA), eq(5))).thenAnswer(inv -> {
+                calls.add("reserve:" + inside[0]);
+                return new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg");
+            });
+            doAnswer(inv -> { calls.add("save:" + inside[0]); return null; }).when(repository).save(any());
+            doAnswer(inv -> { calls.add("publish:" + inside[0]); return null; }).when(publisher).publish(any());
+
+            new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, productStockPort, recording)
+                    .execute(new CreateOrderInputDTO(msrId, List.of(new OrderLineInputDTO(productA, 5))));
+
+            assertEquals("reserve:false", calls.get(0), "no transaction is held open across the REST reservation");
+            assertEquals("save:true", calls.get(1));
+            assertTrue(calls.subList(2, calls.size()).stream().allMatch("publish:true"::equals));
+        }
+
+        @Test
+        @DisplayName("should release every reservation when saving the order fails")
+        void shouldReleaseReservationsWhenSaveFails() {
+            when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
+            when(productStockPort.reserve(eq(productA), eq(5)))
+                    .thenReturn(new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg"));
+            when(productStockPort.reserve(eq(productB), eq(2)))
+                    .thenReturn(new StockReservationResult(true, 8, new BigDecimal("3.00"), "Ibuprofen 400mg"));
+            doThrow(new IllegalStateException("database unavailable")).when(repository).save(any());
+
+            CreateOrderInputDTO input = new CreateOrderInputDTO(msrId,
+                    List.of(new OrderLineInputDTO(productA, 5), new OrderLineInputDTO(productB, 2)));
+
+            assertThrows(IllegalStateException.class, () -> useCase.execute(input));
+            verify(productStockPort).release(productA, 5);
+            verify(productStockPort).release(productB, 2);
+            verify(publisher, never()).publish(any());
         }
     }
 

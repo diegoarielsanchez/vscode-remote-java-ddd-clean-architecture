@@ -71,6 +71,7 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, OrderStatus.PENDING_APPROVAL,
                 this._approvedBy, this._rejectedBy, this._rejectionReason,
                 this._createdAt, this._approvedAt, this._rejectedAt, this._deliveredAt);
+        updated.carryOverEventsFrom(this);
         updated.record(new OrderSubmittedForApprovalEvent(updated.id().value()));
         return updated;
     }
@@ -82,6 +83,7 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, OrderStatus.APPROVED,
                 approvedBy, this._rejectedBy, this._rejectionReason,
                 this._createdAt, Instant.now(), this._rejectedAt, this._deliveredAt);
+        updated.carryOverEventsFrom(this);
         updated.record(new OrderApprovedEvent(updated.id().value(), approvedBy));
         return updated;
     }
@@ -93,6 +95,7 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, OrderStatus.REJECTED,
                 this._approvedBy, rejectedBy, reason,
                 this._createdAt, this._approvedAt, Instant.now(), this._deliveredAt);
+        updated.carryOverEventsFrom(this);
         updated.record(new OrderRejectedEvent(updated.id().value(), rejectedBy, reason));
         return updated;
     }
@@ -108,6 +111,7 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, OrderStatus.DELIVERED,
                 this._approvedBy, this._rejectedBy, this._rejectionReason,
                 this._createdAt, this._approvedAt, this._rejectedAt, deliveredAt == null ? Instant.now() : deliveredAt);
+        updated.carryOverEventsFrom(this);
         updated.record(new OrderDeliveredEvent(updated.id().value()));
         return updated;
     }

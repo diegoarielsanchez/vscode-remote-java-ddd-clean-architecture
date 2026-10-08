@@ -10,6 +10,7 @@ import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductIDDto;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 public class DeactivateProductUseCase implements UseCaseOnlyInput<ProductIDDto> {
@@ -17,14 +18,24 @@ public class DeactivateProductUseCase implements UseCaseOnlyInput<ProductIDDto> 
     @Autowired
     private final IProductRepository repository;
     private final IProductEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public DeactivateProductUseCase(IProductRepository repository, IProductEventPublisher publisher) {
+    public DeactivateProductUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public void execute(ProductIDDto inputDTO) throws DomainException {
+        unitOfWork.run(() -> doExecute(inputDTO));
+    }
+
+    private void doExecute(ProductIDDto inputDTO) throws DomainException {
         if (inputDTO.productId() == null) {
             throw new DomainException("Product Id is required.");
         }

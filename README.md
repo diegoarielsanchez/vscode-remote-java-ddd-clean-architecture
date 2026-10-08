@@ -1208,8 +1208,8 @@ Domain events stay private to their bounded context. Only the **integration even
 | medical-sales-rep-service | Producer | `msr.events` | — | Transactional outbox |
 | visit-service | Consumer | — | `hcp.events`, `msr.events` | Idempotent, ordered consumer → local HCP and MSR snapshots |
 | settlement-service | Consumer | — | `msr.events` | Idempotent, ordered consumer → local MSR status snapshot |
-| order-service | Producer (legacy) | `order.events` | — | Fire-and-forget; not migrated yet |
-| product-catalog-service | Producer (legacy) | `catalog.events` | — | Fire-and-forget; not migrated yet |
+| order-service | Producer | `order.events` | — | Transactional outbox |
+| product-catalog-service | Producer | `catalog.events` | — | Transactional outbox (stock changes and their events commit together) |
 | identity-service, api-gateway | — | — | — | Synchronous by design (authentication, routing) |
 
 #### healthcare-prof-service: producer (`hcp.events`)
@@ -1264,11 +1264,27 @@ The same design as HCP, class for class: `MedicalSalesRep` records events; the `
 - **Config:** `settlement.events.retry.max-attempts`, `settlement.events.prefetch`.
 - **Schema:** `settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`.
 
-#### order-service and product-catalog-service: legacy publishers
+#### order-service: producer (`order.events`)
 
-`OrderAmqpEventPublisher` (`order.events`) and `ProductAmqpEventPublisher` (`catalog.events`) publish **directly** after saving and only log a broker failure, so an event can be lost. No service consumes them yet.
+- **Events:** `order.created`, `order.submitted-for-approval`, `order.approved`, `order.rejected`, `order.delivered`. Payload `data`: `medicalSalesRepId`, `lineCount`, `totalAmount` (created); `decidedBy` and `reason` (approved, rejected).
+- **Domain:** `Order` is immutable, so each transition returns a new instance. It calls `carryOverEventsFrom(previous)` (in `AggregateRoot`) so chained transitions like `create().submitForApproval()` keep every event.
+  - `Approve/Reject/ConfirmOrderDeliveryUseCase` and the persistence part of `CreateOrderUseCase` run in a `UnitOfWork`.
+- **Stock reservations** are still synchronous REST calls to product-catalog-service (`IProductStockPort`), deliberately **outside** the database transaction:
+  - `CreateOrderUseCase` reserves every line first, then saves the order and records its events in one unit of work. If building or saving the order fails, it releases every reservation.
+  - `RejectOrderUseCase` commits the rejection and its event first, then releases the stock.
+- **Infrastructure** (`order-infra/.../outbox`): `OutboxOrderEventPublisher`, `OrderOutboxRelay`, `OrderIntegrationEvents`; `OrderRabbitMqConfig` declares the exchange.
+- **Config:** `order.outbox.*`.
+- **Schema:** `order-infra/src/main/resources/db/outbox-postgresql.sql`.
 
-They're the next candidates. The natural next step is a choreography saga for stock: `order.created` → catalog reserves stock → `catalog.product.stock-reserved` or a rejection → the order is approved or rejected, with `stock-released` as the compensation. Migrate each publisher to the outbox first (steps below).
+#### product-catalog-service: producer (`catalog.events`)
+
+- **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`. Product events carry `name`, `description`, `price`, `unit`, `active`; stock events carry `stockDelta` and `remainingStock`.
+- **Domain:** all seven write use cases run in a `UnitOfWork`. The stock use cases change stock with atomic SQL (`tryReserveStock`, `releaseStock`, `restock`) and record their event in the same transaction, so a stock change is never published without happening, or the other way round.
+- **Infrastructure** (`catalog-infra/.../outbox`): `OutboxProductEventPublisher`, `ProductOutboxRelay`, `ProductIntegrationEvents`; `ProductRabbitMqConfig` declares the exchange.
+- **Config:** `catalog.outbox.*`.
+- **Schema:** `catalog-infra/src/main/resources/db/outbox-postgresql.sql`.
+
+**Not done yet: an event-driven stock saga.** Order still reserves stock over REST, so order creation fails while catalog is down. The choreography alternative is: `order.created` → catalog reserves → `catalog.product.stock-reserved` or a rejection → the order is approved or rejected, with `stock-released` as the compensation. That makes order creation **asynchronous**: the order would wait in a new "awaiting stock" state, and prices would arrive with the reservation. It changes the API contract, so it's a product decision first. Both services now publish reliably, which a saga would build on.
 
 #### identity-service and api-gateway
 
@@ -1293,10 +1309,10 @@ If the broker is down at step 3, the event waits in `outbox_event` and is publis
 
 ### Adding EDA to another service
 
-**Producer** (e.g. order-service):
+**Producer** (as done for HCP, MSR, Order and Product Catalog):
 
-1. **Domain:** have the aggregate `record(...)` a domain event for each state change and publish through a port (`IOrderEventPublisher`); this already exists for order and catalog. Wrap each write use case's body in `unitOfWork.execute(...)` and pass `UnitOfWork` in through the use-case factory.
-2. **Contract:** define the integration events (past tense, `<context>.<fact>`), schema version 1, and a `data` payload that carries only what consumers need. Map domain → integration in infrastructure (`OrderIntegrationEvents`).
+1. **Domain:** have the aggregate `record(...)` a domain event for each state change and publish through a port (`I<Context>EventPublisher`). If transitions return new instances, call `carryOverEventsFrom(previous)`. Wrap each write use case's persistence in `unitOfWork.execute(...)`, keeping remote calls outside it, and pass `UnitOfWork` in through the use-case factory.
+2. **Contract:** define the integration events (past tense, `<context>.<fact>`), schema version 1, and a `data` payload that carries only what consumers need. Map domain → integration in infrastructure (e.g. `OrderIntegrationEvents`).
 3. **Infrastructure:** copy the `outbox` package from `hcp-infra` or `msr-infra` and rename the types. Add `SpringUnitOfWork` and the RabbitMQ config with `template.setMandatory(true)`.
 4. **Application:**
    - add `RequestEventContext` and `SchedulingConfig`;
@@ -1342,7 +1358,7 @@ EDA_TEST_RABBITMQ_USERNAME=<user> EDA_TEST_RABBITMQ_PASSWORD=<password> \
 
 RabbitMQ provides an optional **asynchronous messaging layer** between microservices. It decouples the Medical Sales Rep and Healthcare Prof services from the Visit Service, allowing the Visit Service to maintain local read-model snapshots of MSR and HCP data without making synchronous HTTP calls at query time.
 
-> **Note:** Publishing is disabled in the `dev` Spring profile for the HCP and MSR services (their outbox publishers and relays are `@Profile("!dev")`). To publish events, run with a profile other than `dev` (e.g. `prod`) and a reachable RabbitMQ with non-guest credentials.
+> **Note:** Publishing is disabled in the `dev` Spring profile for the producer services (HCP, MSR, Order, Product Catalog) (their outbox publishers and relays are `@Profile("!dev")`). To publish events, run with a profile other than `dev` (e.g. `prod`) and a reachable RabbitMQ with non-guest credentials.
 
 ### Message Topology
 
@@ -1352,6 +1368,8 @@ RabbitMQ provides an optional **asynchronous messaging layer** between microserv
 |---|---|---|---|
 | `msr.events` | Topic | MSR Service via its **transactional outbox** (`msr-infra/outbox/MsrOutboxRelay`) | `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated` |
 | `hcp.events` | Topic | HCP Service via its **transactional outbox** (`hcp-infra/outbox/HcpOutboxRelay`) | `hcp.created`, `hcp.updated`, `hcp.activated`, `hcp.deactivated` |
+| `order.events` | Topic | Order Service via its **transactional outbox** (`order-infra/outbox/OrderOutboxRelay`) | `order.created`, `order.submitted-for-approval`, `order.approved`, `order.rejected`, `order.delivered` |
+| `catalog.events` | Topic | Product Catalog Service via its **transactional outbox** (`catalog-infra/outbox/ProductOutboxRelay`) | `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked` |
 
 **Consumers**
 
@@ -1377,13 +1395,13 @@ Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-
 }
 ```
 
-- **No lost events (transactional outbox).** HCP and MSR write use cases run inside a `UnitOfWork`. The aggregate row and an `outbox_event` row commit in the same database transaction. Each service's relay (`HcpOutboxRelay`, `MsrOutboxRelay`) publishes pending rows every second with **publisher confirms**, and marks a row published only when the broker acked it and routed it to a queue. If the broker is down or nothing is bound to the exchange yet, events wait in the outbox. Published rows are deleted after 7 days.
+- **No lost events (transactional outbox).** The write use cases of every producer (HCP, MSR, Order, Product Catalog) run inside a `UnitOfWork`. The aggregate row and an `outbox_event` row commit in the same database transaction. Each service's relay (`HcpOutboxRelay`, `MsrOutboxRelay`, `OrderOutboxRelay`, `ProductOutboxRelay`) publishes pending rows every second with **publisher confirms**, and marks a row published only when the broker acked it and routed it to a queue. If the broker is down or nothing is bound to the exchange yet, events wait in the outbox. Published rows are deleted after 7 days.
 - **At-least-once, applied once.** Consumers record every `eventId` in their own `processed_event` table, in the same transaction as the snapshot update, so redeliveries are skipped.
 - **Ordered per aggregate.** `aggregateVersion` increases by one per change. Events not newer than the snapshot's `event_version` are ignored; a late `created` event can still fill in a missing name.
 - **Poison messages don't loop.** Invalid messages (wrong schema version, unknown type, non-UUID ids, oversized fields, malformed JSON) go straight to the consumer's dead-letter queue. Processing failures are retried 3 times with backoff and then dead-lettered.
 - **Data minimization.** E-mail addresses are not part of either contract; they stay inside the owning service. Settlement stores only each rep's active status.
 
-Configuration: `hcp.outbox.*` / `msr.outbox.*` (producers), `visit.events.*` and `settlement.events.*` (consumers).
+Configuration: `hcp.outbox.*` / `msr.outbox.*` / `order.outbox.*` / `catalog.outbox.*` (producers), `visit.events.*` and `settlement.events.*` (consumers).
 
 ### What the consumers do
 
@@ -1397,6 +1415,8 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
 1. **Database (prod profile uses `ddl-auto=validate`).** Run the idempotent scripts before deploying:
    - HCP (PostgreSQL): `healthcare-prof-service/hcp-infra/src/main/resources/db/outbox-postgresql.sql`
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
+   - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql`
+   - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql`
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
@@ -1444,7 +1464,7 @@ Redis backs a small set of read-heavy, cross-service lookups to cut down on repe
 | `hcpActiveStatus` | Visit Service | `HealthCareProfValidatorAdapter.existsAndActive` — the HTTP call to HCP's `GET /{id}/active-status`, made on every visit/visit-plan creation | 60s | `HcpEventHandler` evicts on every applied HCP event (create/update/activate/deactivate) |
 | `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrEventHandler` evicts on every applied MSR event |
 | `msrActiveStatus` | Order Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same HTTP call, made on every order creation | 30s (shorter — this service has no snapshot table or event listener, so TTL is the only staleness bound) | TTL only |
-| `productById` | Product Catalog Service | `SQLProductRepository.findById` | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
+| `productById` | Product Catalog Service | `SQLProductRepository.findById`, through `ProductSnapshotLookup`. The cache stores a `ProductSnapshot` (an infra-layer copy of the row, not the domain aggregate) as **typed JSON**: no Java serialization and no class names, so reading it back can't instantiate arbitrary types (OWASP A08) | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
 
 **Deliberately not cached:**
 - `GET /{id}/availability` (Product Catalog) — reflects live stock quantity; caching it risks overselling.
@@ -1458,6 +1478,8 @@ Every `@Cacheable` active-status lookup uses `unless = "#result == false"`. A `f
 ### Fail-open behavior
 
 Each service that uses caching (`visit-application`, `order-application`, `catalog-application`) registers a custom `CacheErrorHandler` (in its `CacheConfig`) that logs and swallows Redis connectivity failures instead of the Spring default, which rethrows. Without this, a Redis outage would break visit/order creation and RabbitMQ message processing — paths that were already designed to tolerate the *origin service* being unavailable (visit-service's HTTP → local-snapshot fallback), but not designed to tolerate the *cache* being unavailable. With it, losing Redis just means every annotated method runs as if caching were never added.
+
+The flip side: the handler also swallows *non-connectivity* failures, such as a value that can't be serialized, so a broken cache looks exactly like a working one with a 0% hit rate. That's how `productById` once never stored anything. `SQLProductRepositoryCachingTest` therefore stores values through the production serializer, and a warning-free log with `KEYS productById::*` populated is the quick check against a real Redis.
 
 ### Running locally
 

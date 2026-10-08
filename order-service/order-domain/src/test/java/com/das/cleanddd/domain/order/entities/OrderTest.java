@@ -3,6 +3,10 @@ package com.das.cleanddd.domain.order.entities;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.das.cleanddd.domain.order.events.OrderCreatedEvent;
+import com.das.cleanddd.domain.order.events.OrderDomainEvent;
+import com.das.cleanddd.domain.order.events.OrderRejectedEvent;
+import com.das.cleanddd.domain.order.events.OrderSubmittedForApprovalEvent;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,7 +42,7 @@ class OrderTest {
             assertEquals(1, order.lines().size());
             var events = order.pullDomainEvents();
             assertEquals(1, events.size());
-            assertInstanceOf(com.das.cleanddd.domain.order.events.OrderCreatedEvent.class, events.get(0));
+            assertInstanceOf(OrderCreatedEvent.class, events.get(0));
         }
 
         @Test
@@ -103,13 +107,14 @@ class OrderTest {
         @DisplayName("reject() should transition PENDING_APPROVAL -> REJECTED and record OrderRejectedEvent")
         void rejectShouldTransitionToRejected() throws BusinessValidationException {
             Order pending = Order.create(medicalSalesRepId, lines).submitForApproval();
+            pending.pullDomainEvents(); // as after the save that persisted it
             Order rejected = pending.reject("admin@pharmalab.com", "Out of budget");
 
             assertEquals(OrderStatus.REJECTED, rejected.status());
             assertEquals("Out of budget", rejected.rejectionReason());
             var events = rejected.pullDomainEvents();
             assertEquals(1, events.size());
-            assertInstanceOf(com.das.cleanddd.domain.order.events.OrderRejectedEvent.class, events.get(0));
+            assertInstanceOf(OrderRejectedEvent.class, events.get(0));
         }
 
         @Test
@@ -154,6 +159,24 @@ class OrderTest {
         @DisplayName("OrderLineUnitPrice should reject negative")
         void unitPriceShouldRejectNegative() {
             assertThrows(BusinessValidationException.class, () -> new OrderLineUnitPrice(new BigDecimal("-0.01")));
+        }
+    }
+
+    @Nested
+    @DisplayName("domain events across chained transitions")
+    class ChainedTransitionEvents {
+
+        @Test
+        @DisplayName("create → submitForApproval keeps both events, in order")
+        void createThenSubmitKeepsTheCreatedEvent() throws BusinessValidationException {
+            Order submitted = Order.create(new MedicalSalesRepId(java.util.UUID.randomUUID().toString()), lines)
+                    .submitForApproval();
+
+            List<OrderDomainEvent> events = submitted.pullDomainEvents();
+
+            assertEquals(2, events.size());
+            assertInstanceOf(OrderCreatedEvent.class, events.get(0));
+            assertInstanceOf(OrderSubmittedForApprovalEvent.class, events.get(1));
         }
     }
 }
