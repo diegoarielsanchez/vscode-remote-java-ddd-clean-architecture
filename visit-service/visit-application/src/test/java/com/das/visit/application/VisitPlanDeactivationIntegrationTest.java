@@ -1,12 +1,19 @@
 package com.das.visit.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,16 +31,16 @@ import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
 import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
-import com.das.infra.service.visit.HcpEventMessage;
-import com.das.infra.service.visit.HcpSnapshotUpdater;
 import com.das.infra.service.visit.MsrEventMessage;
 import com.das.infra.service.visit.MsrSnapshotUpdater;
 import com.das.infra.service.visit.VisitPlanJpaRepository;
+import com.das.infra.service.visit.events.HcpEventListener;
 
 /**
  * Verifies that upstream deactivation events deactivate future VisitPlans.
  * RabbitMQ is disabled in tests, so the listener methods are invoked directly
- * against the real Spring beans and the real SQLServerVisitPlanRepository.
+ * against the real Spring beans and the real SQLServerVisitPlanRepository. HCP events go
+ * through the full inbound path: raw AMQP message → anti-corruption translator → handler.
  */
 @SpringBootTest
 @TestPropertySource(locations = "classpath:application-test.properties")
@@ -54,7 +61,7 @@ class VisitPlanDeactivationIntegrationTest {
     private MsrSnapshotUpdater msrSnapshotUpdater;
 
     @Autowired
-    private HcpSnapshotUpdater hcpSnapshotUpdater;
+    private HcpEventListener hcpEventListener;
 
     @MockitoBean
     private ConnectionFactory connectionFactory;
@@ -96,17 +103,34 @@ class VisitPlanDeactivationIntegrationTest {
         VisitPlan futurePlan = buildFutureVisitPlan();
         visitPlanRepository.save(futurePlan);
 
-        hcpSnapshotUpdater.onHcpEvent(new HcpEventMessage(
-                "HCP_DEACTIVATED",
-                HCP_ID,
-                null,
-                null,
-                null,
-                false,
-                LocalDateTime.now().toString()));
+        hcpEventListener.onMessage(amqpMessage("""
+                {"eventId":"%s","eventType":"hcp.deactivated","schemaVersion":1,"aggregateId":"%s",
+                 "aggregateVersion":1,"occurredAt":"2026-10-08T10:00:00Z","producer":"healthcare-prof-service",
+                 "data":{"active":false}}
+                """.formatted(UUID.randomUUID(), HCP_ID)));
 
         VisitPlan saved = visitPlanRepository.search(new VisitId(VISIT_ID)).orElseThrow();
         assertThat(saved.isActive()).isFalse();
+    }
+
+    @Test
+    void invalidHcpEvent_isRejectedForTheDeadLetterQueueAndChangesNothing() throws Exception {
+        VisitPlan futurePlan = buildFutureVisitPlan();
+        visitPlanRepository.save(futurePlan);
+
+        assertThatThrownBy(() -> hcpEventListener.onMessage(amqpMessage(
+                "{\"eventType\":\"HCP_DEACTIVATED\",\"id\":\"" + HCP_ID + "\",\"active\":false}")))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+
+        VisitPlan saved = visitPlanRepository.search(new VisitId(VISIT_ID)).orElseThrow();
+        assertThat(saved.isActive()).isTrue();
+    }
+
+    private static Message amqpMessage(String json) {
+        MessageProperties props = new MessageProperties();
+        props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        props.setMessageId(UUID.randomUUID().toString());
+        return new Message(json.getBytes(StandardCharsets.UTF_8), props);
     }
 
     private VisitPlan buildFutureVisitPlan() throws Exception {

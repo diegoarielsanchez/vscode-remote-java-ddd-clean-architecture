@@ -110,7 +110,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
     public static HealthCareProf create(HealthCareProfId id, HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, HealthCareProfActive active, List<Specialty> specialties, List<AddressValueObject> addresses) {
         HealthCareProf healthCareProf = new HealthCareProf(id, name, surname, email, active, specialties, addresses);
         healthCareProf.record(new HcpCreatedEvent(
-                healthCareProf.getId().toString(),
+                healthCareProf.getId().value(),
                 healthCareProf.getFirstName(),
                 healthCareProf.getLastName(),
                 healthCareProf.getEmail().toString(),
@@ -257,7 +257,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
             return this;
         }
         HealthCareProf activated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(true), this.specialties, this.addresses);
-        activated.record(new HcpActivatedEvent(activated.getId().toString(), activated.isActive()));
+        activated.record(new HcpActivatedEvent(activated.getId().value(), activated.isActive()));
         return activated;
     }
     public HealthCareProf setDeactivate() {
@@ -265,7 +265,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
             return this;
         }
         HealthCareProf deactivated = new HealthCareProf(this._id, new HealthCareProfName(this._firstName), new HealthCareProfName(this._lastName), this._email, new HealthCareProfActive(false), this.specialties, this.addresses);
-        deactivated.record(new HcpDeactivatedEvent(deactivated.getId().toString(), deactivated.isActive()));
+        deactivated.record(new HcpDeactivatedEvent(deactivated.getId().value(), deactivated.isActive()));
         return deactivated;
     }
 
@@ -276,7 +276,7 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
     public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, List<AddressValueObject> addresses) {
         HealthCareProf updated = new HealthCareProf(this._id, name, surname, email, this._active, specialties, addresses);
         updated.record(new HcpUpdatedEvent(
-                updated.getId().toString(),
+                updated.getId().value(),
                 updated.getFirstName(),
                 updated.getLastName(),
                 updated.getEmail().toString(),

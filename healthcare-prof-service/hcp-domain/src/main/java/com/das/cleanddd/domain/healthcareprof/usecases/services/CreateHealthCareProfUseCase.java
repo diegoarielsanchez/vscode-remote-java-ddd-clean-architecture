@@ -17,6 +17,7 @@ import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutput
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 //@RequiredArgsConstructor
@@ -28,20 +29,31 @@ public final class CreateHealthCareProfUseCase implements UseCase<CreateHealthCa
     @Autowired
     private final HealthCareProfMapper mapper;
     private final IHcpEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
     private final EnsureHealthCareProfEmailIsUniqueService uniqueEmailService;
     
     public CreateHealthCareProfUseCase(IHealthCareProfRepository repository
         , HealthCareProfMapper mapper
         , IHcpEventPublisher publisher
+        , UnitOfWork unitOfWork
         ) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
         this.uniqueEmailService = new EnsureHealthCareProfEmailIsUniqueService(repository);
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * aggregate and its outbox entries commit (or roll back) together.
+     */
     @Override
-    public HealthCareProfOutputDTO execute(CreateHealthCareProfInputDTO inputDTO)
+    public HealthCareProfOutputDTO execute(CreateHealthCareProfInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private HealthCareProfOutputDTO doExecute(CreateHealthCareProfInputDTO inputDTO)
             throws DomainException {
 
         // Validate input

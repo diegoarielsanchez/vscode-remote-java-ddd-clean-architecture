@@ -7,7 +7,7 @@ import jakarta.persistence.Table;
 
 /**
  * Option B — local read-model snapshot of HealthCareProf data.
- * Populated by {@link HcpSnapshotUpdater} from AMQP events and
+ * Populated by {@link com.das.infra.service.visit.events.HcpEventHandler} from AMQP events and
  * seeded on startup by {@link SnapshotBootstrapService}.
  */
 @Entity
@@ -21,6 +21,13 @@ public class HcpSnapshotEntity {
     private String surname;
     private String email;
     private Boolean active;
+
+    /**
+     * Last applied {@code hcp.*} integration-event version; null for rows written by the HTTP
+     * validator or the bootstrap (treated as 0). Events with a lower or equal version are stale.
+     */
+    @Column(name = "event_version")
+    private Long version;
 
     /** Comma-separated specialty codes; may be null. */
     @Column(length = 2000)
@@ -45,4 +52,6 @@ public class HcpSnapshotEntity {
 
     public String getSpecialties() { return specialties; }
     public void setSpecialties(String specialties) { this.specialties = specialties; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

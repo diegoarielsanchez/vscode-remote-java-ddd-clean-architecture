@@ -1,5 +1,9 @@
 package com.das.cleanddd.domain.healthcareprof.entities;
 
+import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpDeactivatedEvent;
+import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
@@ -424,6 +428,38 @@ class HealthCareProfTest {
             HealthCareProf updated = hcp.withUpdatedDetails(name, surname, email, specialties);
 
             assertEquals(List.of(officeOne), updated.getAddresses());
+        }
+    }
+
+    @Nested
+    @DisplayName("domain events")
+    class DomainEvents {
+
+        private final List<Specialty> specialties = List.of(new Specialty("CARD", "Cardiology"));
+
+        private HealthCareProf created() {
+            return HealthCareProf.create(null, new HealthCareProfName("Ana"), new HealthCareProfName("Gomez"),
+                    new HealthCareProfEmail("ana@clinic.org"), new HealthCareProfActive(true), specialties);
+        }
+
+        @Test
+        @DisplayName("every event carries the aggregate's UUID, not the id object's toString()")
+        void eventsCarryTheIdValue() {
+            HealthCareProf hcp = created();
+            String id = hcp.getId().value();
+
+            var createdEvent = (HcpCreatedEvent) hcp.pullDomainEvents().get(0);
+            assertEquals(id, createdEvent.id());
+
+            var deactivated = hcp.setDeactivate();
+            assertEquals(id, ((HcpDeactivatedEvent) deactivated.pullDomainEvents().get(0)).id());
+
+            var activated = deactivated.setActivate();
+            assertEquals(id, ((HcpActivatedEvent) activated.pullDomainEvents().get(0)).id());
+
+            var updated = activated.withUpdatedDetails(new HealthCareProfName("Ana"), new HealthCareProfName("Ruiz"),
+                    new HealthCareProfEmail("ana@clinic.org"), specialties);
+            assertEquals(id, ((HcpUpdatedEvent) updated.pullDomainEvents().get(0)).id());
         }
     }
 }

@@ -5,11 +5,16 @@ import java.util.Objects;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
+/**
+ * Broker topology and template used by the outbox relay. Publisher confirms and returns are
+ * enabled on the connection factory ({@code spring.rabbitmq.publisher-confirm-type=correlated},
+ * {@code spring.rabbitmq.publisher-returns=true}); {@code mandatory} makes the broker hand back
+ * messages that match no queue instead of silently dropping them.
+ */
 @Configuration
 @Profile("!dev")
 public class HcpRabbitMqConfig {
@@ -20,15 +25,9 @@ public class HcpRabbitMqConfig {
     }
 
     @Bean
-    Jackson2JsonMessageConverter hcpJsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
-
-    @Bean
-    RabbitTemplate hcpRabbitTemplate(ConnectionFactory connectionFactory,
-                                      Jackson2JsonMessageConverter hcpJsonMessageConverter) {
+    RabbitTemplate hcpRabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate template = new RabbitTemplate(Objects.requireNonNull(connectionFactory));
-        template.setMessageConverter(Objects.requireNonNull(hcpJsonMessageConverter));
+        template.setMandatory(true);
         return template;
     }
 }
