@@ -62,6 +62,8 @@ start_service "msr-application"       "medical-sales-rep-service/msr-application
 start_service "hcp-application"       "healthcare-prof-service/hcp-application"
 start_service "visit-application"     "visit-service/visit-application" "DB_PASSWORD=Riverplate1!"
 start_service "settlement-application" "settlement-service/settlement-application"
+start_service "catalog-application"   "product-catalog-service/catalog-application"
+start_service "order-application"     "order-service/order-application"
 
 echo ""
 echo "============================================================"

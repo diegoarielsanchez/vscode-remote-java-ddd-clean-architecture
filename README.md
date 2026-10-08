@@ -64,6 +64,11 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 │   (:8086)      │  │  (:8087)    │  │   (:8088)      │  │   (:8089)           │
 │  PostgreSQL    │  │  PostgreSQL │  │  SQL Server    │  │  MySQL              │
 └────────────────┘  └─────────────┘  └────────────────┘  └─────────────────────┘
+          ┌──────────────────────┐   stock saga    ┌──────────────────────┐
+          │  Product Catalog     │◀─ order.events ─│    Order Service     │
+          │  Service (:8091)     │                 │    (:8092)           │
+          │  PostgreSQL          │─ catalog.events▶│    PostgreSQL        │
+          └──────────────────────┘   (RabbitMQ)    └──────────────────────┘
                         ┌─────────────────────────┐
                         │  Identity Service(:8090) │
                         │  JWT issuance · BCrypt   │
@@ -131,6 +136,14 @@ docker --version # Docker 24.x
 │   ├── settlement-application/ # Spring Boot app, controllers, security
 │   ├── settlement-domain/      # Entities, use-cases, interfaces
 │   └── settlement-infra/       # JPA repos, HTTP clients
+├── product-catalog-service/
+│   ├── catalog-application/    # Spring Boot app, ProductController, security
+│   ├── catalog-domain/         # Product, StockReservation (saga), use-cases
+│   └── catalog-infra/          # JPA repos, outbox, order.events consumer
+├── order-service/
+│   ├── order-application/      # Spring Boot app, OrderController, security
+│   ├── order-domain/           # Order (approval workflow), use-cases
+│   └── order-infra/            # JPA repos, outbox, catalog.events consumer
 ├── mobile-android/             # Kotlin/Compose MVVM client (see mobile-android/README.md)
 ├── pwa/                        # React PWA, MVVM + OWASP hardening (see pwa/README.md)
 ├── docker-compose.yml          # Full stack (prod profile)
@@ -171,6 +184,12 @@ cp .env.example .env
 | `SETTLEMENT_DB_URL` | Settlement service | MySQL JDBC URL for `settlementdb` |
 | `SETTLEMENT_DB_USERNAME` | Settlement service | DB username |
 | `SETTLEMENT_DB_PASSWORD` | Settlement service | DB password |
+| `CATALOG_DB_URL` | Product Catalog service | PostgreSQL JDBC URL for `productcatalog_db` |
+| `CATALOG_PG_USERNAME` | Product Catalog service | DB username |
+| `CATALOG_PG_PASSWORD` | Product Catalog service | DB password |
+| `ORDER_DB_URL` | Order service | PostgreSQL JDBC URL for `order_db` |
+| `ORDER_PG_USERNAME` | Order service | DB username |
+| `ORDER_PG_PASSWORD` | Order service | DB password |
 | `RABBITMQ_HOST` | All services | RabbitMQ hostname |
 | `RABBITMQ_USERNAME` | All services | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | All services | RabbitMQ password |
@@ -191,6 +210,8 @@ The `application.properties` files ship with working dev defaults so services st
 | HCP | PostgreSQL `localhost:5433/healthcare_db` | `root` / `river` |
 | Visit | SQL Server `localhost:1433/visitdb` | `sa` / (set via `DB_PASSWORD` env var, e.g. `Riverplate1!`) |
 | Settlement | MySQL `localhost:3306/settlementdb` | `root` / (your MySQL root password) |
+| Product Catalog | PostgreSQL `postgres-ddd-clean:5432/productcatalog_db` | `root` / `river` |
+| Order | PostgreSQL `postgres-ddd-clean:5432/order_db` | `root` / `river` |
 
 ---
 
@@ -384,7 +405,7 @@ Without `minio` in the active profiles, `LocalDiskInvoiceFileStorage` is used an
 
 If your containers are already running but the databases were never created, use the commands below. Each block is idempotent — safe to run even if the database already exists.
 
-**PostgreSQL — `healthcare_db` and `medicalsalesrep_db`**
+**PostgreSQL — `healthcare_db`, `medicalsalesrep_db`, `productcatalog_db` and `order_db`**
 
 ```bash
 # Create healthcare_db (skip if it already exists)
@@ -400,6 +421,13 @@ docker exec -it postgres-ddd-clean \
   -c "SELECT 1 FROM pg_database WHERE datname='medicalsalesrep_db'" | grep -q 1 \
   || docker exec -it postgres-ddd-clean psql -U root -d postgres \
      -c "CREATE DATABASE medicalsalesrep_db;"
+
+# Create productcatalog_db and order_db (skip any that already exist)
+for db in productcatalog_db order_db; do
+  docker exec postgres-ddd-clean psql -U root -d postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+    || docker exec postgres-ddd-clean psql -U root -d postgres -c "CREATE DATABASE $db;"
+done
 
 # Verify
 docker exec -it postgres-ddd-clean psql -U root -l
@@ -515,6 +543,26 @@ mvn -pl settlement-service/settlement-application -am spring-boot:run
 # Listens on: http://localhost:8089
 ```
 
+**Terminal 8 — Product Catalog Service**
+
+> **Preparation:** `productcatalog_db` exists (see step 1b). RabbitMQ is needed for the order stock saga, Redis is optional (the cache fails open).
+
+```bash
+mvn -pl product-catalog-service/catalog-application -am spring-boot:run
+# Ready when: "Started CatalogApplication" appears
+# Listens on: http://localhost:8091
+```
+
+**Terminal 9 — Order Service**
+
+> **Preparation:** `order_db` exists (see step 1b). Order creation also needs the MSR Service (rep check over HTTP) and, to leave `AWAITING_STOCK`, the Product Catalog Service and RabbitMQ (see [The order stock saga](#the-order-stock-saga)).
+
+```bash
+mvn -pl order-service/order-application -am spring-boot:run
+# Ready when: "Started OrderApplication" appears
+# Listens on: http://localhost:8092
+```
+
 > **Optional — activate MinIO file storage** (requires `minio-ddd-clean` container running, see step 1):
 > ```bash
 > SPRING_PROFILES_ACTIVE=dev,minio \
@@ -529,7 +577,7 @@ All commands run from the repo root.
 
 > **Shortcut — start everything with one command**
 >
-> Instead of opening seven terminals, you can use the provided shell script which handles ordering and health-checks automatically:
+> Instead of opening nine terminals, you can use the provided shell script which handles ordering and health-checks automatically:
 >
 > ```bash
 > # Make executable (first time only)
@@ -545,7 +593,7 @@ All commands run from the repo root.
 
 ### 4. Verify all services are registered
 
-Open the Eureka dashboard at `http://localhost:8761`. You should see all four microservices listed as `UP`.
+Open the Eureka dashboard at `http://localhost:8761`. You should see the gateway, the identity service and all six business services (MSR, HCP, Visit, Settlement, Product Catalog, Order) listed as `UP`.
 
 ### 5. Obtain a JWT token
 
@@ -585,7 +633,7 @@ so that `server.address=0.0.0.0` and Eureka IP auto-detection are activated.
 docker network create ddd-clean-net
 
 # Connect existing dependency containers to ddd-clean-net
-docker network connect ddd-clean-net postgres-ddd-clean   # MSR + HCP (PostgreSQL)
+docker network connect ddd-clean-net postgres-ddd-clean   # MSR, HCP, Product Catalog, Order (PostgreSQL)
 docker network connect ddd-clean-net sqlserver-ddd-clean  # Visit (SQL Server)
 docker network connect ddd-clean-net mysql-ddd-clean      # Settlement (MySQL)
 docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitmq-ddd-clean)
@@ -808,9 +856,75 @@ docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
 
 ---
 
+### 8. Product Catalog Service
+
+> **Requires:** `postgres-ddd-clean` on `ddd-clean-net` with `productcatalog_db` created, and RabbitMQ.
+
+```bash
+# Build
+./product-catalog-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  -f product-catalog-service/catalog-application/Dockerfile \
+  -t product-catalog-service:local \
+  product-catalog-service
+
+# Run
+docker run -d --name product-catalog-service --network ddd-clean-net -p 8091:8091 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/productcatalog_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=<user> \
+  -e RABBITMQ_PASSWORD=<password> \
+  -e REDIS_HOST=<redis-host> -e REDIS_PORT=6379 -e REDIS_PASSWORD=<password> \
+  product-catalog-service:local
+```
+
+---
+
+### 9. Order Service
+
+> **Requires:** `postgres-ddd-clean` on `ddd-clean-net` with `order_db` created, RabbitMQ, and the MSR and Product Catalog services registered in Eureka.
+
+```bash
+# Build
+./order-service/build.sh
+# equivalent to:
+DOCKER_BUILDKIT=1 docker build \
+  --build-context domain-commons=domain-commons \
+  -f order-service/order-application/Dockerfile \
+  -t order-service:local \
+  order-service
+
+# Run
+docker run -d --name order-service --network ddd-clean-net -p 8092:8092 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/order_db \
+  -e PG_USERNAME=root \
+  -e PG_PASSWORD=river \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=<user> \
+  -e RABBITMQ_PASSWORD=<password> \
+  -e REDIS_HOST=<redis-host> -e REDIS_PORT=6379 -e REDIS_PASSWORD=<password> \
+  order-service:local
+```
+
+> The prod profile runs with `ddl-auto=validate`: apply each service's `*-infra/src/main/resources/db/outbox-postgresql.sql` first (see [Upgrading an existing environment](#upgrading-an-existing-environment)), or add `-e SPRING_JPA_HIBERNATE_DDL_AUTO=update` on the first run as for Visit and Settlement.
+>
+> Like visit-service, order-service reaches the MSR Service through Eureka (`@LoadBalanced` `RestTemplate`, service id `medical-sales-rep-service`). It never calls product-catalog-service directly: stock goes through the broker.
+
+---
+
 ### Start-up order
 
-Always start in this order: **Eureka → API Gateway → Identity → MSR → HCP → Visit → Settlement**
+Always start in this order: **Eureka → API Gateway → Identity → MSR → HCP → Visit → Settlement → Product Catalog → Order**
 
 ### Check logs
 
@@ -870,6 +984,9 @@ This starts:
 | `healthcare-prof-service` | none | `prod` |
 | `visit-service` | none | `prod` |
 | `settlement-service` | none | `prod` |
+| `product-catalog-service` (2 replicas) | none | `prod` |
+| `order-service` (2 replicas) | none | `prod` |
+| `redis` | none | internal cache for Visit, Order and Product Catalog |
 | `pwa` | `8082` (http://localhost:8082) | nginx, proxies `/api` + `/auth` to the gateway |
 
 > In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
@@ -955,6 +1072,8 @@ docker compose up -d --build settlement-service
 | Healthcare Prof | 8087 | `healthcare-prof-service/hcp-application` | PostgreSQL `healthcare_db` |
 | Visit | 8088 | `visit-service/visit-application` | SQL Server `visitdb` |
 | Settlement | 8089 | `settlement-service/settlement-application` | MySQL `settlementdb` |
+| Product Catalog | 8091 | `product-catalog-service/catalog-application` | PostgreSQL `productcatalog_db` |
+| Order | 8092 | `order-service/order-application` | PostgreSQL `order_db` |
 | RabbitMQ | 5672 / 15672 | external (user-managed) | — |
 | MedRep PWA | 5174 (`npm run dev`) / 8082 (compose) | `pwa` | — |
 | Android app | — (emulator → gateway `10.0.2.2:8080`) | `mobile-android` | — |
@@ -1050,6 +1169,54 @@ Authorization: Bearer <token>
 
 ---
 
+### Product Catalog Service — `/api/v1/products`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`). New products are **inactive** |
+| `PUT` | `/api/v1/products/update` | Update name, description, price or unit (never stock) |
+| `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) |
+| `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product |
+| `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis) |
+| `POST` | `/api/v1/products/list` | List products by name |
+| `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active and at least `n` in stock? (internal, unauthenticated) |
+| `POST` | `/api/v1/products/{id}/restock` | Add stock (admin top-up) |
+| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually (ops; orders reserve through the saga) |
+| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually (ops) |
+
+---
+
+### Order Service — `/api/v1/orders`
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/orders/create` | Place an order — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
+| `GET` | `/api/v1/orders/{id}` | Get an order; poll it after creating |
+| `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
+| `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order (approver = JWT subject) |
+| `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock |
+| `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` |
+| `GET` | `/api/v1/orders/{id}/approval-status` | Is the order approved? (internal, unauthenticated) |
+
+Statuses: `AWAITING_STOCK` → `PENDING_APPROVAL` (stock reserved, priced) or `STOCK_REJECTED` → `APPROVED` / `REJECTED` → `DELIVERED`. An order has 1–20 lines; prices come from the catalog when the stock is reserved.
+
+```bash
+# Place an order (the rep must exist and be active; products must be active)
+curl -si -X POST http://localhost:8080/api/v1/orders/create \
+  -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"medicalSalesRepId":"<msr uuid>","lines":[{"productId":"<product uuid>","quantity":4}]}'
+# HTTP/1.1 202
+# Location: /api/v1/orders/<order uuid>
+# {"id":"<order uuid>","status":"AWAITING_STOCK","lines":[{"productId":"…","productName":null,"quantity":4,"unitPrice":null,…}],"totalAmount":null,…}
+
+# Poll until the saga has answered (usually within ~2 s)
+curl -s http://localhost:8080/api/v1/orders/<order uuid> -H "Authorization: Bearer <token>"
+# {"status":"PENDING_APPROVAL","lines":[{"productName":"Amoxicillin 500mg","quantity":4,"unitPrice":12.50,"lineTotal":50.00}],"totalAmount":50.00,…}
+# or {"status":"STOCK_REJECTED","rejectionReason":"Insufficient stock for product <uuid>",…}
+```
+
+---
+
 ## Swagger UI
 
 Each microservice exposes an interactive Swagger UI (powered by **springdoc-openapi**) when running in `dev` mode. Use it to explore endpoints, read request/response schemas, and execute calls directly from the browser.
@@ -1065,6 +1232,8 @@ Each microservice exposes an interactive Swagger UI (powered by **springdoc-open
 | Healthcare Prof | http://localhost:8087/swagger-ui/index.html | http://localhost:8087/v3/api-docs |
 | Visit | http://localhost:8088/swagger-ui/index.html | http://localhost:8088/v3/api-docs |
 | Settlement | http://localhost:8089/swagger-ui/index.html | http://localhost:8089/v3/api-docs |
+| Product Catalog | http://localhost:8091/swagger-ui/index.html | http://localhost:8091/v3/api-docs |
+| Order | http://localhost:8092/swagger-ui/index.html | http://localhost:8092/v3/api-docs |
 
 ### How to authenticate in Swagger UI
 
