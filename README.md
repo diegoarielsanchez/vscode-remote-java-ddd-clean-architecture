@@ -25,6 +25,13 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
+- [Event-Driven Architecture (EDA)](#event-driven-architecture-eda)
+  - [How EDA maps onto DDD and clean architecture](#how-eda-maps-onto-ddd-and-clean-architecture)
+  - [EDA in each service](#eda-in-each-service)
+  - [Example: deactivating a medical sales rep](#example-deactivating-a-medical-sales-rep)
+  - [Adding EDA to another service](#adding-eda-to-another-service)
+  - [Testing EDA](#testing-eda)
+  - [Security of the messaging layer (OWASP)](#security-of-the-messaging-layer-owasp)
 - [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging)
 - [Redis — Caching Layer](#redis--caching-layer)
 - [CI with Jenkins](#ci-with-jenkins)
@@ -1159,11 +1166,183 @@ The domain layer knows nothing about disk or hashing algorithms — it only defi
 
 ---
 
+## Event-Driven Architecture (EDA)
+
+Services that own reference data (HCPs, medical sales reps) **publish integration events** when that data changes. Services that need it **keep a local snapshot** current from those events. This means a request like "create a visit plan" or "create a settlement" doesn't depend on the owning service being up at that moment. The trade-off is **eventual consistency**: a change reaches the consumers within about a second, not instantly.
+
+Topology, delivery guarantees and upgrade steps are in [RabbitMQ — Event-Driven Messaging](#rabbitmq--event-driven-messaging). This section explains how EDA is applied in each service and how to add it to another one.
+
+### How EDA maps onto DDD and clean architecture
+
+```
+ PRODUCER (e.g. healthcare-prof-service)                     CONSUMER (e.g. visit-service)
+ ┌───────────────────────────────────────────┐               ┌──────────────────────────────────────────┐
+ │ domain  Aggregate.record(DomainEvent)     │               │ infra   Listener (raw AMQP message)      │
+ │         UseCase: UnitOfWork {             │               │           │                              │
+ │           repo.save(aggregate)            │               │           ▼                              │
+ │           events → IHcpEventPublisher     │               │         Translator (anti-corruption:     │
+ │         }                                 │               │           validate envelope → Change)    │
+ │ infra   Outbox publisher ─┐ same DB       │   RabbitMQ    │           │                              │
+ │         (writes outbox)   │ transaction   │  exchange     │           ▼                              │
+ │         Outbox relay ─────┴──────────────▶│──────────────▶│         Handler @Transactional:          │
+ │         (publisher confirms)              │  <ctx>.events │           dedup (processed_event)        │
+ │ app     EventContext (trace id, actor)    │               │           version check → snapshot       │
+ └───────────────────────────────────────────┘               │           side effects via domain svc    │
+                                                             └──────────────────────────────────────────┘
+```
+
+| Layer | Responsibility | Framework-free? |
+|---|---|---|
+| **Shared kernel** (`domain-commons`) | `EventEnvelope` (the cross-context contract), `UnitOfWork` (transaction-boundary port), `AggregateRoot` (records domain events) | Yes |
+| **Domain** | Aggregates record *domain events* (`HcpDeactivatedEvent`, `MsrCreatedEvent`, …); use cases run "load → change → save → publish" inside a `UnitOfWork`; they only see the publisher **port** (`IHcpEventPublisher`, `IMsrEventPublisher`) | Yes |
+| **Application** | Wiring and request context: `RequestEventContext` adds the trace id and the JWT subject (`actor`) to events; `SchedulingConfig` runs the relay | — |
+| **Infrastructure** | Adapters: the outbox publisher and relay on the producer side; listener, translator, handler and snapshot tables on the consumer side; `SpringUnitOfWork` implements the port with a Spring transaction | — |
+
+Domain events stay private to their bounded context. Only the **integration event**, a versioned `EventEnvelope`, crosses the broker. The mapping happens in infrastructure (`HcpIntegrationEvents`, `MsrIntegrationEvents`), so the domain model can change without breaking consumers.
+
+### EDA in each service
+
+| Service | Role | Publishes | Consumes | Pattern |
+|---|---|---|---|---|
+| healthcare-prof-service | Producer | `hcp.events` | — | Transactional outbox |
+| medical-sales-rep-service | Producer | `msr.events` | — | Transactional outbox |
+| visit-service | Consumer | — | `hcp.events`, `msr.events` | Idempotent, ordered consumer → local HCP and MSR snapshots |
+| settlement-service | Consumer | — | `msr.events` | Idempotent, ordered consumer → local MSR status snapshot |
+| order-service | Producer (legacy) | `order.events` | — | Fire-and-forget; not migrated yet |
+| product-catalog-service | Producer (legacy) | `catalog.events` | — | Fire-and-forget; not migrated yet |
+| identity-service, api-gateway | — | — | — | Synchronous by design (authentication, routing) |
+
+#### healthcare-prof-service: producer (`hcp.events`)
+
+- **Events:** `hcp.created`, `hcp.updated`, `hcp.activated`, `hcp.deactivated`. Payload `data`: `name`, `surname`, `active`. The e-mail address stays in this service.
+- **Domain** (`hcp-domain`): `HealthCareProf` records the domain events. `Create/Update/Activate/DeactivateHealthCareProfUseCase` wrap their work in `unitOfWork.execute(...)` and publish through `IHcpEventPublisher`.
+- **Infrastructure** (`hcp-infra/.../outbox`):
+  - `OutboxHcpEventPublisher` is the port adapter. It writes the envelope to `outbox_event` (`@Transactional(MANDATORY)`, so it can't run outside a unit of work).
+  - `AggregateVersionEntity` hands out the per-HCP `aggregateVersion`.
+  - `HcpOutboxRelay` publishes pending rows with publisher confirms and returns. It stops at the first failure to keep per-aggregate order, and deletes published rows after `hcp.outbox.retention`.
+  - `HcpRabbitMqConfig` declares the exchange.
+- **Application:** `RequestEventContext` (trace id, actor) and `SchedulingConfig`.
+- **Profiles:** in `dev`, `NoOpHcpEventPublisher` discards events and no relay runs. Any other profile uses the outbox.
+- **Config:** `hcp.outbox.relay.{enabled,initial-delay-ms,interval-ms,batch-size,confirm-timeout-ms}`, `hcp.outbox.retention`, `spring.rabbitmq.publisher-confirm-type=correlated`, `spring.rabbitmq.publisher-returns=true`.
+- **Schema:** `hcp-infra/src/main/resources/db/outbox-postgresql.sql`.
+
+#### medical-sales-rep-service: producer (`msr.events`)
+
+The same design as HCP, class for class: `MedicalSalesRep` records events; the `*MedicalSalesRepUseCase`s run in a `UnitOfWork`; `OutboxMsrEventPublisher`, `MsrOutboxRelay`, `MsrRabbitMqConfig`, `RequestEventContext` and `SchedulingConfig` do the rest.
+
+- **Events:** `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated`. Payload `data`: `name`, `surname`, `active` (no e-mail).
+- **Config:** `msr.outbox.*`.
+- **Schema:** `msr-infra/src/main/resources/db/outbox-postgresql.sql`.
+
+#### visit-service: consumer (`hcp.events`, `msr.events`)
+
+- **Why:** creating a visit or visit plan needs "is this HCP / rep active?". Deactivating either must deactivate their future visit plans.
+- **Infrastructure** (`visit-infra/.../events`):
+  - `HcpEventListener` / `MsrEventListener` receive the **raw** message; no type headers are trusted.
+  - `HcpEventTranslator` / `MsrEventTranslator` are the anti-corruption layer. They delegate envelope validation to the shared `EnvelopeParser`: schema version, event type, UUID ids, field sizes, duplicate keys, 16 KB size limit.
+  - `HcpEventHandler` / `MsrEventHandler` run in one transaction:
+    - deduplicate by `eventId` (`processed_event`);
+    - ignore events whose `aggregateVersion` isn't newer than the snapshot's `event_version`;
+    - update `hcp_snapshot` / `msr_snapshot`;
+    - call the domain's `DeactivateVisitPlanService` on deactivation;
+    - evict the `hcpActiveStatus` / `msrActiveStatus` Redis cache entry.
+- **Topology** (`VisitRabbitMqConfig`):
+  - `visit-service.hcp.v2.queue` and `visit-service.msr.v2.queue` are quorum queues, bounded with `reject-publish`, each dead-lettered to `visit-service.*.dlq`.
+  - Transient failures are retried 3 times with backoff; invalid messages are never retried; nothing is requeued forever.
+- **Reads:** `HealthCareProfValidatorAdapter` / `MedicalSalesRepValidatorAdapter` call the owning service over HTTP and fall back to the snapshot when it's unavailable. `SnapshotBootstrapService` seeds the snapshots at startup.
+- **Config:** `visit.events.retry.max-attempts`, `visit.events.prefetch`.
+- **Schema:** `visit-infra/src/main/resources/db/inbox-sqlserver.sql`.
+
+#### settlement-service: consumer (`msr.events`)
+
+- **Why:** a settlement may only be created for an active rep. Before this change, every creation called msr-service over HTTP, so settlement creation failed whenever msr-service was down.
+- **Domain:** unchanged. `CreateSettlementUseCase` still asks the port `IMedicalSalesRepPort.existsAndIsActive(...)`. Only the adapter behind the port changed, which is the point of ports and adapters.
+- **Infrastructure:**
+  - `events/MsrEventListener` → `MsrEventTranslator` → `MsrEventHandler` (same validation, dedup and ordering as visit-service). It keeps `msr_snapshot` with **only** the rep id, active status and version.
+  - `MedicalSalesRepStatusAdapter` (`@Primary`, implements the port) answers from the snapshot. For a rep it hasn't seen yet, it asks `MedicalSalesRepHttpAdapter` once and records the answer with no version, so the next event wins. Ids msr-service doesn't know are never stored, and if neither source can answer, the result is `false` (fail closed).
+- **Topology** (`SettlementRabbitMqConfig`): `settlement-service.msr.queue` (quorum, bounded) with `settlement-service.msr.dlq`. A refused broker login is **not** fatal: the service starts, keeps reconnecting, and relies on the HTTP fallback meanwhile.
+- **Config:** `settlement.events.retry.max-attempts`, `settlement.events.prefetch`.
+- **Schema:** `settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`.
+
+#### order-service and product-catalog-service: legacy publishers
+
+`OrderAmqpEventPublisher` (`order.events`) and `ProductAmqpEventPublisher` (`catalog.events`) publish **directly** after saving and only log a broker failure, so an event can be lost. No service consumes them yet.
+
+They're the next candidates. The natural next step is a choreography saga for stock: `order.created` → catalog reserves stock → `catalog.product.stock-reserved` or a rejection → the order is approved or rejected, with `stock-released` as the compensation. Migrate each publisher to the outbox first (steps below).
+
+#### identity-service and api-gateway
+
+No events. Logging in and routing need an immediate answer, so they stay synchronous.
+
+### Example: deactivating a medical sales rep
+
+```
+1. POST /api/v1/medicalsalesrep/{id}/deactivate
+2. msr-service    DeactivateMedicalSalesRepUseCase, in one transaction:
+                    UPDATE medical_sales_reps ... ; INSERT outbox_event (msr.deactivated, v3)
+3. msr-service    MsrOutboxRelay (≤1 s later) → msr.events, broker confirms → published_at set
+4. visit-service  MsrEventListener → translator → MsrEventHandler, in one transaction:
+                    INSERT processed_event ; UPDATE msr_snapshot (active=false, v3)
+                    DeactivateVisitPlanService → future visit plans inactive ; evict msrActiveStatus
+5. settlement     MsrEventListener → translator → MsrEventHandler:
+                    INSERT processed_event ; UPDATE msr_snapshot (active=false, v3)
+6. POST /api/v1/settlement/create for that rep → 400 "not found or is not active" (answered locally)
+```
+
+If the broker is down at step 3, the event waits in `outbox_event` and is published once the broker is back. If a message reaches a consumer twice, the second copy is skipped. If an older event arrives after a newer one, it's ignored.
+
+### Adding EDA to another service
+
+**Producer** (e.g. order-service):
+
+1. **Domain:** have the aggregate `record(...)` a domain event for each state change and publish through a port (`IOrderEventPublisher`); this already exists for order and catalog. Wrap each write use case's body in `unitOfWork.execute(...)` and pass `UnitOfWork` in through the use-case factory.
+2. **Contract:** define the integration events (past tense, `<context>.<fact>`), schema version 1, and a `data` payload that carries only what consumers need. Map domain → integration in infrastructure (`OrderIntegrationEvents`).
+3. **Infrastructure:** copy the `outbox` package from `hcp-infra` or `msr-infra` and rename the types. Add `SpringUnitOfWork` and the RabbitMQ config with `template.setMandatory(true)`.
+4. **Application:**
+   - add `RequestEventContext` and `SchedulingConfig`;
+   - set `spring.rabbitmq.publisher-confirm-type=correlated` and `publisher-returns=true`;
+   - add the `<context>.outbox.*` properties.
+5. **Schema:** ship an idempotent DDL script for the prod profile (`ddl-auto=validate`).
+
+**Consumer:**
+
+1. Declare a quorum queue bound to the exchange, with a dead-letter exchange and queue, `x-max-length` and `reject-publish`. Set up a listener container factory with `setDefaultRequeueRejected(false)` and a retry policy that never retries `InvalidIntegrationEventException`.
+2. Write the **listener** (raw `Message`), the **translator** (reuse `EnvelopeParser`; read only the fields you need) and the **handler** (`@Transactional`: dedup via `processed_event`, version check, update the snapshot, call domain services for side effects).
+3. Keep the snapshot minimal (data minimization), and decide what to do for ids the snapshot hasn't seen: bootstrap, an HTTP fallback, or reject.
+4. Ship the DDL script and deploy the consumer **before** the producer, so the outbox has a queue to route to.
+
+### Testing EDA
+
+| Level | What | Where |
+|---|---|---|
+| Domain | Aggregates record the right events; use cases save and publish inside the `UnitOfWork` | `*-domain` tests |
+| Producer infra (H2) | Envelope contract, per-aggregate versions, atomic rollback, relay on ack/nack/unroutable/timeout, DDL script matches the entities | `*-infra/.../outbox/*Test` |
+| Consumer infra (H2) | Translator rules, dedup, stale versions, out-of-order arrival, fallback behaviour | `visit-infra/.../events`, `settlement-infra` |
+| Real broker | Confirms, returns, quorum/DLQ topology, retry then dead-letter | `*BrokerTest` (Testcontainers, CI) and `*ExternalBrokerTest` |
+
+The `*ExternalBrokerTest` variants run against an existing RabbitMQ, for example when developing in a container without Docker. Use a dedicated vhost:
+
+```bash
+EDA_TEST_RABBITMQ_HOST=172.17.0.1 EDA_TEST_RABBITMQ_VHOST=eda-test \
+EDA_TEST_RABBITMQ_USERNAME=<user> EDA_TEST_RABBITMQ_PASSWORD=<password> \
+./mvnw test -Dtest='*ExternalBrokerTest' -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+### Security of the messaging layer (OWASP)
+
+- **Untrusted input (A03/A08):** consumers parse raw JSON with strict validation and never let message headers choose a Java class.
+- **Data minimization (A02):** no e-mail addresses or secrets in events, and snapshots keep only what's needed. `actor` is a principal name, never a credential.
+- **No poison loops (A04):** dead-letter queues, bounded queues and no infinite requeueing. The outbox gives back-pressure instead of losing data.
+- **Least privilege (A01/A05):** use one RabbitMQ user per service with only the permissions it needs, never `guest`. Keep the management UI internal.
+- **Audit (A09):** logs carry `eventId`, type and aggregate id, never payloads. The OpenTelemetry agent propagates traces across the broker.
+
+---
+
 ## RabbitMQ — Event-Driven Messaging
 
 RabbitMQ provides an optional **asynchronous messaging layer** between microservices. It decouples the Medical Sales Rep and Healthcare Prof services from the Visit Service, allowing the Visit Service to maintain local read-model snapshots of MSR and HCP data without making synchronous HTTP calls at query time.
 
-> **Note:** Publishing is disabled in the `dev` Spring profile for the MSR service (`@Profile("!dev")` on `MsrAmqpEventPublisher`). To enable event publishing, run with a profile other than `dev` (e.g. `prod`) and have a running RabbitMQ instance.
+> **Note:** Publishing is disabled in the `dev` Spring profile for the HCP and MSR services (their outbox publishers and relays are `@Profile("!dev")`). To publish events, run with a profile other than `dev` (e.g. `prod`) and a reachable RabbitMQ with non-guest credentials.
 
 ### Message Topology
 
@@ -1171,21 +1350,22 @@ RabbitMQ provides an optional **asynchronous messaging layer** between microserv
 
 | Exchange | Type | Published by | Routing keys |
 |---|---|---|---|
-| `msr.events` | Topic | MSR Service (`msr-infra/MsrAmqpEventPublisher`) | `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated` |
+| `msr.events` | Topic | MSR Service via its **transactional outbox** (`msr-infra/outbox/MsrOutboxRelay`) | `msr.created`, `msr.updated`, `msr.activated`, `msr.deactivated` |
 | `hcp.events` | Topic | HCP Service via its **transactional outbox** (`hcp-infra/outbox/HcpOutboxRelay`) | `hcp.created`, `hcp.updated`, `hcp.activated`, `hcp.deactivated` |
 
-**Consumers** (Visit Service)
+**Consumers**
 
 | Queue | Bound exchange | Routing pattern | Consumed by | Dead-letter queue |
 |---|---|---|---|---|
-| `visit-service.msr.v2.queue` | `msr.events` | `msr.#` | `MsrSnapshotUpdater` | `visit-service.msr.dlq` |
-| `visit-service.hcp.v2.queue` | `hcp.events` | `hcp.#` | `events/HcpEventListener` → `HcpEventHandler` | `visit-service.hcp.dlq` |
+| `visit-service.msr.v2.queue` | `msr.events` | `msr.#` | Visit — `events/MsrEventListener` → `MsrEventHandler` | `visit-service.msr.dlq` |
+| `visit-service.hcp.v2.queue` | `hcp.events` | `hcp.#` | Visit — `events/HcpEventListener` → `HcpEventHandler` | `visit-service.hcp.dlq` |
+| `settlement-service.msr.queue` | `msr.events` | `msr.#` | Settlement — `events/MsrEventListener` → `MsrEventHandler` | `settlement-service.msr.dlq` |
 
-Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-publish`) and dead-lettered through the `visit-service.dlx` direct exchange.
+Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-publish`) and dead-lettered through each service's `<service>.dlx` direct exchange.
 
-### HCP events: contract and delivery guarantees
+### HCP and MSR events: contract and delivery guarantees
 
-`hcp.*` messages are **integration events** wrapped in a versioned envelope (`domain-commons/.../bus/event/EventEnvelope`):
+`hcp.*` and `msr.*` messages are **integration events** wrapped in a versioned envelope (`domain-commons/.../bus/event/EventEnvelope`):
 
 ```json
 {
@@ -1197,18 +1377,18 @@ Consumer queues are **quorum** queues, bounded (`x-max-length` 100 000, `reject-
 }
 ```
 
-- **No lost events (transactional outbox).** HCP use cases run inside a `UnitOfWork`. The aggregate row and an `outbox_event` row commit in the same database transaction. `HcpOutboxRelay` publishes pending rows every second with **publisher confirms**, and marks a row published only when the broker acked it and routed it to a queue. If the broker is down or nothing is bound to `hcp.events` yet, events wait in the outbox. Published rows are deleted after 7 days.
-- **At-least-once, applied once.** Visit Service records every `eventId` in `processed_event` in the same transaction as the snapshot update, so redeliveries are skipped.
-- **Ordered per HCP.** `aggregateVersion` increases by one per change. Events not newer than the snapshot's `event_version` are ignored; a late `created` event can still fill in a missing name.
-- **Poison messages don't loop.** Invalid messages (wrong schema version, unknown type, non-UUID ids, oversized fields, malformed JSON) go straight to `visit-service.hcp.dlq`. Processing failures are retried 3 times with backoff and then dead-lettered.
-- **Data minimization.** The e-mail address is not part of the contract; it stays inside the HCP service.
+- **No lost events (transactional outbox).** HCP and MSR write use cases run inside a `UnitOfWork`. The aggregate row and an `outbox_event` row commit in the same database transaction. Each service's relay (`HcpOutboxRelay`, `MsrOutboxRelay`) publishes pending rows every second with **publisher confirms**, and marks a row published only when the broker acked it and routed it to a queue. If the broker is down or nothing is bound to the exchange yet, events wait in the outbox. Published rows are deleted after 7 days.
+- **At-least-once, applied once.** Consumers record every `eventId` in their own `processed_event` table, in the same transaction as the snapshot update, so redeliveries are skipped.
+- **Ordered per aggregate.** `aggregateVersion` increases by one per change. Events not newer than the snapshot's `event_version` are ignored; a late `created` event can still fill in a missing name.
+- **Poison messages don't loop.** Invalid messages (wrong schema version, unknown type, non-UUID ids, oversized fields, malformed JSON) go straight to the consumer's dead-letter queue. Processing failures are retried 3 times with backoff and then dead-lettered.
+- **Data minimization.** E-mail addresses are not part of either contract; they stay inside the owning service. Settlement stores only each rep's active status.
 
-Configuration: `hcp.outbox.*` (HCP service) and `visit.events.retry.max-attempts`, `visit.events.prefetch` (Visit Service).
+Configuration: `hcp.outbox.*` / `msr.outbox.*` (producers), `visit.events.*` and `settlement.events.*` (consumers).
 
 ### What the consumers do
 
-- **`HcpEventHandler`** applies `hcp.*` events to the local `hcp_snapshot` table (idempotent and ordered, as above). On `hcp.deactivated` it deactivates the HCP's future visit plans, and it evicts the cached active status.
-- **`MsrSnapshotUpdater`** listens on `visit-service.msr.v2.queue` and upserts a local `msr_snapshot` row. `MSR_CREATED` / `MSR_UPDATED` trigger a full upsert; `MSR_ACTIVATED` / `MSR_DEACTIVATED` flip the `active` flag only. MSR events still use the legacy flat payload; moving them to the outbox and envelope is the next step.
+- **Visit Service — `HcpEventHandler` / `MsrEventHandler`** apply events to the local `hcp_snapshot` / `msr_snapshot` tables (idempotent and ordered, as above). Deactivating an HCP or a rep deactivates their future visit plans, and the cached active status is evicted.
+- **Settlement Service — `MsrEventHandler`** keeps `msr_snapshot` (rep id + active status only). `MedicalSalesRepStatusAdapter` answers the "is this rep active?" rule from it. For a rep the snapshot has never seen, it asks msr-service over HTTP once and records the answer. If neither can answer, the rule fails closed. Broker problems, including refused credentials, never stop settlement from starting.
 
 These local snapshots remove the synchronous HTTP dependency on MSR/HCP services when the Visit Service creates or queries visits.
 
@@ -1216,10 +1396,12 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
 
 1. **Database (prod profile uses `ddl-auto=validate`).** Run the idempotent scripts before deploying:
    - HCP (PostgreSQL): `healthcare-prof-service/hcp-infra/src/main/resources/db/outbox-postgresql.sql`
+   - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`
-2. **Deploy Visit Service first, then HCP Service.**
-   - Visit declares the new queues; the outbox then has somewhere to route to.
-   - Messages in the old format that arrive in the new queue are dead-lettered. They were unusable anyway: before this change, HCP events carried `HealthCareProfId@…` instead of the UUID.
+   - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
+2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
+   - The consumers declare their queues; the outboxes then have somewhere to route to.
+   - Messages in the old flat format that reach the new queues are dead-lettered. Old HCP events were unusable anyway: they carried `HealthCareProfId@…` instead of the UUID.
 3. **Delete the old queues once drained.** RabbitMQ can't change a queue's arguments in place, hence the `v2` names:
    ```bash
    rabbitmqctl delete_queue visit-service.hcp.queue
@@ -1260,7 +1442,7 @@ Redis backs a small set of read-heavy, cross-service lookups to cut down on repe
 | Cache name | Service | Backs | TTL | Eviction |
 |---|---|---|---|---|
 | `hcpActiveStatus` | Visit Service | `HealthCareProfValidatorAdapter.existsAndActive` — the HTTP call to HCP's `GET /{id}/active-status`, made on every visit/visit-plan creation | 60s | `HcpEventHandler` evicts on every applied HCP event (create/update/activate/deactivate) |
-| `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrSnapshotUpdater` evicts on every MSR RabbitMQ event |
+| `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrEventHandler` evicts on every applied MSR event |
 | `msrActiveStatus` | Order Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same HTTP call, made on every order creation | 30s (shorter — this service has no snapshot table or event listener, so TTL is the only staleness bound) | TTL only |
 | `productById` | Product Catalog Service | `SQLProductRepository.findById` | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
 

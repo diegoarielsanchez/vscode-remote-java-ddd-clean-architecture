@@ -1,11 +1,11 @@
-package com.das.infra.service.visit.events;
+package com.das.infra.service.settlement.events;
 
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * {@link AbstractHcpEventFlowBrokerTest} against an existing RabbitMQ, e.g. the local Docker one when this
+ * {@link AbstractMsrEventFlowBrokerTest} against an existing RabbitMQ, e.g. the local Docker one when this
  * environment has no Docker daemon of its own. Enabled only when {@code EDA_TEST_RABBITMQ_HOST}
  * is set; use a dedicated virtual host so test queues never mix with the real ones:
  * <pre>
@@ -14,7 +14,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * </pre>
  */
 @EnabledIfEnvironmentVariable(named = "EDA_TEST_RABBITMQ_HOST", matches = ".+")
-class HcpEventFlowExternalBrokerTest extends AbstractHcpEventFlowBrokerTest {
+class MsrEventFlowExternalBrokerTest extends AbstractMsrEventFlowBrokerTest {
 
     @DynamicPropertySource
     static void externalBroker(DynamicPropertyRegistry registry) {

@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapp
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 //@RequiredArgsConstructor
@@ -23,20 +24,31 @@ public final class CreateMedicalSalesRepUseCase implements UseCase<CreateMedical
     @Autowired
     private final MedicalSalesRepMapper mapper;
     private final IMsrEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
     private final EnsureMedicalSalesRepEmailIsUniqueService uniqueEmailService;
     
     public CreateMedicalSalesRepUseCase(IMedicalSalesRepRepository repository
         , MedicalSalesRepMapper mapper
         , IMsrEventPublisher publisher
+        , UnitOfWork unitOfWork
         ) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
         this.uniqueEmailService = new EnsureMedicalSalesRepEmailIsUniqueService(repository);
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * aggregate and its outbox entries commit (or roll back) together.
+     */
     @Override
-    public MedicalSalesRepOutputDTO execute(CreateMedicalSalesRepInputDTO inputDTO)
+    public MedicalSalesRepOutputDTO execute(CreateMedicalSalesRepInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private MedicalSalesRepOutputDTO doExecute(CreateMedicalSalesRepInputDTO inputDTO)
             throws DomainException {
 
         // Validate input

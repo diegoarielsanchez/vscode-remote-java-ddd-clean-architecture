@@ -1,12 +1,13 @@
 package com.das.infra.service.visit;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
  * Option B — local read-model snapshot of MedicalSalesRep data.
- * Populated by {@link MsrSnapshotUpdater} from AMQP events and
+ * Populated by {@link com.das.infra.service.visit.events.MsrEventHandler} from AMQP events and
  * seeded on startup by {@link SnapshotBootstrapService}.
  */
 @Entity
@@ -20,6 +21,13 @@ public class MsrSnapshotEntity {
     private String surname;
     private String email;
     private Boolean active;
+
+    /**
+     * Last applied {@code msr.*} integration-event version; null for rows written by the HTTP
+     * validator or the bootstrap (treated as 0). Events with a lower or equal version are stale.
+     */
+    @Column(name = "event_version")
+    private Long version;
 
     public MsrSnapshotEntity() {}
 
@@ -37,4 +45,6 @@ public class MsrSnapshotEntity {
 
     public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

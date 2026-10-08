@@ -11,3 +11,6 @@ IF OBJECT_ID(N'dbo.processed_event', N'U') IS NULL
 
 IF COL_LENGTH(N'dbo.hcp_snapshot', N'event_version') IS NULL
     ALTER TABLE dbo.hcp_snapshot ADD event_version BIGINT NULL;  -- last applied hcp.* aggregateVersion
+
+IF COL_LENGTH(N'dbo.msr_snapshot', N'event_version') IS NULL
+    ALTER TABLE dbo.msr_snapshot ADD event_version BIGINT NULL;  -- last applied msr.* aggregateVersion
