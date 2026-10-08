@@ -349,6 +349,10 @@ services:
       # Logical Eureka service name — resolved to an instance by the @LoadBalanced RestTemplate.
       MSR_SERVICE_BASE_URL: http://medical-sales-rep-service
       EUREKA_URL: http://${EUREKA_USER}:${EUREKA_PASSWORD}@eureka-server:8761/eureka/
+      # msr.events keeps a local MSR status snapshot (HTTP above becomes the fallback)
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq-ddd-clean}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       INVOICE_FILE_STORAGE_PATH: /var/settlement-service/invoice-files
       OTEL_SERVICE_NAME: settlement-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
