@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepIDDt
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.UpdateMedicalSalesRepInputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
 
@@ -29,13 +30,13 @@ public class MedicalSalesRepUseCaseFactory {
     private final FindMedicalSalesRepByNameUseCase findMedicalSalesRepByNameUseCase;
     
 
-    public MedicalSalesRepUseCaseFactory(IMedicalSalesRepRepository medicalSalesRepRepository, IMsrEventPublisher eventPublisher) {
+    public MedicalSalesRepUseCaseFactory(IMedicalSalesRepRepository medicalSalesRepRepository, IMsrEventPublisher eventPublisher, UnitOfWork unitOfWork) {
 
         this.medicalSalesRepRepository = medicalSalesRepRepository;
-        this.createMedicalSalesRepUseCase = new CreateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher);
-        this.updateMedicalSalesRepUseCase = new UpdateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher);
-        this.activateMedicalSalesRepUseCase = new ActivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher);
-        this.deactivateMedicalSalesRepUseCase = new DeactivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher);
+        this.createMedicalSalesRepUseCase = new CreateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher, unitOfWork);
+        this.updateMedicalSalesRepUseCase = new UpdateMedicalSalesRepUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper, eventPublisher, unitOfWork);
+        this.activateMedicalSalesRepUseCase = new ActivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher, unitOfWork);
+        this.deactivateMedicalSalesRepUseCase = new DeactivateMedicalSalesRepUseCase(this.medicalSalesRepRepository, eventPublisher, unitOfWork);
         this.getMedicalSalesRepByIdUseCase = new GetMedicalSalesRepByIdUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper);
         this.findMedicalSalesRepByNameUseCase = new FindMedicalSalesRepByNameUseCase(this.medicalSalesRepRepository, this.medicalSalesRepMapper);
 

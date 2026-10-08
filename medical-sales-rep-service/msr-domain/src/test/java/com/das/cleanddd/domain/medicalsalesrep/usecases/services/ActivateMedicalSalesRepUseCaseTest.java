@@ -3,6 +3,7 @@ package com.das.cleanddd.domain.medicalsalesrep.usecases.services;
 import com.das.cleanddd.domain.medicalsalesrep.entities.*;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepIDDto;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,7 +36,7 @@ class ActivateMedicalSalesRepUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new ActivateMedicalSalesRepUseCase(repository, publisher);
+        useCase = new ActivateMedicalSalesRepUseCase(repository, publisher, UnitOfWork.immediate());
 
         msrId = MedicalSalesRepId.random();
         MedicalSalesRepName name    = new MedicalSalesRepName("John");
@@ -42,6 +45,33 @@ class ActivateMedicalSalesRepUseCaseTest {
 
         inactiveMsr = new MedicalSalesRep(msrId, name, surname, email, new MedicalSalesRepActive(false));
         activeMsr   = new MedicalSalesRep(msrId, name, surname, email, new MedicalSalesRepActive(true));
+    }
+
+    // ── unit of work ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should load, save and publish inside one unit of work (transactional outbox)")
+    void shouldSaveAndPublishInsideTheUnitOfWork() throws DomainException {
+        List<String> calls = new ArrayList<>();
+        boolean[] inside = {false};
+        UnitOfWork recording = new UnitOfWork() {
+            @Override
+            public <T> T execute(Work<T> work) throws DomainException {
+                inside[0] = true;
+                try {
+                    return work.run();
+                } finally {
+                    inside[0] = false;
+                }
+            }
+        };
+        when(repository.findById(msrId)).thenAnswer(inv -> { calls.add("find:" + inside[0]); return Optional.of(inactiveMsr); });
+        doAnswer(inv -> { calls.add("save:" + inside[0]); return null; }).when(repository).save(any());
+        doAnswer(inv -> { calls.add("publish:" + inside[0]); return null; }).when(publisher).publish(any());
+
+        new ActivateMedicalSalesRepUseCase(repository, publisher, recording).execute(new MedicalSalesRepIDDto(msrId.value()));
+
+        assertEquals(List.of("find:true", "save:true", "publish:true"), calls);
     }
 
     // ── happy path ───────────────────────────────────────────────────────────

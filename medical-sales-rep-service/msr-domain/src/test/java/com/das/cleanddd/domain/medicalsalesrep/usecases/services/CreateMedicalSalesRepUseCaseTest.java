@@ -5,6 +5,7 @@ import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.CreateMedicalSalesRepInputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapper;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,7 @@ class CreateMedicalSalesRepUseCaseTest {
     void setUp() {
         new MedicalSalesRepFactory();
         mapper  = new MedicalSalesRepMapper();
-        useCase = new CreateMedicalSalesRepUseCase(repository, mapper, publisher);
+        useCase = new CreateMedicalSalesRepUseCase(repository, mapper, publisher, UnitOfWork.immediate());
     }
 
     // ── happy path ───────────────────────────────────────────────────────────
