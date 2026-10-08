@@ -23,8 +23,12 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Strin
      * in the current transaction — or loaded afterward via {@code findById} before a
      * flush — would keep returning the pre-reservation stock value instead of what
      * was just written.</p>
+     *
+     * <p>{@code flushAutomatically = true}: clearing discards pending changes, so they are
+     * flushed first. Without it, rows saved earlier in the same transaction (outbox events,
+     * the saga's processed-event row) would silently never be written.</p>
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional
     @Query("UPDATE ProductEntity p SET p.stock = p.stock - :qty WHERE p.id = :id AND p.stock >= :qty")
     int reserveStock(@Param("id") String id, @Param("qty") int qty);
@@ -33,7 +37,7 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Strin
      * Returns stock to the pool (release) or tops it up (restock) — same add-only
      * operation. See {@link #reserveStock} for why {@code clearAutomatically} matters.
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional
     @Query("UPDATE ProductEntity p SET p.stock = p.stock + :qty WHERE p.id = :id")
     int addStock(@Param("id") String id, @Param("qty") int qty);
