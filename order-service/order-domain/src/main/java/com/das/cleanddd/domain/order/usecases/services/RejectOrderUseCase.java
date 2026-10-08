@@ -14,10 +14,15 @@ import com.das.cleanddd.domain.order.ports.IProductStockPort;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
-/** Rejecting an order returns every line's reserved stock to product-catalog-service — the other half of the reservation lifecycle. */
+/**
+ * Rejecting an order returns every line's reserved stock to product-catalog-service — the other half
+ * of the reservation lifecycle. The rejection and its {@code order.rejected} event commit together in
+ * one {@link UnitOfWork}; the REST release calls run after that commit, never inside the transaction.
+ */
 @Service
 public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, OrderOutputDTO> {
 
@@ -27,13 +32,15 @@ public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, Or
     private final OrderMapper mapper;
     private final IOrderEventPublisher publisher;
     private final IProductStockPort productStockPort;
+    private final UnitOfWork unitOfWork;
 
     public RejectOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher,
-                               IProductStockPort productStockPort) {
+                               IProductStockPort productStockPort, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
         this.productStockPort = productStockPort;
+        this.unitOfWork = unitOfWork;
     }
 
     @Override
@@ -43,16 +50,19 @@ public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, Or
         }
         try {
             OrderId id = new OrderId(inputDTO.orderId());
-            Optional<Order> existing = repository.findById(id);
-            if (!existing.isPresent()) {
-                throw new DomainException("Order not found.");
-            }
-            Order rejected = existing.get().reject(inputDTO.rejectedBy(), inputDTO.reason());
-            repository.save(rejected);
+            Order rejected = unitOfWork.execute(() -> {
+                Optional<Order> existing = repository.findById(id);
+                if (!existing.isPresent()) {
+                    throw new DomainException("Order not found.");
+                }
+                Order changed = existing.get().reject(inputDTO.rejectedBy(), inputDTO.reason());
+                repository.save(changed);
+                changed.pullDomainEvents().forEach(publisher::publish);
+                return changed;
+            });
             for (OrderLine line : rejected.lines()) {
                 productStockPort.release(line.productId().value(), line.quantity().value());
             }
-            rejected.pullDomainEvents().forEach(publisher::publish);
             return mapper.outputFromEntity(rejected);
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());

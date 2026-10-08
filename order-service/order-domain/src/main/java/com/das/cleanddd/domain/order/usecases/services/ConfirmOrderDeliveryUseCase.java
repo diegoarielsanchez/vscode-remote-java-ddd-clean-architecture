@@ -14,6 +14,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
@@ -29,15 +30,25 @@ public final class ConfirmOrderDeliveryUseCase implements UseCase<OrderIDDto, Or
     @Autowired
     private final OrderMapper mapper;
     private final IOrderEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public ConfirmOrderDeliveryUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher) {
+    public ConfirmOrderDeliveryUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public OrderOutputDTO execute(OrderIDDto inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private OrderOutputDTO doExecute(OrderIDDto inputDTO) throws DomainException {
         if (inputDTO.orderId() == null) {
             throw new DomainException("Order Id is required.");
         }
