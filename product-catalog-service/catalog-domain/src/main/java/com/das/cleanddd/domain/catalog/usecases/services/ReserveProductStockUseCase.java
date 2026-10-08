@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ReserveStockOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
@@ -26,14 +27,24 @@ public class ReserveProductStockUseCase implements UseCase<StockQuantityInputDTO
     @Autowired
     private final IProductRepository repository;
     private final IProductEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public ReserveProductStockUseCase(IProductRepository repository, IProductEventPublisher publisher) {
+    public ReserveProductStockUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * change and its outbox entries commit (or roll back) together.
+     */
     @Override
     public ReserveStockOutputDTO execute(StockQuantityInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> doExecute(inputDTO));
+    }
+
+    private ReserveStockOutputDTO doExecute(StockQuantityInputDTO inputDTO) throws DomainException {
         if (inputDTO.productId() == null) {
             throw new DomainException("Product Id is required.");
         }

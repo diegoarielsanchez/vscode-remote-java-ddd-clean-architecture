@@ -8,6 +8,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,7 @@ class CreateProductUseCaseTest {
     @BeforeEach
     void setUp() {
         mapper = new ProductMapper();
-        useCase = new CreateProductUseCase(repository, mapper, publisher);
+        useCase = new CreateProductUseCase(repository, mapper, publisher, UnitOfWork.immediate());
     }
 
     @Nested

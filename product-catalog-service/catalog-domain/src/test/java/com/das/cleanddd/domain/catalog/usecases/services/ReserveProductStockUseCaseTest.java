@@ -16,6 +16,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ReserveStockOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +43,7 @@ class ReserveProductStockUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new ReserveProductStockUseCase(repository, publisher);
+        useCase = new ReserveProductStockUseCase(repository, publisher, UnitOfWork.immediate());
         productId = ProductId.random();
     }
 
