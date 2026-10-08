@@ -3,6 +3,7 @@ package com.das.cleanddd.domain.healthcareprof.usecases.services;
 import com.das.cleanddd.domain.healthcareprof.entities.*;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +36,7 @@ class ActivateHealthCareProfUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new ActivateHealthCareProfUseCase(repository, publisher);
+        useCase = new ActivateHealthCareProfUseCase(repository, publisher, UnitOfWork.immediate());
 
         hcpId = HealthCareProfId.random();
         List<Specialty> specialties = List.of(new Specialty("CARD", "Cardiology"));
@@ -54,6 +56,33 @@ class ActivateHealthCareProfUseCaseTest {
                 new HealthCareProfEmail("john@hospital.com"),
                 new HealthCareProfActive(true),
                 specialties);
+    }
+
+    // ── unit of work ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should load, save and publish inside one unit of work (transactional outbox)")
+    void shouldSaveAndPublishInsideTheUnitOfWork() throws DomainException {
+        List<String> calls = new ArrayList<>();
+        boolean[] inside = {false};
+        UnitOfWork recording = new UnitOfWork() {
+            @Override
+            public <T> T execute(Work<T> work) throws DomainException {
+                inside[0] = true;
+                try {
+                    return work.run();
+                } finally {
+                    inside[0] = false;
+                }
+            }
+        };
+        when(repository.findById(hcpId)).thenAnswer(inv -> { calls.add("find:" + inside[0]); return Optional.of(inactiveHcp); });
+        doAnswer(inv -> { calls.add("save:" + inside[0]); return null; }).when(repository).save(any());
+        doAnswer(inv -> { calls.add("publish:" + inside[0]); return null; }).when(publisher).publish(any());
+
+        new ActivateHealthCareProfUseCase(repository, publisher, recording).execute(new HealthCareProfIDDto(hcpId.value()));
+
+        assertEquals(List.of("find:true", "save:true", "publish:true"), calls);
     }
 
     // ── happy path ───────────────────────────────────────────────────────────

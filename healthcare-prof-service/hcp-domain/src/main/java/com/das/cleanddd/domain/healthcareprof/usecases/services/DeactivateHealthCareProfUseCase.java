@@ -10,20 +10,31 @@ import com.das.cleanddd.domain.healthcareprof.entities.IHealthCareProfRepository
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfIDDto;
 import com.das.cleanddd.domain.shared.UseCaseOnlyInput;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 public class DeactivateHealthCareProfUseCase implements UseCaseOnlyInput<HealthCareProfIDDto> {
    @Autowired
     private final IHealthCareProfRepository repository;
     private final IHcpEventPublisher publisher;
+    private final UnitOfWork unitOfWork;
 
-    public DeactivateHealthCareProfUseCase(IHealthCareProfRepository repository, IHcpEventPublisher publisher) {
+    public DeactivateHealthCareProfUseCase(IHealthCareProfRepository repository, IHcpEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
         this.publisher = publisher;
+        this.unitOfWork = unitOfWork;
     }
 
+    /**
+     * Loading, changing, saving and recording the events happen in one unit of work, so the
+     * aggregate and its outbox entries commit (or roll back) together.
+     */
     @Override
     public void execute(HealthCareProfIDDto inputDTO) throws DomainException {
+        unitOfWork.run(() -> doExecute(inputDTO));
+    }
+
+    private void doExecute(HealthCareProfIDDto inputDTO) throws DomainException {
         
         if(inputDTO.id()==null) {
             throw new DomainException("Health Care Professional Id is required.");

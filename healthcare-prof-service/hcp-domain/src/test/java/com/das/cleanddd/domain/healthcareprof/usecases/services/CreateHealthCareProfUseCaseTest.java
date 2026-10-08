@@ -5,6 +5,7 @@ import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.CreateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
+import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +36,7 @@ class CreateHealthCareProfUseCaseTest {
     void setUp() {
         new HealthCareProfFactory();
         mapper  = new HealthCareProfMapper();
-        useCase = new CreateHealthCareProfUseCase(repository, mapper, publisher);
+        useCase = new CreateHealthCareProfUseCase(repository, mapper, publisher, UnitOfWork.immediate());
     }
 
     // ── happy path ───────────────────────────────────────────────────────────
