@@ -1,15 +1,13 @@
 package com.das.cleanddd.domain.order.usecases.services;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.entities.Order;
 import com.das.cleanddd.domain.order.entities.OrderStatus;
+import com.das.cleanddd.domain.order.events.OrderCreatedEvent;
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.ports.IProductStockPort;
-import com.das.cleanddd.domain.order.ports.IProductStockPort.StockReservationResult;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
@@ -21,12 +19,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,7 +33,6 @@ class CreateOrderUseCaseTest {
     @Mock private IOrderRepository repository;
     @Mock private IOrderEventPublisher publisher;
     @Mock private IMedicalSalesRepValidator medicalSalesRepValidator;
-    @Mock private IProductStockPort productStockPort;
 
     private OrderMapper mapper;
     private CreateOrderUseCase useCase;
@@ -48,7 +44,7 @@ class CreateOrderUseCaseTest {
     @BeforeEach
     void setUp() {
         mapper = new OrderMapper();
-        useCase = new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, productStockPort, UnitOfWork.immediate());
+        useCase = new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, UnitOfWork.immediate());
     }
 
     @Nested
@@ -56,22 +52,23 @@ class CreateOrderUseCaseTest {
     class HappyPath {
 
         @Test
-        @DisplayName("should reserve stock, create the order PENDING_APPROVAL, and publish events")
+        @DisplayName("should save the order AWAITING_STOCK, unpriced, and publish only order.created with the lines")
         void shouldCreateOrder() throws DomainException {
             when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
-            when(productStockPort.reserve(eq(productA), eq(5)))
-                    .thenReturn(new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg"));
 
-            CreateOrderInputDTO input = new CreateOrderInputDTO(msrId, List.of(new OrderLineInputDTO(productA, 5)));
-            OrderOutputDTO output = useCase.execute(input);
+            OrderOutputDTO output = useCase.execute(new CreateOrderInputDTO(msrId,
+                    List.of(new OrderLineInputDTO(productA, 5), new OrderLineInputDTO(productB, 2))));
 
-            assertEquals(OrderStatus.PENDING_APPROVAL.name(), output.status());
-            assertEquals(1, output.lines().size());
-            assertEquals(0, new BigDecimal("62.50").compareTo(output.totalAmount()));
-
-            verify(repository, times(1)).save(any(Order.class));
-            verify(publisher, atLeastOnce()).publish(any());
-            verify(productStockPort, never()).release(any(), anyInt());
+            assertEquals(OrderStatus.AWAITING_STOCK.name(), output.status());
+            assertNull(output.totalAmount());
+            assertEquals(2, output.lines().size());
+            assertNull(output.lines().get(0).unitPrice());
+            verify(repository).save(any(Order.class));
+            ArgumentCaptor<OrderCreatedEvent> event = ArgumentCaptor.forClass(OrderCreatedEvent.class);
+            verify(publisher).publish(event.capture());
+            assertEquals(output.id(), event.getValue().id());
+            assertEquals(List.of(new OrderCreatedEvent.Line(productA, 5), new OrderCreatedEvent.Line(productB, 2)),
+                    event.getValue().lines());
         }
     }
 
@@ -80,7 +77,7 @@ class CreateOrderUseCaseTest {
     class UnitOfWorkBoundary {
 
         @Test
-        @DisplayName("should save and publish inside the unit of work, but reserve stock outside it")
+        @DisplayName("should save and publish inside the unit of work")
         void shouldSaveAndPublishInsideTheUnitOfWork() throws DomainException {
             java.util.List<String> calls = new java.util.ArrayList<>();
             boolean[] inside = {false};
@@ -96,79 +93,48 @@ class CreateOrderUseCaseTest {
                 }
             };
             when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
-            when(productStockPort.reserve(eq(productA), eq(5))).thenAnswer(inv -> {
-                calls.add("reserve:" + inside[0]);
-                return new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg");
-            });
             doAnswer(inv -> { calls.add("save:" + inside[0]); return null; }).when(repository).save(any());
             doAnswer(inv -> { calls.add("publish:" + inside[0]); return null; }).when(publisher).publish(any());
 
-            new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, productStockPort, recording)
+            new CreateOrderUseCase(repository, mapper, publisher, medicalSalesRepValidator, recording)
                     .execute(new CreateOrderInputDTO(msrId, List.of(new OrderLineInputDTO(productA, 5))));
 
-            assertEquals("reserve:false", calls.get(0), "no transaction is held open across the REST reservation");
-            assertEquals("save:true", calls.get(1));
-            assertTrue(calls.subList(2, calls.size()).stream().allMatch("publish:true"::equals));
-        }
-
-        @Test
-        @DisplayName("should release every reservation when saving the order fails")
-        void shouldReleaseReservationsWhenSaveFails() {
-            when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
-            when(productStockPort.reserve(eq(productA), eq(5)))
-                    .thenReturn(new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg"));
-            when(productStockPort.reserve(eq(productB), eq(2)))
-                    .thenReturn(new StockReservationResult(true, 8, new BigDecimal("3.00"), "Ibuprofen 400mg"));
-            doThrow(new IllegalStateException("database unavailable")).when(repository).save(any());
-
-            CreateOrderInputDTO input = new CreateOrderInputDTO(msrId,
-                    List.of(new OrderLineInputDTO(productA, 5), new OrderLineInputDTO(productB, 2)));
-
-            assertThrows(IllegalStateException.class, () -> useCase.execute(input));
-            verify(productStockPort).release(productA, 5);
-            verify(productStockPort).release(productB, 2);
-            verify(publisher, never()).publish(any());
+            assertEquals(List.of("save:true", "publish:true"), calls);
         }
     }
 
     @Nested
-    @DisplayName("MSR validation")
-    class MsrValidation {
+    @DisplayName("Validation")
+    class Validation {
 
         @Test
-        @DisplayName("should throw and never call product-catalog when the MSR is not active")
+        @DisplayName("should throw and save nothing when the MSR is not active")
         void shouldThrowWhenMsrNotActive() {
             when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(false);
 
             CreateOrderInputDTO input = new CreateOrderInputDTO(msrId, List.of(new OrderLineInputDTO(productA, 5)));
 
             assertThrows(DomainException.class, () -> useCase.execute(input));
-            verifyNoInteractions(productStockPort);
             verify(repository, never()).save(any());
+            verifyNoInteractions(publisher);
         }
-    }
-
-    @Nested
-    @DisplayName("Compensation on partial failure")
-    class Compensation {
 
         @Test
-        @DisplayName("should release every already-reserved line when a later line fails, and never create the order")
-        void shouldCompensateOnPartialFailure() throws DomainException {
+        @DisplayName("should refuse a non-positive quantity")
+        void shouldRefuseZeroQuantity() {
             when(medicalSalesRepValidator.existsAndActive(msrId)).thenReturn(true);
-            when(productStockPort.reserve(eq(productA), eq(5)))
-                    .thenReturn(new StockReservationResult(true, 95, new BigDecimal("12.50"), "Amoxicillin 500mg"));
-            when(productStockPort.reserve(eq(productB), eq(3)))
-                    .thenReturn(new StockReservationResult(false, 0, null, null));
 
-            CreateOrderInputDTO input = new CreateOrderInputDTO(msrId,
-                    List.of(new OrderLineInputDTO(productA, 5), new OrderLineInputDTO(productB, 3)));
+            CreateOrderInputDTO input = new CreateOrderInputDTO(msrId, List.of(new OrderLineInputDTO(productA, 0)));
 
             assertThrows(DomainException.class, () -> useCase.execute(input));
-
-            verify(productStockPort, times(1)).release(eq(productA), eq(5));
             verify(repository, never()).save(any());
-            verify(publisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("should refuse an order without lines")
+        void shouldRefuseNoLines() {
+            assertThrows(DomainException.class, () -> useCase.execute(new CreateOrderInputDTO(msrId, List.of())));
+            verifyNoInteractions(medicalSalesRepValidator, repository, publisher);
         }
     }
 }

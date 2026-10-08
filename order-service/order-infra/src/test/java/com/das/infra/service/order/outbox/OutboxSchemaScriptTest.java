@@ -47,8 +47,9 @@ class OutboxSchemaScriptTest {
     void everyOutboxOperationWorksOnTheScriptedSchema() {
         OutboxOrderEventPublisher publisher = new OutboxOrderEventPublisher(outbox, versions, EventContext.NONE,
                 Clock.fixed(NOW, ZoneOffset.UTC));
-        publisher.publish(new OrderCreatedEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a", "5b1d6c2e-0f4a-4e7b-9c3d-2a8f6e1b7c90", 1, new java.math.BigDecimal("10.00")));
-        publisher.publish(new OrderSubmittedForApprovalEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a"));
+        publisher.publish(new OrderCreatedEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a", "5b1d6c2e-0f4a-4e7b-9c3d-2a8f6e1b7c90",
+                java.util.List.of(new OrderCreatedEvent.Line("0d4c8a3e-6b1f-4f27-9e5a-3c2b1a0f9e8d", 1))));
+        publisher.publish(new OrderSubmittedForApprovalEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a", new java.math.BigDecimal("10.00")));
         entityManager.flush();
         entityManager.clear();
 

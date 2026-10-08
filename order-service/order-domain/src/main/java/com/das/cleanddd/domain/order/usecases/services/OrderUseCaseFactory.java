@@ -7,14 +7,15 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.ports.IProductStockPort;
 import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderStockInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderForStockInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.UseCase;
@@ -26,6 +27,8 @@ public class OrderUseCaseFactory {
     private final OrderMapper orderMapper = new OrderMapper();
 
     private final CreateOrderUseCase createOrderUseCase;
+    private final ConfirmOrderStockUseCase confirmOrderStockUseCase;
+    private final RejectOrderForStockUseCase rejectOrderForStockUseCase;
     private final ApproveOrderUseCase approveOrderUseCase;
     private final RejectOrderUseCase rejectOrderUseCase;
     private final ConfirmOrderDeliveryUseCase confirmOrderDeliveryUseCase;
@@ -34,13 +37,14 @@ public class OrderUseCaseFactory {
     private final ListOrdersUseCase listOrdersUseCase;
 
     public OrderUseCaseFactory(IOrderRepository orderRepository, IOrderEventPublisher eventPublisher,
-                                IMedicalSalesRepValidator medicalSalesRepValidator, IProductStockPort productStockPort,
-                                UnitOfWork unitOfWork) {
+                                IMedicalSalesRepValidator medicalSalesRepValidator, UnitOfWork unitOfWork) {
         this.orderRepository = orderRepository;
         this.createOrderUseCase = new CreateOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher,
-                medicalSalesRepValidator, productStockPort, unitOfWork);
+                medicalSalesRepValidator, unitOfWork);
+        this.confirmOrderStockUseCase = new ConfirmOrderStockUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
+        this.rejectOrderForStockUseCase = new RejectOrderForStockUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
         this.approveOrderUseCase = new ApproveOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
-        this.rejectOrderUseCase = new RejectOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, productStockPort, unitOfWork);
+        this.rejectOrderUseCase = new RejectOrderUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
         this.confirmOrderDeliveryUseCase = new ConfirmOrderDeliveryUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork);
         this.getOrderByIdUseCase = new GetOrderByIdUseCase(this.orderRepository, this.orderMapper);
         this.getOrderApprovalStatusUseCase = new GetOrderApprovalStatusUseCase(this.orderRepository);
@@ -49,6 +53,12 @@ public class OrderUseCaseFactory {
 
     public UseCase<CreateOrderInputDTO, OrderOutputDTO> getCreateOrderUseCase() {
         return createOrderUseCase;
+    }
+    public UseCase<ConfirmOrderStockInputDTO, OrderOutputDTO> getConfirmOrderStockUseCase() {
+        return confirmOrderStockUseCase;
+    }
+    public UseCase<RejectOrderForStockInputDTO, OrderOutputDTO> getRejectOrderForStockUseCase() {
+        return rejectOrderForStockUseCase;
     }
     public UseCase<ApproveOrderInputDTO, OrderOutputDTO> getApproveOrderUseCase() {
         return approveOrderUseCase;

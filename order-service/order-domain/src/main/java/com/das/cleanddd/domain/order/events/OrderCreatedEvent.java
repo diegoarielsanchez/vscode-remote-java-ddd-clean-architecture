@@ -1,10 +1,20 @@
 package com.das.cleanddd.domain.order.events;
 
-import java.math.BigDecimal;
+import java.util.List;
 
+/**
+ * Starts the stock saga: product-catalog-service reserves every line (all or nothing) and answers
+ * with a confirmed or rejected reservation. Lines carry no price — the catalog sets it.
+ */
 public record OrderCreatedEvent(
         String id,
         String medicalSalesRepId,
-        int lineCount,
-        BigDecimal totalAmount) implements OrderDomainEvent {
+        List<Line> lines) implements OrderDomainEvent {
+
+    public OrderCreatedEvent {
+        lines = List.copyOf(lines);
+    }
+
+    public record Line(String productId, int quantity) {
+    }
 }

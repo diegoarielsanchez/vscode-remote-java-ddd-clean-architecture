@@ -22,6 +22,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.das.cleanddd.domain.catalog.reservation.ports.IStockReservationEventPublisher;
+import com.das.infra.service.catalog.events.OrderEventListener;
+import com.das.infra.service.catalog.outbox.OutboxStockReservationEventPublisher;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.infra.service.catalog.ProductJpaRepository;
@@ -53,6 +56,7 @@ import io.jsonwebtoken.Jwts;
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
         "catalog.outbox.relay.initial-delay-ms=3600000",
+        "catalog.events.listener.auto-startup=false",
         "jwt.secret=" + OutboxWiringTest.JWT_SECRET
 })
 class OutboxWiringTest {
@@ -63,6 +67,8 @@ class OutboxWiringTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private IProductEventPublisher publisher;
     @Autowired private ProductOutboxRelay relay;
+    @Autowired private IStockReservationEventPublisher reservationPublisher;
+    @Autowired private OrderEventListener orderEventListener;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private ProductJpaRepository rows;
 
@@ -86,6 +92,9 @@ class OutboxWiringTest {
     @Test
     void usesTheOutboxPublisherAndRelayOutsideDev() {
         assertInstanceOf(OutboxProductEventPublisher.class, AopTestUtils.getUltimateTargetObject(publisher));
+        // The stock saga: answers go through the same outbox, order events are consumed.
+        assertInstanceOf(OutboxStockReservationEventPublisher.class, AopTestUtils.getUltimateTargetObject(reservationPublisher));
+        assertNotNull(orderEventListener);
         assertNotNull(relay);
     }
 

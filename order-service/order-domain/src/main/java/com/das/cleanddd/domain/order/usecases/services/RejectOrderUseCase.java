@@ -8,9 +8,7 @@ import org.springframework.stereotype.Service;
 import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.entities.Order;
 import com.das.cleanddd.domain.order.entities.OrderId;
-import com.das.cleanddd.domain.order.entities.OrderLine;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.ports.IProductStockPort;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
@@ -19,9 +17,9 @@ import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
- * Rejecting an order returns every line's reserved stock to product-catalog-service — the other half
- * of the reservation lifecycle. The rejection and its {@code order.rejected} event commit together in
- * one {@link UnitOfWork}; the REST release calls run after that commit, never inside the transaction.
+ * The rejection and its {@code order.rejected} event commit together in one {@link UnitOfWork}.
+ * product-catalog-service consumes that event and releases the order's reserved stock — the
+ * compensating step of the stock saga.
  */
 @Service
 public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, OrderOutputDTO> {
@@ -31,15 +29,13 @@ public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, Or
     @Autowired
     private final OrderMapper mapper;
     private final IOrderEventPublisher publisher;
-    private final IProductStockPort productStockPort;
     private final UnitOfWork unitOfWork;
 
     public RejectOrderUseCase(IOrderRepository repository, OrderMapper mapper, IOrderEventPublisher publisher,
-                               IProductStockPort productStockPort, UnitOfWork unitOfWork) {
+                               UnitOfWork unitOfWork) {
         this.repository = repository;
         this.mapper = mapper;
         this.publisher = publisher;
-        this.productStockPort = productStockPort;
         this.unitOfWork = unitOfWork;
     }
 
@@ -60,9 +56,6 @@ public final class RejectOrderUseCase implements UseCase<RejectOrderInputDTO, Or
                 changed.pullDomainEvents().forEach(publisher::publish);
                 return changed;
             });
-            for (OrderLine line : rejected.lines()) {
-                productStockPort.release(line.productId().value(), line.quantity().value());
-            }
             return mapper.outputFromEntity(rejected);
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());

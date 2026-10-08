@@ -23,6 +23,7 @@ import com.das.cleanddd.domain.order.entities.OrderLine;
 import com.das.cleanddd.domain.order.entities.OrderLineQuantity;
 import com.das.cleanddd.domain.order.entities.OrderLineUnitPrice;
 import com.das.cleanddd.domain.order.entities.ProductId;
+import com.das.cleanddd.domain.order.entities.ReservedLinePrice;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -58,9 +59,11 @@ class UnitOfWorkAtomicityTest {
     }
 
     private static Order newSubmittedOrder() throws Exception {
-        OrderLine line = new OrderLine(null, new ProductId(UUID.randomUUID().toString()), "Amoxicillin 500mg",
-                new OrderLineQuantity(2), new OrderLineUnitPrice(new BigDecimal("10.00")));
-        return Order.create(new MedicalSalesRepId(UUID.randomUUID().toString()), List.of(line)).submitForApproval();
+        ProductId product = new ProductId(UUID.randomUUID().toString());
+        OrderLine line = OrderLine.unpriced(product, new OrderLineQuantity(2));
+        return Order.create(new MedicalSalesRepId(UUID.randomUUID().toString()), List.of(line))
+                .confirmStock(List.of(new ReservedLinePrice(product, "Amoxicillin 500mg",
+                        new OrderLineUnitPrice(new BigDecimal("10.00")))));
     }
 
     @Test
