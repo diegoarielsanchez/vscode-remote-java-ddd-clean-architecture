@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +34,9 @@ public class SQLProductRepository implements IProductRepository {
     @Autowired
     private ProductJpaRepository jpaRepository;
 
+    @Autowired
+    private ProductSnapshotLookup snapshotLookup;
+
     @Override
     public List<Product> searchAll() {
         return jpaRepository.findAll().stream()
@@ -48,7 +50,7 @@ public class SQLProductRepository implements IProductRepository {
      * rather than waiting out {@code productById}'s TTL.
      */
     @Override
-    @CacheEvict(cacheNames = "productById", key = "#product.id().value()")
+    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#product.id().value()")
     public void save(Product product) {
         ProductEntity entity = toEntity(product);
         if (entity != null) {
@@ -82,56 +84,55 @@ public class SQLProductRepository implements IProductRepository {
     }
 
     /**
-     * Only a found product is cached — {@code unless} excludes an empty
-     * {@link Optional} so a "not found" lookup (e.g. right after creation,
-     * before the id exists) can never be memoized past the moment it becomes
-     * valid. Spring's cache abstraction unwraps {@code Optional}: {@code #result}
-     * is the {@link Product} itself, or {@code null} when the Optional is empty.
+     * Served from the {@code productById} cache when possible ({@link ProductSnapshotLookup}); the
+     * cache holds a {@link ProductSnapshot}, which is turned back into the domain aggregate here.
      */
     @Override
-    @Cacheable(cacheNames = "productById", key = "#identifier.value()", unless = "#result == null")
     public Optional<Product> findById(ProductId identifier) {
         String id = identifier.value();
         if (id == null) {
             return Optional.empty();
         }
-        return jpaRepository.findById(id)
-                .map(this::toDomain);
+        return Optional.ofNullable(snapshotLookup.find(id)).map(this::toDomain);
     }
 
     @Override
-    @CacheEvict(cacheNames = "productById", key = "#id.value()")
+    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
     public boolean tryReserveStock(ProductId id, int quantity) {
         return jpaRepository.reserveStock(id.value(), quantity) == 1;
     }
 
     @Override
-    @CacheEvict(cacheNames = "productById", key = "#id.value()")
+    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
     public void releaseStock(ProductId id, int quantity) {
         jpaRepository.addStock(id.value(), quantity);
     }
 
     @Override
-    @CacheEvict(cacheNames = "productById", key = "#id.value()")
+    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
     public void restock(ProductId id, int quantity) {
         jpaRepository.addStock(id.value(), quantity);
     }
 
     private Product toDomain(ProductEntity entity) {
+        return toDomain(ProductSnapshot.from(entity));
+    }
+
+    private Product toDomain(ProductSnapshot snapshot) {
         try {
             return new Product(
-                    new ProductId(entity.getId()),
-                    new ProductName(entity.getName()),
-                    entity.getDescription() == null ? null : new ProductDescription(entity.getDescription()),
-                    new ProductPrice(entity.getPrice()),
-                    new ProductUnit(entity.getUnit()),
-                    new ProductStock(entity.getStock()),
-                    new ProductActive(entity.getActive()));
+                    new ProductId(snapshot.id()),
+                    new ProductName(snapshot.name()),
+                    snapshot.description() == null ? null : new ProductDescription(snapshot.description()),
+                    new ProductPrice(snapshot.price()),
+                    new ProductUnit(snapshot.unit()),
+                    new ProductStock(snapshot.stock()),
+                    new ProductActive(snapshot.active()));
         } catch (BusinessValidationException e) {
             // A persisted row has already passed these invariants once; a violation here
             // means the stored data itself is corrupt, which is an infrastructure failure,
             // not a domain error the caller can recover from.
-            throw new IllegalStateException("Corrupt product record " + entity.getId() + ": " + e.getMessage(), e);
+            throw new IllegalStateException("Corrupt product record " + snapshot.id() + ": " + e.getMessage(), e);
         }
     }
 

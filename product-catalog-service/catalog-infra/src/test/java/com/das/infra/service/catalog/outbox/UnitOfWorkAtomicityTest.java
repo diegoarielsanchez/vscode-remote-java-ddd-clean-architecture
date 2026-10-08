@@ -26,6 +26,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.infra.service.catalog.ProductJpaRepository;
+import com.das.infra.service.catalog.ProductSnapshotLookup;
 import com.das.infra.service.catalog.SQLProductRepository;
 import com.das.infra.service.catalog.SpringUnitOfWork;
 
@@ -35,7 +36,7 @@ import com.das.infra.service.catalog.SpringUnitOfWork;
  */
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({SQLProductRepository.class, SpringUnitOfWork.class, OutboxProductEventPublisher.class})
+@Import({SQLProductRepository.class, ProductSnapshotLookup.class, SpringUnitOfWork.class, OutboxProductEventPublisher.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"

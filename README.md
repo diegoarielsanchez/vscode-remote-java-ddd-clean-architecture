@@ -1464,7 +1464,7 @@ Redis backs a small set of read-heavy, cross-service lookups to cut down on repe
 | `hcpActiveStatus` | Visit Service | `HealthCareProfValidatorAdapter.existsAndActive` — the HTTP call to HCP's `GET /{id}/active-status`, made on every visit/visit-plan creation | 60s | `HcpEventHandler` evicts on every applied HCP event (create/update/activate/deactivate) |
 | `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrEventHandler` evicts on every applied MSR event |
 | `msrActiveStatus` | Order Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same HTTP call, made on every order creation | 30s (shorter — this service has no snapshot table or event listener, so TTL is the only staleness bound) | TTL only |
-| `productById` | Product Catalog Service | `SQLProductRepository.findById` | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
+| `productById` | Product Catalog Service | `SQLProductRepository.findById`, through `ProductSnapshotLookup`. The cache stores a `ProductSnapshot` (an infra-layer copy of the row, not the domain aggregate) as **typed JSON**: no Java serialization and no class names, so reading it back can't instantiate arbitrary types (OWASP A08) | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
 
 **Deliberately not cached:**
 - `GET /{id}/availability` (Product Catalog) — reflects live stock quantity; caching it risks overselling.
@@ -1478,6 +1478,8 @@ Every `@Cacheable` active-status lookup uses `unless = "#result == false"`. A `f
 ### Fail-open behavior
 
 Each service that uses caching (`visit-application`, `order-application`, `catalog-application`) registers a custom `CacheErrorHandler` (in its `CacheConfig`) that logs and swallows Redis connectivity failures instead of the Spring default, which rethrows. Without this, a Redis outage would break visit/order creation and RabbitMQ message processing — paths that were already designed to tolerate the *origin service* being unavailable (visit-service's HTTP → local-snapshot fallback), but not designed to tolerate the *cache* being unavailable. With it, losing Redis just means every annotated method runs as if caching were never added.
+
+The flip side: the handler also swallows *non-connectivity* failures, such as a value that can't be serialized, so a broken cache looks exactly like a working one with a 0% hit rate. That's how `productById` once never stored anything. `SQLProductRepositoryCachingTest` therefore stores values through the production serializer, and a warning-free log with `KEYS productById::*` populated is the quick check against a real Redis.
 
 ### Running locally
 
