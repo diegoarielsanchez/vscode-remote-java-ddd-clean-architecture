@@ -2,6 +2,7 @@ package com.das.infra.service.catalog;
 
 import java.math.BigDecimal;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -17,6 +18,13 @@ public class ProductEntity {
     private String description;
     private BigDecimal price;
     private String unit;
+    /**
+     * Written on insert only. Afterwards stock changes solely through the atomic queries in
+     * {@link ProductJpaRepository} (reserve/add). A product save (activate, deactivate, edit) is
+     * built from an earlier read, so writing its stock back would undo any reservation made in
+     * between — and {@code @Version} cannot catch that, because the bulk queries don't bump it.
+     */
+    @Column(updatable = false)
     private Integer stock;
     private Boolean active;
 
