@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -78,7 +79,7 @@ class SQLProductRepositoryCachingTest {
     }
 
     private Object cached(String id) {
-        var wrapper = cacheManager.getCache(ProductSnapshot.CACHE).get(id);
+        var wrapper = Objects.requireNonNull(cacheManager.getCache(ProductSnapshot.CACHE), "product cache").get(id);
         return wrapper == null ? null : wrapper.get();
     }
 

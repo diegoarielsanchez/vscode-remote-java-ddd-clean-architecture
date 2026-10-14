@@ -1,5 +1,7 @@
 package com.das.infra.service.healthcareprof;
 
+import java.util.Objects;
+
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -18,7 +20,7 @@ public class SpringUnitOfWork implements UnitOfWork {
     private final TransactionTemplate transactionTemplate;
 
     public SpringUnitOfWork(PlatformTransactionManager transactionManager) {
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.transactionTemplate = new TransactionTemplate(Objects.requireNonNull(transactionManager));
     }
 
     @Override

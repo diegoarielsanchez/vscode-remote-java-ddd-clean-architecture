@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +57,7 @@ public class MsrOutboxRelay {
                           @Value("${msr.outbox.relay.batch-size:50}") int batchSize,
                           @Value("${msr.outbox.relay.confirm-timeout-ms:5000}") long confirmTimeoutMs,
                           @Value("${msr.outbox.retention:P7D}") Duration retention) {
-        this(outbox, msrRabbitTemplate, new TransactionTemplate(transactionManager), Clock.systemUTC(),
+        this(outbox, msrRabbitTemplate, new TransactionTemplate(Objects.requireNonNull(transactionManager)), Clock.systemUTC(),
                 batchSize, confirmTimeoutMs, retention);
     }
 
@@ -115,7 +117,8 @@ public class MsrOutboxRelay {
             rabbit.send(EXCHANGE, event.getEventType(), message, correlation);
             CorrelationData.Confirm confirm = correlation.getFuture().get(confirmTimeoutMs, TimeUnit.MILLISECONDS);
             if (!confirm.isAck()) return "nack: " + confirm.getReason();
-            if (correlation.getReturned() != null) return "unroutable: " + correlation.getReturned().getReplyText();
+            ReturnedMessage returned = correlation.getReturned(); // read once: a second call isn't guaranteed equal
+            if (returned != null) return "unroutable: " + returned.getReplyText();
             return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
