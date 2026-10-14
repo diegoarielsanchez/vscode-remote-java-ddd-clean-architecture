@@ -335,3 +335,8 @@ ASALocalRun/
 .env
 
 target
+# Eclipse / VS Code Java (JDT LS) project metadata — generated from the Maven poms
+.classpath
+.project
+.settings/
+.factorypath
