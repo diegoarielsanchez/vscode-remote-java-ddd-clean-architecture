@@ -1,0 +1,8 @@
+# Workspace-wide Eclipse JDT compiler settings for the VS Code Java extension
+# (applied through "java.settings.url" in .vscode/settings.json).
+#
+# Null analysis stays on ("java.compile.nullAnalysis.mode": "automatic"), so potential null
+# dereferences and nulls passed to @NonNull parameters are still reported. Only the
+# "unchecked conversion" warning is off: it fires whenever unannotated code (all of ours)
+# hands a value to a @NonNull Spring/JDK API, which is noise rather than a finding.
+org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=ignore

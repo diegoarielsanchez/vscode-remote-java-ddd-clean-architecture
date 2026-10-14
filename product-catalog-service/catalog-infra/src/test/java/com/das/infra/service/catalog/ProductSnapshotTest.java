@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -18,7 +19,8 @@ class ProductSnapshotTest {
         ProductSnapshot snapshot = new ProductSnapshot("7c3e2a1b-9d8f-4e6a-b5c4-3d2e1f0a9b87", "Amoxicillin 500mg",
                 null, new BigDecimal("12.50"), "BOX", 10, true);
 
-        ProductSnapshot back = serializer.deserialize(serializer.serialize(snapshot));
+        ProductSnapshot back = Objects.requireNonNull(serializer.deserialize(serializer.serialize(snapshot)),
+                "deserialized snapshot");
 
         assertEquals(snapshot, back);
         assertEquals("12.50", back.price().toPlainString());
