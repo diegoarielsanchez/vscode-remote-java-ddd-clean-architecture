@@ -1088,7 +1088,7 @@ All endpoints are accessible via the **API Gateway** at `http://localhost:8080`.
 
 All authentication is handled by the **Identity Service**. The endpoint is exposed directly on port `8090` and proxied through the API Gateway at `http://localhost:8080/auth/login`.
 
-Dev credential: `user` / `Apatehia65$`
+Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`)
 
 | Method | Path | Description |
 |---|---|---|

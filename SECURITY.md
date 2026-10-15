@@ -59,6 +59,17 @@ This project has been hardened against the [OWASP Top 10 (2021)](https://owasp.o
 - `VisitPlanController` → `GET /api/v1/visitplan/{id}`
 - `SettlementController` → `GET /api/v1/settlement/{id}`
 
+**Finding 2 — Gateway Actuator Allowed Anonymous Route Changes:** The API Gateway exposed the `gateway` actuator endpoint with `access: unrestricted`, and its `SecurityWebFilterChain` permitted every exchange. JWT validation lives in `JwtAuthenticationFilter`, a `GlobalFilter` — which only runs on *routed* traffic, never on the gateway's own actuator endpoints. Any anonymous caller could therefore `POST /actuator/gateway/routes/{id}` to add a route (verified: `201 Created`), e.g. a `/auth/**` route that skips JWT checks, or one pointing at an internal host (SSRF). `/actuator/metrics` and the route table were also public.
+
+**Fix:**
+- Actuator exposure narrowed to `health,info` (metrics already leave via OTLP to the collector).
+- `SecurityConfig` now denies `/actuator/**` beyond health/info, so exposing another endpoint later cannot silently reopen it:
+```java
+.pathMatchers("/actuator/health", "/actuator/info").permitAll()
+.pathMatchers("/actuator/**").denyAll()
+```
+- `GatewayApplicationTest` asserts anonymous route creation, the route table and metrics all return `4xx`.
+
 ---
 
 ### A03 — Injection
@@ -158,6 +169,22 @@ public ResponseEntity<Map<String, String>> handleMethodArgumentTypeMismatch(Meth
     return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
 }
 ```
+
+---
+
+### A07 — Identification and Authentication Failures
+
+**Finding 1 — Hardcoded Credential Seeded in Every Profile (CWE-798):** `InMemoryUserRepository` always seeded `user` / `Apatehia65$`, a password published in this repository, including under the `prod` profile. Anyone could obtain a valid token.
+
+**Fix:** The seed user now comes from configuration, and the password is supplied as a BCrypt hash, never plain text:
+- `identity.seed-user.username` / `identity.seed-user.password-hash` (env: `IDENTITY_SEED_USERNAME`, `IDENTITY_SEED_PASSWORD_HASH`).
+- `application.properties` keeps the dev credential as a default, so local scripts keep working.
+- `application-prod.properties` has no fallback: production refuses to start until its own user is provided.
+- Startup also fails if the configured value is not a BCrypt hash, so a plain-text password can't be dropped in by mistake.
+
+**Finding 2 — Timing-Based Username Enumeration (CWE-208):** To keep response times equal, `LoginUseCaseImpl` compared the submitted password against a dummy hash when the username did not exist. But the dummy was not valid BCrypt (64 characters of padding). Spring's `BCryptPasswordEncoder` rejects a malformed hash immediately, without hashing, so unknown usernames got answers about 250 ms faster than real ones — the exact signal the dummy was meant to hide.
+
+**Fix:** The dummy is now a real cost-12 BCrypt hash of a random, discarded value. The unit test now checks the full BCrypt format instead of just the `$2a$` prefix that let the bug through.
 
 ---
 

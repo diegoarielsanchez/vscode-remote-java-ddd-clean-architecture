@@ -197,9 +197,11 @@ class LoginUseCaseImplTest {
 
             ArgumentCaptor<String> hashCaptor = ArgumentCaptor.forClass(String.class);
             verify(passwordEncoder, times(1)).matches(any(), hashCaptor.capture());
-            assertTrue(hashCaptor.getValue().startsWith("$2a$"),
-                    "a BCrypt-shaped dummy hash must be compared so the response time does not "
-                            + "reveal whether the username exists");
+            // Same pattern Spring's BCryptPasswordEncoder checks: anything else is rejected
+            // instantly without hashing, which reopens the timing side channel.
+            assertTrue(hashCaptor.getValue().matches("\\$2a\\$12\\$[./0-9A-Za-z]{53}"),
+                    "a valid cost-12 BCrypt dummy hash must be compared so the response time does "
+                            + "not reveal whether the username exists");
         }
     }
 }

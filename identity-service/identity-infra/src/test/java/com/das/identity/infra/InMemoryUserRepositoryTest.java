@@ -3,7 +3,6 @@ package com.das.identity.infra;
 import com.das.identity.domain.entities.User;
 import com.das.identity.domain.entities.UserId;
 import com.das.identity.domain.entities.UserRole;
-import com.das.identity.domain.ports.PasswordEncoderPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,28 +15,21 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("InMemoryUserRepository")
 class InMemoryUserRepositoryTest {
 
-    /** Cheap stand-in so the structural tests do not pay the BCrypt cost-12 price. */
-    private static final class FakeEncoder implements PasswordEncoderPort {
-        @Override public String encode(CharSequence rawPassword) {
-            return "hashed:" + rawPassword;
-        }
-        @Override public boolean matches(CharSequence rawPassword, String encodedPassword) {
-            return encodedPassword.equals("hashed:" + rawPassword);
-        }
-    }
+    /** BCrypt (cost 12) of the dev password — the same default application.properties ships. */
+    private static final String SEED_HASH = "$2a$12$oxidnedWihAzJbsAXyZH5OX3caBTkilYZ5Zn0pqpUt.Fv/CiYUH26";
 
     private InMemoryUserRepository repository;
 
     @BeforeEach
     void setUp() {
-        repository = new InMemoryUserRepository(new FakeEncoder());
+        repository = new InMemoryUserRepository("user", SEED_HASH);
     }
 
     // ── seeding ──────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("should seed the default dev user on construction")
-    void shouldSeedDevUser() {
+    @DisplayName("should seed the configured user on construction")
+    void shouldSeedConfiguredUser() {
         Optional<User> user = repository.findByUsername("user");
 
         assertTrue(user.isPresent());
@@ -45,7 +37,7 @@ class InMemoryUserRepositoryTest {
     }
 
     @Test
-    @DisplayName("the seeded dev user should be active and hold ROLE_USER")
+    @DisplayName("the seeded user should be active and hold ROLE_USER")
     void seededUserShouldBeActiveWithUserRole() {
         User user = repository.findByUsername("user").orElseThrow();
 
@@ -54,27 +46,27 @@ class InMemoryUserRepositoryTest {
     }
 
     @Test
-    @DisplayName("should route the seeded password through the injected encoder, not store it raw")
-    void shouldSeedHashedPassword() {
+    @DisplayName("should store the configured hash as-is, so it verifies with real BCrypt")
+    void shouldStoreConfiguredHash() {
         User user = repository.findByUsername("user").orElseThrow();
 
-        assertNotEquals("Apatehia65$", user.getPasswordHash());
-        assertEquals(new FakeEncoder().encode("Apatehia65$"), user.getPasswordHash(),
-                "the seed must be encoded by the injected port, never assigned directly");
+        assertEquals(SEED_HASH, user.getPasswordHash());
+        assertTrue(new BCryptPasswordEncoderAdapter().matches("Apatehia65$", user.getPasswordHash()));
     }
 
     @Test
-    @DisplayName("should hash the seeded password with real BCrypt, leaving no recoverable plain text")
-    void shouldSeedWithInjectedEncoder() {
-        BCryptPasswordEncoderAdapter realEncoder = new BCryptPasswordEncoderAdapter();
-        InMemoryUserRepository repo = new InMemoryUserRepository(realEncoder);
+    @DisplayName("should seed nobody when no username is configured")
+    void shouldSeedNobodyWithoutUsername() {
+        InMemoryUserRepository empty = new InMemoryUserRepository("", "");
 
-        User user = repo.findByUsername("user").orElseThrow();
+        assertTrue(empty.findByUsername("user").isEmpty());
+    }
 
-        assertTrue(user.getPasswordHash().startsWith("$2a$12$"));
-        assertTrue(realEncoder.matches("Apatehia65$", user.getPasswordHash()));
-        assertFalse(user.getPasswordHash().contains("Apatehia65$".substring(0, 8)),
-                "the raw password must not be recoverable from the stored hash");
+    @Test
+    @DisplayName("should refuse to start with a plain-text password instead of a BCrypt hash")
+    void shouldRejectPlainTextPassword() {
+        assertThrows(IllegalStateException.class,
+                () -> new InMemoryUserRepository("user", "Apatehia65$"));
     }
 
     // ── lookup ───────────────────────────────────────────────────────────────
