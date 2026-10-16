@@ -59,6 +59,42 @@ This project has been hardened against the [OWASP Top 10 (2021)](https://owasp.o
 - `VisitPlanController` → `GET /api/v1/visitplan/{id}`
 - `SettlementController` → `GET /api/v1/settlement/{id}`
 
+**Finding 2 — Gateway Actuator Allowed Anonymous Route Changes:** The API Gateway exposed the `gateway` actuator endpoint with `access: unrestricted`, and its `SecurityWebFilterChain` permitted every exchange. JWT validation lives in `JwtAuthenticationFilter`, a `GlobalFilter` — which only runs on *routed* traffic, never on the gateway's own actuator endpoints. Any anonymous caller could therefore `POST /actuator/gateway/routes/{id}` to add a route (verified: `201 Created`), e.g. a `/auth/**` route that skips JWT checks, or one pointing at an internal host (SSRF). `/actuator/metrics` and the route table were also public.
+
+**Fix:**
+- Actuator exposure narrowed to `health,info` (metrics already leave via OTLP to the collector).
+- `SecurityConfig` now denies `/actuator/**` beyond health/info, so exposing another endpoint later cannot silently reopen it:
+```java
+.pathMatchers("/actuator/health", "/actuator/info").permitAll()
+.pathMatchers("/actuator/**").denyAll()
+```
+- `GatewayApplicationTest` asserts anonymous route creation, the route table and metrics all return `4xx`.
+
+**Finding 3 — Any User Could Approve Orders and Change Stock:** Every service only checked `/api/** → hasRole("USER")`. Any logged-in user could approve or reject any order (including their own) and restock, reserve or release any product's stock.
+
+**Fix:** These operations belong to the AI Agent Service, so they now require a dedicated `ROLE_AGENT`:
+```java
+authz.requestMatchers(HttpMethod.POST,
+        "/api/v1/orders/*/approve", "/api/v1/orders/*/reject").hasRole("AGENT");
+// product-catalog-service: /restock, /reserve-stock, /release-stock likewise
+authz.requestMatchers("/api/**").hasRole("USER");   // must come after
+```
+- identity-service seeds the agent account (`ROLE_USER` + `ROLE_AGENT`) only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set, in every profile. With no agent configured, nobody can perform these operations: the rule fails closed.
+- The RabbitMQ stock saga is unaffected; it never used these REST endpoints.
+- `OrderControllerSecurityTest` and `ProductControllerSecurityTest` sign real JWTs and assert a `ROLE_USER` token gets `403` on every agent-only endpoint while a `ROLE_AGENT` token passes authorization.
+
+**Finding 4 — Any User Could Confirm Any Order's Delivery (CWE-639 Authorization Bypass Through User-Controlled Key):** `POST /api/v1/orders/{id}/confirm-delivery` accepted any logged-in user for any order id.
+
+**Fix:** Only the AI Agent Service, or the Medical Sales Rep the order was placed for, may confirm delivery:
+- identity-service accounts can be linked to an MSR (`identity.seed-user.medical-sales-rep-id`), and the token then carries an `msr_id` claim.
+- order-service's JWT filter exposes that claim, and the controller refuses callers who are neither `ROLE_AGENT` nor linked to an MSR (`403`).
+- `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
+- Ownership is only meaningful if it can't be chosen freely, so `POST /api/v1/orders/create` no longer trusts the body's `medicalSalesRepId`: the order is always placed for the caller's `msr_id`. Callers not linked to an MSR get `403`, and so does a body naming a different MSR.
+
+**Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
+
+**Fix:** These now require `ROLE_ADMIN` in product-catalog-service, healthcare-prof-service and medical-sales-rep-service. identity-service seeds the admin account (`ROLE_USER` + `ROLE_ADMIN`) only when `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH` are set, in every profile, so it fails closed like the agent account.
+
 ---
 
 ### A03 — Injection
@@ -158,6 +194,22 @@ public ResponseEntity<Map<String, String>> handleMethodArgumentTypeMismatch(Meth
     return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
 }
 ```
+
+---
+
+### A07 — Identification and Authentication Failures
+
+**Finding 1 — Hardcoded Credential Seeded in Every Profile (CWE-798):** `InMemoryUserRepository` always seeded `user` / `Apatehia65$`, a password published in this repository, including under the `prod` profile. Anyone could obtain a valid token.
+
+**Fix:** The seed user now comes from configuration, and the password is supplied as a BCrypt hash, never plain text:
+- `identity.seed-user.username` / `identity.seed-user.password-hash` (env: `IDENTITY_SEED_USERNAME`, `IDENTITY_SEED_PASSWORD_HASH`).
+- `application.properties` keeps the dev credential as a default, so local scripts keep working.
+- `application-prod.properties` has no fallback: production refuses to start until its own user is provided.
+- Startup also fails if the configured value is not a BCrypt hash, so a plain-text password can't be dropped in by mistake.
+
+**Finding 2 — Timing-Based Username Enumeration (CWE-208):** To keep response times equal, `LoginUseCaseImpl` compared the submitted password against a dummy hash when the username did not exist. But the dummy was not valid BCrypt (64 characters of padding). Spring's `BCryptPasswordEncoder` rejects a malformed hash immediately, without hashing, so unknown usernames got answers about 250 ms faster than real ones — the exact signal the dummy was meant to hide.
+
+**Fix:** The dummy is now a real cost-12 BCrypt hash of a random, discarded value. The unit test now checks the full BCrypt format instead of just the `$2a$` prefix that let the bug through.
 
 ---
 

@@ -40,6 +40,9 @@ public class SecurityConfig {
                 )
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // Actuator requests are served locally, so JwtAuthenticationFilter never
+                        // sees them: deny the rest here in case more endpoints get exposed later.
+                        .pathMatchers("/actuator/**").denyAll()
                         // All other paths are permitted here; JWT validation is enforced
                         // by JwtAuthenticationFilter (GlobalFilter) before routing.
                         .anyExchange().permitAll()

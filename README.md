@@ -1088,7 +1088,7 @@ All endpoints are accessible via the **API Gateway** at `http://localhost:8080`.
 
 All authentication is handled by the **Identity Service**. The endpoint is exposed directly on port `8090` and proxied through the API Gateway at `http://localhost:8080/auth/login`.
 
-Dev credential: `user` / `Apatehia65$`
+Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`). Approving/rejecting orders and changing stock need the AI Agent Service account (`ROLE_AGENT`), which exists only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set. Managing the catalog and activating/deactivating HCPs, MSRs and products need the admin account (`ROLE_ADMIN`, `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH`). Set `IDENTITY_SEED_MSR_ID` to let the regular user confirm delivery of that MSR's orders.
 
 | Method | Path | Description |
 |---|---|---|
@@ -1121,8 +1121,8 @@ Authorization: Bearer <token>
 |---|---|---|
 | `POST` | `/api/v1/medicalsalesrep/create` | Create a new medical sales rep |
 | `PUT` | `/api/v1/medicalsalesrep/update` | Update an existing rep |
-| `POST` | `/api/v1/medicalsalesrep/activate` | Activate a rep |
-| `POST` | `/api/v1/medicalsalesrep/deactivate` | Deactivate a rep |
+| `POST` | `/api/v1/medicalsalesrep/{id}/activate` | Activate a rep — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/medicalsalesrep/{id}/deactivate` | Deactivate a rep — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/medicalsalesrep/get?id=<uuid>` | Get a rep by ID |
 | `POST` | `/api/v1/medicalsalesrep/list` | List reps (with criteria filter) |
 
@@ -1134,8 +1134,8 @@ Authorization: Bearer <token>
 |---|---|---|
 | `POST` | `/api/v1/healthcareprof/create` | Create a new healthcare professional |
 | `PUT` | `/api/v1/healthcareprof/update` | Update an existing HCP |
-| `POST` | `/api/v1/healthcareprof/activate` | Activate an HCP |
-| `POST` | `/api/v1/healthcareprof/deactivate` | Deactivate an HCP |
+| `POST` | `/api/v1/healthcareprof/{id}/activate` | Activate an HCP — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/healthcareprof/{id}/deactivate` | Deactivate an HCP — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/healthcareprof/get?id=<uuid>` | Get an HCP by ID |
 | `POST` | `/api/v1/healthcareprof/list` | List HCPs (with criteria filter) |
 | `GET` | `/api/v1/healthcareprof/specialties` | List available specialties |
@@ -1173,16 +1173,16 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`). New products are **inactive** |
-| `PUT` | `/api/v1/products/update` | Update name, description, price or unit (never stock) |
-| `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) |
-| `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product |
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`). New products are **inactive** — `ROLE_ADMIN` only |
+| `PUT` | `/api/v1/products/update` | Update name, description, price or unit (never stock) — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis) |
 | `POST` | `/api/v1/products/list` | List products by name |
 | `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active and at least `n` in stock? (internal, unauthenticated) |
-| `POST` | `/api/v1/products/{id}/restock` | Add stock (admin top-up) |
-| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually (ops; orders reserve through the saga) |
-| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually (ops) |
+| `POST` | `/api/v1/products/{id}/restock` | Add stock — `ROLE_AGENT` only (AI Agent Service) |
+| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually — `ROLE_AGENT` only (orders reserve through the saga) |
+| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually — `ROLE_AGENT` only |
 
 ---
 
@@ -1190,12 +1190,12 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/orders/create` | Place an order — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
+| `POST` | `/api/v1/orders/create` | Place an order for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`) — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
 | `GET` | `/api/v1/orders/{id}` | Get an order; poll it after creating |
 | `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
-| `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order (approver = JWT subject) |
-| `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock |
-| `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` |
+| `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order — `ROLE_AGENT` only (approver = JWT subject) |
+| `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock — `ROLE_AGENT` only |
+| `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` — the AI Agent Service, or the MSR the order was placed for (token `msr_id`) |
 | `GET` | `/api/v1/orders/{id}/approval-status` | Is the order approved? (internal, unauthenticated) |
 
 Statuses: `AWAITING_STOCK` → `PENDING_APPROVAL` (stock reserved, priced) or `STOCK_REJECTED` → `APPROVED` / `REJECTED` → `DELIVERED`. An order has 1–20 lines; prices come from the catalog when the stock is reserved.

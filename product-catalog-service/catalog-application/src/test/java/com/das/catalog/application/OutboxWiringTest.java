@@ -82,7 +82,7 @@ class OutboxWiringTest {
         SecretKeySpec key = new SecretKeySpec(JWT_SECRET.getBytes(), "HmacSHA256");
         return Jwts.builder()
                 .subject(subject)
-                .claim("authorities", List.of("ROLE_USER"))
+                .claim("authorities", List.of("ROLE_USER", "ROLE_ADMIN")) // creating products is admin-only
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(key)

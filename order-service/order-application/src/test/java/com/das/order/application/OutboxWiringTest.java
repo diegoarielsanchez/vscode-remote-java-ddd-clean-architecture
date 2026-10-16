@@ -81,11 +81,12 @@ class OutboxWiringTest {
         rows.deleteAll();
     }
 
-    private static String jwtFor(String subject) {
+    private static String jwtFor(String subject, String msrId) {
         SecretKeySpec key = new SecretKeySpec(JWT_SECRET.getBytes(), "HmacSHA256");
         return Jwts.builder()
                 .subject(subject)
                 .claim("authorities", List.of("ROLE_USER"))
+                .claim("msr_id", msrId) // orders are placed for the caller's own MSR
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(key)
@@ -106,7 +107,7 @@ class OutboxWiringTest {
         var body = new CreateOrderInputDTO(msr, List.of(new OrderLineInputDTO(product, 2)));
 
         mockMvc.perform(post("/api/v1/orders/create")
-                        .header("Authorization", "Bearer " + jwtFor("rep.manager"))
+                        .header("Authorization", "Bearer " + jwtFor("rep.manager", msr))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isAccepted())

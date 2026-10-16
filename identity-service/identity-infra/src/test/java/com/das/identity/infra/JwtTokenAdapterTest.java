@@ -96,6 +96,21 @@ class JwtTokenAdapterTest {
         }
 
         @Test
+        @DisplayName("should carry msr_id for an account linked to a Medical Sales Rep")
+        void shouldCarryMedicalSalesRepId() {
+            User rep = User.reconstitute(new UserId("user-3"), "rep", "$2a$12$h",
+                    List.of(UserRole.ROLE_USER), true, "msr-42");
+
+            assertEquals("msr-42", parse(adapter.generateToken(rep)).get("msr_id", String.class));
+        }
+
+        @Test
+        @DisplayName("should omit msr_id for an account not linked to a Medical Sales Rep")
+        void shouldOmitMedicalSalesRepIdWhenUnlinked() {
+            assertNull(parse(adapter.generateToken(user)).get("msr_id"));
+        }
+
+        @Test
         @DisplayName("should sign with HS256")
         void shouldSignWithHs256() {
             String token = adapter.generateToken(user);

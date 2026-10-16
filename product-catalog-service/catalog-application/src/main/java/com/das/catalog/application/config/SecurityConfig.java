@@ -46,6 +46,15 @@ public class SecurityConfig {
                 // Gateway is the external auth boundary; peer services must not be forced to
                 // carry a user JWT just to check whether N units are on hand.
                 authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/*/availability").permitAll();
+                // Only the AI Agent Service may change stock over REST (OWASP A01); orders reserve
+                // through the RabbitMQ saga, which this does not touch. Must precede /api/**.
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST,
+                        "/api/v1/products/*/restock", "/api/v1/products/*/reserve-stock",
+                        "/api/v1/products/*/release-stock").hasRole("AGENT");
+                // Managing the catalog itself is admin-only (OWASP A01).
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/products/create",
+                        "/api/v1/products/*/activate", "/api/v1/products/*/deactivate").hasRole("ADMIN");
+                authz.requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/v1/products/update").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

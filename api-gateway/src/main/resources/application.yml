@@ -114,17 +114,17 @@ spring:
                   - Authorization
                 maxAge: 3600
 
-# Actuator endpoints
+# Actuator endpoints — health/info only (OWASP A01/A05). The gateway endpoint can add
+# routes at runtime, and no actuator request passes the JWT GlobalFilter (it only runs on
+# routed traffic), so exposing it would let anyone reroute traffic. Metrics leave via OTLP.
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,gateway
+        include: health,info
   endpoint:
     health:
       show-details: when-authorized
-    gateway:
-      access: unrestricted
 
 # JWT
 jwt:

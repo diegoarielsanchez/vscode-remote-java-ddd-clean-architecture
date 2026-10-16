@@ -89,7 +89,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } else {
             authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         }
-        return new UsernamePasswordAuthenticationToken(username, null, authorities);
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(username, null, authorities);
+        // msr_id: which Medical Sales Rep the caller acts as, for ownership checks.
+        authentication.setDetails(new JwtCallerDetails(claims.get("msr_id", String.class)));
+        return authentication;
     }
 
     private Claims extractClaimsFromToken(String token) {

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +18,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
+import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
+import com.das.order.application.security.JwtCallerDetails;
 import com.das.cleanddd.domain.order.usecases.services.OrderUseCaseFactory;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -31,6 +35,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @CrossOrigin(exposedHeaders = "errors, content-type")
@@ -42,7 +48,7 @@ public class OrderController {
     private final UseCase<CreateOrderInputDTO, OrderOutputDTO> createOrderUseCase;
     private final UseCase<ApproveOrderInputDTO, OrderOutputDTO> approveOrderUseCase;
     private final UseCase<RejectOrderInputDTO, OrderOutputDTO> rejectOrderUseCase;
-    private final UseCase<OrderIDDto, OrderOutputDTO> confirmOrderDeliveryUseCase;
+    private final UseCase<ConfirmOrderDeliveryInputDTO, OrderOutputDTO> confirmOrderDeliveryUseCase;
     private final UseCase<OrderIDDto, OrderOutputDTO> getOrderByIdUseCase;
     private final UseCase<OrderIDDto, OrderApprovalStatusOutputDTO> getOrderApprovalStatusUseCase;
     private final UseCase<ListOrdersInputDTO, List<OrderOutputDTO>> listOrdersUseCase;
@@ -63,11 +69,21 @@ public class OrderController {
      * PENDING_APPROVAL (priced) or STOCK_REJECTED.
      */
     @PostMapping("/create")
-    @Operation(summary = "Accept an order (MSR ordering products from the Pharma Lab) — validates the MSR; stock is "
-            + "reserved asynchronously, poll GET /{id} until PENDING_APPROVAL or STOCK_REJECTED")
+    @Operation(summary = "Accept an order (MSR ordering products from the Pharma Lab) — placed for the caller's own MSR "
+            + "(token msr_id); stock is reserved asynchronously, poll GET /{id} until PENDING_APPROVAL or STOCK_REJECTED")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public ResponseEntity<Object> createOrder(@Valid @RequestBody CreateOrderInputDTO inputDTO) throws DomainException {
-        OrderOutputDTO accepted = createOrderUseCase.execute(inputDTO);
+    public ResponseEntity<Object> createOrder(@Valid @RequestBody CreateOrderRequest body,
+                                              Authentication authentication) throws DomainException {
+        // The ordering MSR is the caller's own (token msr_id), never a request value (OWASP A01).
+        String callerMsrId = callerMsrId(authentication);
+        if (callerMsrId == null) {
+            throw new AccessDeniedException("Only a Medical Sales Rep can place an order");
+        }
+        if (body.medicalSalesRepId() != null && !body.medicalSalesRepId().isBlank()
+                && !body.medicalSalesRepId().equals(callerMsrId)) {
+            throw new AccessDeniedException("An order can only be placed for your own Medical Sales Rep");
+        }
+        OrderOutputDTO accepted = createOrderUseCase.execute(new CreateOrderInputDTO(callerMsrId, body.lines()));
         return ResponseEntity.accepted()
                 .location(URI.create("/api/v1/orders/" + accepted.id()))
                 .body(accepted);
@@ -93,11 +109,22 @@ public class OrderController {
         return ResponseEntity.ok(rejectOrderUseCase.execute(new RejectOrderInputDTO(id, authentication.getName(), body.reason())));
     }
 
+    /**
+     * Allowed for the AI Agent Service, or for the Medical Sales Rep the order was placed for —
+     * identified by the token's {@code msr_id} claim, never by the request (OWASP A01).
+     */
     @PostMapping("/{id}/confirm-delivery")
     @Operation(summary = "Idempotent APPROVED->DELIVERED confirmation — manual/ops fallback for delivery-service's async event")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> confirmDelivery(@PathVariable String id) throws DomainException {
-        return ResponseEntity.ok(confirmOrderDeliveryUseCase.execute(new OrderIDDto(id)));
+    public ResponseEntity<Object> confirmDelivery(@PathVariable String id, Authentication authentication) throws DomainException {
+        boolean isAgent = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
+        String callerMsrId = callerMsrId(authentication);
+        if (!isAgent && callerMsrId == null) {
+            throw new AccessDeniedException("Only the AI Agent Service or the order's Medical Sales Rep may confirm delivery");
+        }
+        return ResponseEntity.ok(confirmOrderDeliveryUseCase.execute(
+                new ConfirmOrderDeliveryInputDTO(id, isAgent ? null : callerMsrId)));
     }
 
     @GetMapping("/{id}")
@@ -132,5 +159,19 @@ public class OrderController {
         return ResponseEntity.ok(listOrdersUseCase.execute(new ListOrdersInputDTO(medicalSalesRepId, page, pageSize)));
     }
 
+    /** The token's {@code msr_id} claim: the Medical Sales Rep the caller acts as, or {@code null}. */
+    private static String callerMsrId(Authentication authentication) {
+        return authentication.getDetails() instanceof JwtCallerDetails details ? details.medicalSalesRepId() : null;
+    }
+
     public record RejectOrderRequest(String reason) {}
+
+    /**
+     * @param medicalSalesRepId optional; when sent it must equal the caller's own MSR — the order is
+     *                          always placed for the caller, see {@link #createOrder}
+     */
+    public record CreateOrderRequest(
+        String medicalSalesRepId,
+        @NotEmpty @Size(max = 20) @Valid List<OrderLineInputDTO> lines
+    ) {}
 }

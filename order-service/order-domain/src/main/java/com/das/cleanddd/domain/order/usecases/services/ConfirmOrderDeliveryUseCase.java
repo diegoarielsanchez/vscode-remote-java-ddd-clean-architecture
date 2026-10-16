@@ -10,7 +10,7 @@ import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.entities.Order;
 import com.das.cleanddd.domain.order.entities.OrderId;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
+import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderMapper;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
@@ -21,9 +21,11 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  * Idempotent APPROVED -&gt; DELIVERED transition. Invoked both by delivery-service's
  * RabbitMQ confirmation event and by the manual REST fallback (the AMQP publish is
  * best-effort and can be lost, so a lost message must not strand an order forever).
+ * A Medical Sales Rep may only confirm their own orders (OWASP A01): see
+ * {@link ConfirmOrderDeliveryInputDTO#requiredMedicalSalesRepId()}.
  */
 @Service
-public final class ConfirmOrderDeliveryUseCase implements UseCase<OrderIDDto, OrderOutputDTO> {
+public final class ConfirmOrderDeliveryUseCase implements UseCase<ConfirmOrderDeliveryInputDTO, OrderOutputDTO> {
 
     @Autowired
     private final IOrderRepository repository;
@@ -44,18 +46,20 @@ public final class ConfirmOrderDeliveryUseCase implements UseCase<OrderIDDto, Or
      * change and its outbox entries commit (or roll back) together.
      */
     @Override
-    public OrderOutputDTO execute(OrderIDDto inputDTO) throws DomainException {
+    public OrderOutputDTO execute(ConfirmOrderDeliveryInputDTO inputDTO) throws DomainException {
         return unitOfWork.execute(() -> doExecute(inputDTO));
     }
 
-    private OrderOutputDTO doExecute(OrderIDDto inputDTO) throws DomainException {
+    private OrderOutputDTO doExecute(ConfirmOrderDeliveryInputDTO inputDTO) throws DomainException {
         if (inputDTO.orderId() == null) {
             throw new DomainException("Order Id is required.");
         }
         try {
             OrderId id = new OrderId(inputDTO.orderId());
             Optional<Order> existing = repository.findById(id);
-            if (!existing.isPresent()) {
+            // Someone else's order answers exactly like a missing one, so a rep cannot probe
+            // which order ids exist.
+            if (!existing.isPresent() || !belongsToRequiredRep(existing.get(), inputDTO.requiredMedicalSalesRepId())) {
                 throw new DomainException("Order not found.");
             }
             Order delivered = existing.get().markDelivered(Instant.now());
@@ -65,5 +69,10 @@ public final class ConfirmOrderDeliveryUseCase implements UseCase<OrderIDDto, Or
         } catch (IllegalArgumentException e) {
             throw new DomainException(e.getMessage());
         }
+    }
+
+    private static boolean belongsToRequiredRep(Order order, String requiredMedicalSalesRepId) {
+        return requiredMedicalSalesRepId == null
+                || requiredMedicalSalesRepId.equals(order.medicalSalesRepId().value());
     }
 }

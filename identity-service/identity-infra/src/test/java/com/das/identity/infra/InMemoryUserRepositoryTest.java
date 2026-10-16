@@ -3,7 +3,7 @@ package com.das.identity.infra;
 import com.das.identity.domain.entities.User;
 import com.das.identity.domain.entities.UserId;
 import com.das.identity.domain.entities.UserRole;
-import com.das.identity.domain.ports.PasswordEncoderPort;
+import com.das.identity.infra.SeedAccountsProperties.Account;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,28 +16,29 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("InMemoryUserRepository")
 class InMemoryUserRepositoryTest {
 
-    /** Cheap stand-in so the structural tests do not pay the BCrypt cost-12 price. */
-    private static final class FakeEncoder implements PasswordEncoderPort {
-        @Override public String encode(CharSequence rawPassword) {
-            return "hashed:" + rawPassword;
-        }
-        @Override public boolean matches(CharSequence rawPassword, String encodedPassword) {
-            return encodedPassword.equals("hashed:" + rawPassword);
-        }
-    }
+    /** BCrypt (cost 12) of the dev password — the same default application.properties ships. */
+    private static final String SEED_HASH = "$2a$12$oxidnedWihAzJbsAXyZH5OX3caBTkilYZ5Zn0pqpUt.Fv/CiYUH26";
 
     private InMemoryUserRepository repository;
 
+    private static InMemoryUserRepository repo(Account seed, Account agent, Account admin) {
+        return new InMemoryUserRepository(new SeedAccountsProperties(seed, agent, admin));
+    }
+
+    private static Account account(String username, String passwordHash) {
+        return new Account(username, passwordHash, null);
+    }
+
     @BeforeEach
     void setUp() {
-        repository = new InMemoryUserRepository(new FakeEncoder());
+        repository = repo(account("user", SEED_HASH), null, null);
     }
 
     // ── seeding ──────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("should seed the default dev user on construction")
-    void shouldSeedDevUser() {
+    @DisplayName("should seed the configured user on construction")
+    void shouldSeedConfiguredUser() {
         Optional<User> user = repository.findByUsername("user");
 
         assertTrue(user.isPresent());
@@ -45,7 +46,7 @@ class InMemoryUserRepositoryTest {
     }
 
     @Test
-    @DisplayName("the seeded dev user should be active and hold ROLE_USER")
+    @DisplayName("the seeded user should be active and hold ROLE_USER")
     void seededUserShouldBeActiveWithUserRole() {
         User user = repository.findByUsername("user").orElseThrow();
 
@@ -54,27 +55,70 @@ class InMemoryUserRepositoryTest {
     }
 
     @Test
-    @DisplayName("should route the seeded password through the injected encoder, not store it raw")
-    void shouldSeedHashedPassword() {
+    @DisplayName("should store the configured hash as-is, so it verifies with real BCrypt")
+    void shouldStoreConfiguredHash() {
         User user = repository.findByUsername("user").orElseThrow();
 
-        assertNotEquals("Apatehia65$", user.getPasswordHash());
-        assertEquals(new FakeEncoder().encode("Apatehia65$"), user.getPasswordHash(),
-                "the seed must be encoded by the injected port, never assigned directly");
+        assertEquals(SEED_HASH, user.getPasswordHash());
+        assertTrue(new BCryptPasswordEncoderAdapter().matches("Apatehia65$", user.getPasswordHash()));
     }
 
     @Test
-    @DisplayName("should hash the seeded password with real BCrypt, leaving no recoverable plain text")
-    void shouldSeedWithInjectedEncoder() {
-        BCryptPasswordEncoderAdapter realEncoder = new BCryptPasswordEncoderAdapter();
-        InMemoryUserRepository repo = new InMemoryUserRepository(realEncoder);
+    @DisplayName("should seed nobody when no username is configured")
+    void shouldSeedNobodyWithoutUsername() {
+        InMemoryUserRepository empty = repo(null, null, null);
 
-        User user = repo.findByUsername("user").orElseThrow();
+        assertTrue(empty.findByUsername("user").isEmpty());
+    }
 
-        assertTrue(user.getPasswordHash().startsWith("$2a$12$"));
-        assertTrue(realEncoder.matches("Apatehia65$", user.getPasswordHash()));
-        assertFalse(user.getPasswordHash().contains("Apatehia65$".substring(0, 8)),
-                "the raw password must not be recoverable from the stored hash");
+    @Test
+    @DisplayName("should refuse to start with a plain-text password instead of a BCrypt hash")
+    void shouldRejectPlainTextPassword() {
+        assertThrows(IllegalStateException.class,
+                () -> repo(account("user", "Apatehia65$"), null, null));
+    }
+
+    @Test
+    @DisplayName("should seed the agent account with ROLE_AGENT when configured")
+    void shouldSeedAgentWithAgentRole() {
+        InMemoryUserRepository repo = repo(account("user", SEED_HASH), account("agent", SEED_HASH), null);
+
+        assertEquals(List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT),
+                repo.findByUsername("agent").orElseThrow().getRoles());
+        assertEquals(List.of(UserRole.ROLE_USER), repo.findByUsername("user").orElseThrow().getRoles(),
+                "the regular user must never receive ROLE_AGENT");
+    }
+
+    @Test
+    @DisplayName("should seed no agent by default, so nobody can approve orders or change stock")
+    void shouldSeedNoAgentByDefault() {
+        assertTrue(repository.findByUsername("agent").isEmpty());
+    }
+
+    @Test
+    @DisplayName("should refuse to start with a plain-text agent password")
+    void shouldRejectPlainTextAgentPassword() {
+        assertThrows(IllegalStateException.class,
+                () -> repo(account("user", SEED_HASH), account("agent", "secret"), null));
+    }
+
+    @Test
+    @DisplayName("should seed the admin account with ROLE_ADMIN when configured")
+    void shouldSeedAdminWithAdminRole() {
+        InMemoryUserRepository repo = repo(account("user", SEED_HASH), null, account("admin", SEED_HASH));
+
+        assertEquals(List.of(UserRole.ROLE_USER, UserRole.ROLE_ADMIN),
+                repo.findByUsername("admin").orElseThrow().getRoles());
+        assertTrue(repo.findByUsername("agent").isEmpty(), "the agent is configured separately");
+    }
+
+    @Test
+    @DisplayName("should link an account to its Medical Sales Rep when configured")
+    void shouldCarryMedicalSalesRepId() {
+        InMemoryUserRepository repo = repo(new Account("rep", SEED_HASH, "msr-42"), null, null);
+
+        assertEquals(Optional.of("msr-42"), repo.findByUsername("rep").orElseThrow().getMedicalSalesRepId());
+        assertTrue(repository.findByUsername("user").orElseThrow().getMedicalSalesRepId().isEmpty());
     }
 
     // ── lookup ───────────────────────────────────────────────────────────────

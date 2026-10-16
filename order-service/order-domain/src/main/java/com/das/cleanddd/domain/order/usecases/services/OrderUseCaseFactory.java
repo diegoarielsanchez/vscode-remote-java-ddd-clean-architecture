@@ -8,6 +8,7 @@ import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
 import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderStockInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
@@ -66,7 +67,7 @@ public class OrderUseCaseFactory {
     public UseCase<RejectOrderInputDTO, OrderOutputDTO> getRejectOrderUseCase() {
         return rejectOrderUseCase;
     }
-    public UseCase<OrderIDDto, OrderOutputDTO> getConfirmOrderDeliveryUseCase() {
+    public UseCase<ConfirmOrderDeliveryInputDTO, OrderOutputDTO> getConfirmOrderDeliveryUseCase() {
         return confirmOrderDeliveryUseCase;
     }
     public UseCase<OrderIDDto, OrderOutputDTO> getGetOrderByIdUseCase() {

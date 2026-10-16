@@ -44,6 +44,9 @@ public class SecurityConfig {
                 // Only the boolean active field is exposed — no PII. The API Gateway is the
                 // external auth boundary; peer services must not be forced to carry a user JWT.
                 authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/healthcareprof/*/active-status").permitAll();
+                // Activating/deactivating is an admin decision (OWASP A01). Must precede /api/**.
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST,
+                        "/api/v1/healthcareprof/*/activate", "/api/v1/healthcareprof/*/deactivate").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

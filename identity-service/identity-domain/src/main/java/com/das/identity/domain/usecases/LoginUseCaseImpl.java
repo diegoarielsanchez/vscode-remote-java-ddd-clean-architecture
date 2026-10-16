@@ -20,6 +20,14 @@ import java.util.stream.Collectors;
  */
 public class LoginUseCaseImpl implements LoginUseCase {
 
+    /**
+     * Real cost-12 BCrypt hash of a random, discarded value. It must be well-formed: the
+     * encoder rejects a malformed hash without hashing, which makes unknown-user logins
+     * measurably faster and lets an attacker enumerate usernames by timing.
+     */
+    private static final String DUMMY_HASH =
+            "$2a$12$gRBh1ZC0zoRzM1d4Aboo4uswrWniAdoEJOmKfLjSSo0ToIVwxrjxe";
+
     private final UserRepository userRepository;
     private final PasswordEncoderPort passwordEncoder;
     private final TokenPort tokenPort;
@@ -38,7 +46,7 @@ public class LoginUseCaseImpl implements LoginUseCase {
                 .orElse(null);
 
         // Always perform a hash comparison to prevent timing-based user enumeration
-        String candidateHash = (user != null) ? user.getPasswordHash() : "$2a$12$invalidhashpadding000000000000000000000000000000000000000";
+        String candidateHash = (user != null) ? user.getPasswordHash() : DUMMY_HASH;
         boolean passwordMatches = passwordEncoder.matches(input.password(), candidateHash);
 
         if (user == null || !passwordMatches) {
