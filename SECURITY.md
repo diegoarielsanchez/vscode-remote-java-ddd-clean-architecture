@@ -83,6 +83,17 @@ authz.requestMatchers("/api/**").hasRole("USER");   // must come after
 - The RabbitMQ stock saga is unaffected; it never used these REST endpoints.
 - `OrderControllerSecurityTest` and `ProductControllerSecurityTest` sign real JWTs and assert a `ROLE_USER` token gets `403` on every agent-only endpoint while a `ROLE_AGENT` token passes authorization.
 
+**Finding 4 — Any User Could Confirm Any Order's Delivery (CWE-639 Authorization Bypass Through User-Controlled Key):** `POST /api/v1/orders/{id}/confirm-delivery` accepted any logged-in user for any order id.
+
+**Fix:** Only the AI Agent Service, or the Medical Sales Rep the order was placed for, may confirm delivery:
+- identity-service accounts can be linked to an MSR (`identity.seed-user.medical-sales-rep-id`), and the token then carries an `msr_id` claim.
+- order-service's JWT filter exposes that claim, and the controller refuses callers who are neither `ROLE_AGENT` nor linked to an MSR (`403`).
+- `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
+
+**Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
+
+**Fix:** These now require `ROLE_ADMIN` in product-catalog-service, healthcare-prof-service and medical-sales-rep-service. identity-service seeds the admin account (`ROLE_USER` + `ROLE_ADMIN`) only when `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH` are set, in every profile, so it fails closed like the agent account.
+
 ---
 
 ### A03 — Injection

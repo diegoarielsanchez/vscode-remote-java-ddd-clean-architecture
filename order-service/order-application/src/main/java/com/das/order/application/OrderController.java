@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +18,14 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
+import com.das.order.application.security.JwtCallerDetails;
 import com.das.cleanddd.domain.order.usecases.services.OrderUseCaseFactory;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -42,7 +45,7 @@ public class OrderController {
     private final UseCase<CreateOrderInputDTO, OrderOutputDTO> createOrderUseCase;
     private final UseCase<ApproveOrderInputDTO, OrderOutputDTO> approveOrderUseCase;
     private final UseCase<RejectOrderInputDTO, OrderOutputDTO> rejectOrderUseCase;
-    private final UseCase<OrderIDDto, OrderOutputDTO> confirmOrderDeliveryUseCase;
+    private final UseCase<ConfirmOrderDeliveryInputDTO, OrderOutputDTO> confirmOrderDeliveryUseCase;
     private final UseCase<OrderIDDto, OrderOutputDTO> getOrderByIdUseCase;
     private final UseCase<OrderIDDto, OrderApprovalStatusOutputDTO> getOrderApprovalStatusUseCase;
     private final UseCase<ListOrdersInputDTO, List<OrderOutputDTO>> listOrdersUseCase;
@@ -93,11 +96,23 @@ public class OrderController {
         return ResponseEntity.ok(rejectOrderUseCase.execute(new RejectOrderInputDTO(id, authentication.getName(), body.reason())));
     }
 
+    /**
+     * Allowed for the AI Agent Service, or for the Medical Sales Rep the order was placed for —
+     * identified by the token's {@code msr_id} claim, never by the request (OWASP A01).
+     */
     @PostMapping("/{id}/confirm-delivery")
     @Operation(summary = "Idempotent APPROVED->DELIVERED confirmation — manual/ops fallback for delivery-service's async event")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> confirmDelivery(@PathVariable String id) throws DomainException {
-        return ResponseEntity.ok(confirmOrderDeliveryUseCase.execute(new OrderIDDto(id)));
+    public ResponseEntity<Object> confirmDelivery(@PathVariable String id, Authentication authentication) throws DomainException {
+        boolean isAgent = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
+        String callerMsrId = authentication.getDetails() instanceof JwtCallerDetails details
+                ? details.medicalSalesRepId() : null;
+        if (!isAgent && callerMsrId == null) {
+            throw new AccessDeniedException("Only the AI Agent Service or the order's Medical Sales Rep may confirm delivery");
+        }
+        return ResponseEntity.ok(confirmOrderDeliveryUseCase.execute(
+                new ConfirmOrderDeliveryInputDTO(id, isAgent ? null : callerMsrId)));
     }
 
     @GetMapping("/{id}")

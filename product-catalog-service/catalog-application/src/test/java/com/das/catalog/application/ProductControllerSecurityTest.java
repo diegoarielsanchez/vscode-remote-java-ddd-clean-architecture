@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -113,5 +114,31 @@ class ProductControllerSecurityTest {
                         .header("Authorization", bearer("ROLE_USER")))
                 .andReturn().getResponse().getStatus();
         assertNotEquals(403, status, "ROLE_AGENT must only gate the agent-only endpoints");
+    }
+
+    // ── ROLE_ADMIN: managing the catalog itself (OWASP A01) ──
+
+    @ParameterizedTest
+    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate"})
+    void regularUserCannotManageCatalog(String endpoint) throws Exception {
+        mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate"})
+    void adminPassesAuthorizationOnCatalogManagement(String endpoint) throws Exception {
+        int status = mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER", "ROLE_ADMIN")))
+                .andReturn().getResponse().getStatus();
+        assertNotEquals(401, status);
+        assertNotEquals(403, status);
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder adminEndpoint(String endpoint) {
+        String[] parts = endpoint.split(" ");
+        String uri = "/api/v1/products" + parts[1].replace("{id}", UUID.randomUUID().toString());
+        return (parts[0].equals("PUT") ? put(uri) : post(uri))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}");
     }
 }

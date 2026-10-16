@@ -3,6 +3,7 @@ package com.das.identity.infra;
 import com.das.identity.domain.entities.User;
 import com.das.identity.domain.entities.UserId;
 import com.das.identity.domain.entities.UserRole;
+import com.das.identity.infra.SeedAccountsProperties.Account;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,9 +21,17 @@ class InMemoryUserRepositoryTest {
 
     private InMemoryUserRepository repository;
 
+    private static InMemoryUserRepository repo(Account seed, Account agent, Account admin) {
+        return new InMemoryUserRepository(new SeedAccountsProperties(seed, agent, admin));
+    }
+
+    private static Account account(String username, String passwordHash) {
+        return new Account(username, passwordHash, null);
+    }
+
     @BeforeEach
     void setUp() {
-        repository = new InMemoryUserRepository("user", SEED_HASH, "", "");
+        repository = repo(account("user", SEED_HASH), null, null);
     }
 
     // ── seeding ──────────────────────────────────────────────────────────────
@@ -57,7 +66,7 @@ class InMemoryUserRepositoryTest {
     @Test
     @DisplayName("should seed nobody when no username is configured")
     void shouldSeedNobodyWithoutUsername() {
-        InMemoryUserRepository empty = new InMemoryUserRepository("", "", "", "");
+        InMemoryUserRepository empty = repo(null, null, null);
 
         assertTrue(empty.findByUsername("user").isEmpty());
     }
@@ -66,13 +75,13 @@ class InMemoryUserRepositoryTest {
     @DisplayName("should refuse to start with a plain-text password instead of a BCrypt hash")
     void shouldRejectPlainTextPassword() {
         assertThrows(IllegalStateException.class,
-                () -> new InMemoryUserRepository("user", "Apatehia65$", "", ""));
+                () -> repo(account("user", "Apatehia65$"), null, null));
     }
 
     @Test
     @DisplayName("should seed the agent account with ROLE_AGENT when configured")
     void shouldSeedAgentWithAgentRole() {
-        InMemoryUserRepository repo = new InMemoryUserRepository("user", SEED_HASH, "agent", SEED_HASH);
+        InMemoryUserRepository repo = repo(account("user", SEED_HASH), account("agent", SEED_HASH), null);
 
         assertEquals(List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT),
                 repo.findByUsername("agent").orElseThrow().getRoles());
@@ -90,7 +99,26 @@ class InMemoryUserRepositoryTest {
     @DisplayName("should refuse to start with a plain-text agent password")
     void shouldRejectPlainTextAgentPassword() {
         assertThrows(IllegalStateException.class,
-                () -> new InMemoryUserRepository("user", SEED_HASH, "agent", "secret"));
+                () -> repo(account("user", SEED_HASH), account("agent", "secret"), null));
+    }
+
+    @Test
+    @DisplayName("should seed the admin account with ROLE_ADMIN when configured")
+    void shouldSeedAdminWithAdminRole() {
+        InMemoryUserRepository repo = repo(account("user", SEED_HASH), null, account("admin", SEED_HASH));
+
+        assertEquals(List.of(UserRole.ROLE_USER, UserRole.ROLE_ADMIN),
+                repo.findByUsername("admin").orElseThrow().getRoles());
+        assertTrue(repo.findByUsername("agent").isEmpty(), "the agent is configured separately");
+    }
+
+    @Test
+    @DisplayName("should link an account to its Medical Sales Rep when configured")
+    void shouldCarryMedicalSalesRepId() {
+        InMemoryUserRepository repo = repo(new Account("rep", SEED_HASH, "msr-42"), null, null);
+
+        assertEquals(Optional.of("msr-42"), repo.findByUsername("rep").orElseThrow().getMedicalSalesRepId());
+        assertTrue(repository.findByUsername("user").orElseThrow().getMedicalSalesRepId().isEmpty());
     }
 
     // ── lookup ───────────────────────────────────────────────────────────────

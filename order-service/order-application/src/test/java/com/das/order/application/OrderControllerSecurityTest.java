@@ -78,10 +78,19 @@ class OrderControllerSecurityTest {
 
     /** Signs a token exactly like identity-service, so the real JwtAuthenticationFilter is exercised. */
     private static String bearer(String... authorities) {
+        return bearerForRep(null, authorities);
+    }
+
+    /** As {@link #bearer}, plus the msr_id claim identity-service adds for an account linked to an MSR. */
+    private static String bearerForRep(String msrId, String... authorities) {
         byte[] key = JWT_SECRET.getBytes(StandardCharsets.UTF_8);
-        return "Bearer " + Jwts.builder()
+        var builder = Jwts.builder()
                 .subject("tester")
-                .claim("authorities", List.of(authorities))
+                .claim("authorities", List.of(authorities));
+        if (msrId != null) {
+            builder.claim("msr_id", msrId);
+        }
+        return "Bearer " + builder
                 .expiration(new Date(System.currentTimeMillis() + 60_000))
                 .signWith(new SecretKeySpec(key, "HmacSHA256"), Jwts.SIG.HS256)
                 .compact();
@@ -117,5 +126,27 @@ class OrderControllerSecurityTest {
                         .header("Authorization", bearer("ROLE_USER")))
                 .andReturn().getResponse().getStatus();
         assertNotEquals(403, status, "ROLE_AGENT must only gate the agent-only endpoints");
+    }
+
+    // ── confirm-delivery: the AI Agent Service or the order's own MSR (OWASP A01) ──
+    // Whether the MSR actually owns the order is checked in ConfirmOrderDeliveryUseCase.
+
+    @Test
+    void userNotLinkedToAnMsrCannotConfirmDelivery() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/" + UUID.randomUUID() + "/confirm-delivery")
+                        .header("Authorization", bearer("ROLE_USER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void msrAndAgentPassAuthorizationOnConfirmDelivery() throws Exception {
+        for (String token : List.of(bearerForRep(UUID.randomUUID().toString(), "ROLE_USER"),
+                                    bearer("ROLE_USER", "ROLE_AGENT"))) {
+            int status = mockMvc.perform(post("/api/v1/orders/" + UUID.randomUUID() + "/confirm-delivery")
+                            .header("Authorization", token))
+                    .andReturn().getResponse().getStatus();
+            assertNotEquals(401, status);
+            assertNotEquals(403, status);
+        }
     }
 }

@@ -4,9 +4,10 @@ import com.das.identity.domain.entities.User;
 import com.das.identity.domain.entities.UserId;
 import com.das.identity.domain.entities.UserRole;
 import com.das.identity.domain.ports.UserRepository;
+import com.das.identity.infra.SeedAccountsProperties.Account;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,12 +20,14 @@ import java.util.regex.Pattern;
  * In-memory UserRepository.
  * <p>
  * Replace this with a JPA/DB-backed implementation without changing the domain.
- * Seeds one user from {@code identity.seed-user.*} and, optionally, the AI Agent Service
- * account from {@code identity.agent-user.*}. Passwords arrive already BCrypt-hashed, so no
+ * Seeds the accounts in {@link SeedAccountsProperties}: the regular user, and optionally the
+ * AI Agent Service and an administrator. Passwords arrive already BCrypt-hashed, so no
  * plain-text credential lives in source or config (OWASP A07). The dev profile supplies a
- * default user; the prod profile requires it from the environment.
+ * default regular user; the prod profile requires it from the environment. The agent and
+ * admin exist only when configured, in every profile.
  */
 @Service
+@EnableConfigurationProperties(SeedAccountsProperties.class)
 public class InMemoryUserRepository implements UserRepository {
 
     private static final Logger log = LoggerFactory.getLogger(InMemoryUserRepository.class);
@@ -34,32 +37,28 @@ public class InMemoryUserRepository implements UserRepository {
 
     private final Map<String, User> store = new ConcurrentHashMap<>();
 
-    public InMemoryUserRepository(
-            @Value("${identity.seed-user.username:}") String seedUsername,
-            @Value("${identity.seed-user.password-hash:}") String seedPasswordHash,
-            @Value("${identity.agent-user.username:}") String agentUsername,
-            @Value("${identity.agent-user.password-hash:}") String agentPasswordHash) {
-        if (seedUsername.isBlank()) {
-            log.warn("No identity.seed-user.username configured — no user can log in");
-        } else {
-            seed("identity.seed-user", seedUsername, seedPasswordHash, List.of(UserRole.ROLE_USER));
-        }
-        if (agentUsername.isBlank()) {
-            log.info("No identity.agent-user.username configured — no one can approve orders or change stock");
-        } else {
-            // ROLE_USER too: the agent reads orders and products before deciding.
-            seed("identity.agent-user", agentUsername, agentPasswordHash,
-                    List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT));
-        }
+    public InMemoryUserRepository(SeedAccountsProperties accounts) {
+        seed("identity.seed-user", accounts.seedUser(), List.of(UserRole.ROLE_USER),
+                "no user can log in");
+        // ROLE_USER too: the agent and admin read records before acting on them.
+        seed("identity.agent-user", accounts.agentUser(), List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT),
+                "no one can approve orders or change stock");
+        seed("identity.admin-user", accounts.adminUser(), List.of(UserRole.ROLE_USER, UserRole.ROLE_ADMIN),
+                "no one can manage the catalog or activate records");
     }
 
-    private void seed(String property, String username, String passwordHash, List<UserRole> roles) {
-        if (!BCRYPT_HASH.matcher(passwordHash).matches()) {
+    private void seed(String property, Account account, List<UserRole> roles, String consequenceIfMissing) {
+        if (account == null || !account.isConfigured()) {
+            log.info("No {}.username configured — {}", property, consequenceIfMissing);
+            return;
+        }
+        if (account.passwordHash() == null || !BCRYPT_HASH.matcher(account.passwordHash()).matches()) {
             // Fail fast: a plain-text password here would otherwise just never authenticate.
             throw new IllegalStateException(
                     property + ".password-hash must be a BCrypt hash, not a plain-text password");
         }
-        store.put(username, User.reconstitute(UserId.random(), username, passwordHash, roles, true));
+        store.put(account.username(), User.reconstitute(UserId.random(), account.username(),
+                account.passwordHash(), roles, true, account.medicalSalesRepId()));
     }
 
     @Override

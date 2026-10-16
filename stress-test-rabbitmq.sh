@@ -62,6 +62,22 @@ if [[ -z "$TOKEN" ]]; then
 fi
 info "JWT obtained: ${TOKEN:0:40}..."
 
+# Activate/deactivate are admin-only (ROLE_ADMIN). Set ADMIN_USERNAME / ADMIN_PASSWORD to the
+# account configured via IDENTITY_ADMIN_USERNAME / IDENTITY_ADMIN_PASSWORD_HASH on identity-service.
+if [[ -z "${ADMIN_USERNAME:-}" || -z "${ADMIN_PASSWORD:-}" ]]; then
+  error "Set ADMIN_USERNAME and ADMIN_PASSWORD: activating/deactivating requires the admin account."
+  exit 1
+fi
+ADMIN_TOKEN=$(curl -s -X POST "$IDENTITY_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}" \
+  | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+if [[ -z "$ADMIN_TOKEN" ]]; then
+  error "Could not obtain an admin JWT for '$ADMIN_USERNAME'. Is the admin account configured?"
+  exit 1
+fi
+info "Admin JWT obtained: ${ADMIN_TOKEN:0:40}..."
+
 # =============================================================================
 # STEP 1 — Create & activate 5 MedicalSalesRep
 # =============================================================================
@@ -87,7 +103,7 @@ for i in $(seq 0 4); do
 
   HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "$MSR_URL/api/v1/medicalsalesrep/$ID/activate" \
-    -H "Authorization: Bearer $TOKEN")
+    -H "Authorization: Bearer $ADMIN_TOKEN")
   [[ "$HTTP" == "200" ]] && info "  activated $ID" || warn "  activate HTTP $HTTP for $ID"
 done
 
@@ -117,7 +133,7 @@ for i in $(seq 0 4); do
 
   HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "$HCP_URL/api/v1/healthcareprof/$ID/activate" \
-    -H "Authorization: Bearer $TOKEN")
+    -H "Authorization: Bearer $ADMIN_TOKEN")
   [[ "$HTTP" == "200" ]] && info "  activated $ID" || warn "  activate HTTP $HTTP for $ID"
 done
 
@@ -134,7 +150,7 @@ for i in "${!MSR_IDS[@]}"; do
   (
     HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
       -X POST "$MSR_URL/api/v1/medicalsalesrep/$ID/deactivate" \
-      -H "Authorization: Bearer $TOKEN")
+      -H "Authorization: Bearer $ADMIN_TOKEN")
     echo "MSR ${MSR_FIRST[$i]} ${MSR_LAST[$i]} ($ID) HTTP $HTTP" > "$RESULT_DIR/msr_$i"
   ) &
 done
@@ -144,7 +160,7 @@ for i in "${!HCP_IDS[@]}"; do
   (
     HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
       -X POST "$HCP_URL/api/v1/healthcareprof/$ID/deactivate" \
-      -H "Authorization: Bearer $TOKEN")
+      -H "Authorization: Bearer $ADMIN_TOKEN")
     echo "HCP ${HCP_FIRST[$i]} ${HCP_LAST[$i]} ($ID) HTTP $HTTP" > "$RESULT_DIR/hcp_$i"
   ) &
 done

@@ -31,11 +31,14 @@ public class JwtTokenAdapter implements TokenPort {
     @Override
     public String generateToken(User user) {
         SecretKey key = buildKey();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getUsername())
                 .claim("authorities", user.getRoles().stream()
                         .map(role -> role.name())
-                        .collect(Collectors.toList()))
+                        .collect(Collectors.toList()));
+        // Lets order-service check that an MSR only confirms delivery of their own orders.
+        user.getMedicalSalesRepId().ifPresent(msrId -> builder.claim("msr_id", msrId));
+        return builder
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(key, Jwts.SIG.HS256)

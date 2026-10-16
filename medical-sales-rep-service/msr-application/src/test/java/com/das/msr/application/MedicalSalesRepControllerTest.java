@@ -69,10 +69,12 @@ class MedicalSalesRepControllerTest {
     private MedicalSalesRepJpaRepository jpaRepository;
 
     private String authToken;
+    private String adminToken;
 
     @BeforeEach
     void setUp() {
-        authToken = generateValidJwt();
+        authToken = generateValidJwt("ROLE_USER");
+        adminToken = generateValidJwt("ROLE_USER", "ROLE_ADMIN");
     }
 
     @AfterEach
@@ -82,12 +84,12 @@ class MedicalSalesRepControllerTest {
 
     // ── JWT helper ───────────────────────────────────────────────────────────
 
-    private String generateValidJwt() {
+    private String generateValidJwt(String... authorities) {
         SecretKeySpec key = new SecretKeySpec(
                 JWT_SECRET.getBytes(), 0, JWT_SECRET.getBytes().length, "HmacSHA256");
         return Jwts.builder()
                 .subject("testuser")
-                .claim("authorities", List.of("ROLE_USER"))
+                .claim("authorities", List.of(authorities))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(key)
@@ -170,7 +172,7 @@ class MedicalSalesRepControllerTest {
         String id = createAndGetId("Carol", "White", "carol@example.com");
 
         mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
-                        .header("Authorization", "Bearer " + authToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
@@ -190,14 +192,14 @@ class MedicalSalesRepControllerTest {
 
         // Activate first (MSRs are created inactive)
         mockMvc.perform(post(BASE_URL + "/" + id + "/activate")
-                        .header("Authorization", "Bearer " + authToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
 
         // Then deactivate
         mockMvc.perform(post(BASE_URL + "/" + id + "/deactivate")
-                        .header("Authorization", "Bearer " + authToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MedicalSalesRepIDDto(id))))
                 .andExpect(status().isOk());
@@ -267,5 +269,18 @@ class MedicalSalesRepControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).get("id").asText();
+    }
+
+    @Test
+    void activateAndDeactivate_areAdminOnly_regularUserGets403() throws Exception {
+        // OWASP A01: the security chain refuses before the handler runs, so any id will do.
+        String id = java.util.UUID.randomUUID().toString();
+        for (String action : List.of("activate", "deactivate")) {
+            mockMvc.perform(post(BASE_URL + "/" + id + "/" + action)
+                            .header("Authorization", "Bearer " + authToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isForbidden());
+        }
     }
 }
