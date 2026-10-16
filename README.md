@@ -1190,7 +1190,7 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/orders/create` | Place an order — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
+| `POST` | `/api/v1/orders/create` | Place an order for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`) — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
 | `GET` | `/api/v1/orders/{id}` | Get an order; poll it after creating |
 | `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
 | `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order — `ROLE_AGENT` only (approver = JWT subject) |

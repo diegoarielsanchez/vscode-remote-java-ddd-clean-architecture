@@ -149,4 +149,43 @@ class OrderControllerSecurityTest {
             assertNotEquals(403, status);
         }
     }
+
+    // ── create: always for the caller's own MSR (token msr_id), never a body value (OWASP A01) ──
+
+    private static String orderBody(String msrId) {
+        String lines = "\"lines\":[{\"productId\":\"" + UUID.randomUUID() + "\",\"quantity\":1}]";
+        return msrId == null ? "{" + lines + "}" : "{\"medicalSalesRepId\":\"" + msrId + "\"," + lines + "}";
+    }
+
+    @Test
+    void userNotLinkedToAnMsrCannotPlaceAnOrder() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/create")
+                        .header("Authorization", bearer("ROLE_USER", "ROLE_AGENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(null)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void msrCannotPlaceAnOrderForAnotherMsr() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/create")
+                        .header("Authorization", bearerForRep(UUID.randomUUID().toString(), "ROLE_USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(UUID.randomUUID().toString())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void msrPassesAuthorizationForTheirOwnOrder() throws Exception {
+        String msr = UUID.randomUUID().toString();
+        for (String body : List.of(orderBody(null), orderBody(msr))) {
+            int status = mockMvc.perform(post("/api/v1/orders/create")
+                            .header("Authorization", bearerForRep(msr, "ROLE_USER"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andReturn().getResponse().getStatus();
+            assertNotEquals(401, status);
+            assertNotEquals(403, status);
+        }
+    }
 }

@@ -23,6 +23,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
+import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.RejectOrderInputDTO;
 import com.das.order.application.security.JwtCallerDetails;
@@ -34,6 +35,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @CrossOrigin(exposedHeaders = "errors, content-type")
@@ -66,11 +69,21 @@ public class OrderController {
      * PENDING_APPROVAL (priced) or STOCK_REJECTED.
      */
     @PostMapping("/create")
-    @Operation(summary = "Accept an order (MSR ordering products from the Pharma Lab) — validates the MSR; stock is "
-            + "reserved asynchronously, poll GET /{id} until PENDING_APPROVAL or STOCK_REJECTED")
+    @Operation(summary = "Accept an order (MSR ordering products from the Pharma Lab) — placed for the caller's own MSR "
+            + "(token msr_id); stock is reserved asynchronously, poll GET /{id} until PENDING_APPROVAL or STOCK_REJECTED")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public ResponseEntity<Object> createOrder(@Valid @RequestBody CreateOrderInputDTO inputDTO) throws DomainException {
-        OrderOutputDTO accepted = createOrderUseCase.execute(inputDTO);
+    public ResponseEntity<Object> createOrder(@Valid @RequestBody CreateOrderRequest body,
+                                              Authentication authentication) throws DomainException {
+        // The ordering MSR is the caller's own (token msr_id), never a request value (OWASP A01).
+        String callerMsrId = callerMsrId(authentication);
+        if (callerMsrId == null) {
+            throw new AccessDeniedException("Only a Medical Sales Rep can place an order");
+        }
+        if (body.medicalSalesRepId() != null && !body.medicalSalesRepId().isBlank()
+                && !body.medicalSalesRepId().equals(callerMsrId)) {
+            throw new AccessDeniedException("An order can only be placed for your own Medical Sales Rep");
+        }
+        OrderOutputDTO accepted = createOrderUseCase.execute(new CreateOrderInputDTO(callerMsrId, body.lines()));
         return ResponseEntity.accepted()
                 .location(URI.create("/api/v1/orders/" + accepted.id()))
                 .body(accepted);
@@ -106,8 +119,7 @@ public class OrderController {
     public ResponseEntity<Object> confirmDelivery(@PathVariable String id, Authentication authentication) throws DomainException {
         boolean isAgent = authentication.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
-        String callerMsrId = authentication.getDetails() instanceof JwtCallerDetails details
-                ? details.medicalSalesRepId() : null;
+        String callerMsrId = callerMsrId(authentication);
         if (!isAgent && callerMsrId == null) {
             throw new AccessDeniedException("Only the AI Agent Service or the order's Medical Sales Rep may confirm delivery");
         }
@@ -147,5 +159,19 @@ public class OrderController {
         return ResponseEntity.ok(listOrdersUseCase.execute(new ListOrdersInputDTO(medicalSalesRepId, page, pageSize)));
     }
 
+    /** The token's {@code msr_id} claim: the Medical Sales Rep the caller acts as, or {@code null}. */
+    private static String callerMsrId(Authentication authentication) {
+        return authentication.getDetails() instanceof JwtCallerDetails details ? details.medicalSalesRepId() : null;
+    }
+
     public record RejectOrderRequest(String reason) {}
+
+    /**
+     * @param medicalSalesRepId optional; when sent it must equal the caller's own MSR — the order is
+     *                          always placed for the caller, see {@link #createOrder}
+     */
+    public record CreateOrderRequest(
+        String medicalSalesRepId,
+        @NotEmpty @Size(max = 20) @Valid List<OrderLineInputDTO> lines
+    ) {}
 }

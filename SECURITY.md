@@ -89,6 +89,7 @@ authz.requestMatchers("/api/**").hasRole("USER");   // must come after
 - identity-service accounts can be linked to an MSR (`identity.seed-user.medical-sales-rep-id`), and the token then carries an `msr_id` claim.
 - order-service's JWT filter exposes that claim, and the controller refuses callers who are neither `ROLE_AGENT` nor linked to an MSR (`403`).
 - `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
+- Ownership is only meaningful if it can't be chosen freely, so `POST /api/v1/orders/create` no longer trusts the body's `medicalSalesRepId`: the order is always placed for the caller's `msr_id`. Callers not linked to an MSR get `403`, and so does a body naming a different MSR.
 
 **Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
 
