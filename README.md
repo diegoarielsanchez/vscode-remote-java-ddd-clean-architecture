@@ -1088,7 +1088,7 @@ All endpoints are accessible via the **API Gateway** at `http://localhost:8080`.
 
 All authentication is handled by the **Identity Service**. The endpoint is exposed directly on port `8090` and proxied through the API Gateway at `http://localhost:8080/auth/login`.
 
-Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`)
+Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`). Approving/rejecting orders and changing stock need the AI Agent Service account (`ROLE_AGENT`), which exists only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set.
 
 | Method | Path | Description |
 |---|---|---|
@@ -1180,9 +1180,9 @@ Authorization: Bearer <token>
 | `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis) |
 | `POST` | `/api/v1/products/list` | List products by name |
 | `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active and at least `n` in stock? (internal, unauthenticated) |
-| `POST` | `/api/v1/products/{id}/restock` | Add stock (admin top-up) |
-| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually (ops; orders reserve through the saga) |
-| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually (ops) |
+| `POST` | `/api/v1/products/{id}/restock` | Add stock — `ROLE_AGENT` only (AI Agent Service) |
+| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually — `ROLE_AGENT` only (orders reserve through the saga) |
+| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually — `ROLE_AGENT` only |
 
 ---
 
@@ -1193,8 +1193,8 @@ Authorization: Bearer <token>
 | `POST` | `/api/v1/orders/create` | Place an order — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
 | `GET` | `/api/v1/orders/{id}` | Get an order; poll it after creating |
 | `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
-| `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order (approver = JWT subject) |
-| `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock |
+| `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order — `ROLE_AGENT` only (approver = JWT subject) |
+| `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock — `ROLE_AGENT` only |
 | `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` |
 | `GET` | `/api/v1/orders/{id}/approval-status` | Is the order approved? (internal, unauthenticated) |
 

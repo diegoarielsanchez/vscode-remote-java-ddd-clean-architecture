@@ -70,6 +70,19 @@ This project has been hardened against the [OWASP Top 10 (2021)](https://owasp.o
 ```
 - `GatewayApplicationTest` asserts anonymous route creation, the route table and metrics all return `4xx`.
 
+**Finding 3 — Any User Could Approve Orders and Change Stock:** Every service only checked `/api/** → hasRole("USER")`. Any logged-in user could approve or reject any order (including their own) and restock, reserve or release any product's stock.
+
+**Fix:** These operations belong to the AI Agent Service, so they now require a dedicated `ROLE_AGENT`:
+```java
+authz.requestMatchers(HttpMethod.POST,
+        "/api/v1/orders/*/approve", "/api/v1/orders/*/reject").hasRole("AGENT");
+// product-catalog-service: /restock, /reserve-stock, /release-stock likewise
+authz.requestMatchers("/api/**").hasRole("USER");   // must come after
+```
+- identity-service seeds the agent account (`ROLE_USER` + `ROLE_AGENT`) only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set, in every profile. With no agent configured, nobody can perform these operations: the rule fails closed.
+- The RabbitMQ stock saga is unaffected; it never used these REST endpoints.
+- `OrderControllerSecurityTest` and `ProductControllerSecurityTest` sign real JWTs and assert a `ROLE_USER` token gets `403` on every agent-only endpoint while a `ROLE_AGENT` token passes authorization.
+
 ---
 
 ### A03 — Injection

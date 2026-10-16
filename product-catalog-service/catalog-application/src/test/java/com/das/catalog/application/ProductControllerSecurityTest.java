@@ -1,5 +1,8 @@
 package com.das.catalog.application;
 
+import io.jsonwebtoken.Jwts;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -8,6 +11,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -55,5 +66,52 @@ class ProductControllerSecurityTest {
     void unmappedPathIsDenied() throws Exception {
         mockMvc.perform(get("/api/v1/products/admin-only-not-a-real-path"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ── ROLE_AGENT: only the AI Agent Service may change stock (OWASP A01) ──
+
+    private static final String JWT_SECRET = "test-secret-key-for-integration-tests-only-32chars";
+
+    /** Signs a token exactly like identity-service, so the real JwtAuthenticationFilter is exercised. */
+    private static String bearer(String... authorities) {
+        byte[] key = JWT_SECRET.getBytes(StandardCharsets.UTF_8);
+        return "Bearer " + Jwts.builder()
+                .subject("tester")
+                .claim("authorities", List.of(authorities))
+                .expiration(new Date(System.currentTimeMillis() + 60_000))
+                .signWith(new SecretKeySpec(key, "HmacSHA256"), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"restock", "reserve-stock", "release-stock"})
+    void regularUserCannotCallAgentOnlyEndpoint(String action) throws Exception {
+        mockMvc.perform(post("/api/v1/products/" + UUID.randomUUID() + "/" + action)
+                        .header("Authorization", bearer("ROLE_USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"restock", "reserve-stock", "release-stock"})
+    void agentPassesAuthorizationOnAgentOnlyEndpoint(String action) throws Exception {
+        // Past the security chain the handler may still say 400/404 for this random id —
+        // what matters is that authorization no longer refuses the request.
+        int status = mockMvc.perform(post("/api/v1/products/" + UUID.randomUUID() + "/" + action)
+                        .header("Authorization", bearer("ROLE_USER", "ROLE_AGENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andReturn().getResponse().getStatus();
+        assertNotEquals(401, status);
+        assertNotEquals(403, status);
+    }
+
+    @Test
+    void regularUserCanStillReadById() throws Exception {
+        int status = mockMvc.perform(get("/api/v1/products/" + UUID.randomUUID())
+                        .header("Authorization", bearer("ROLE_USER")))
+                .andReturn().getResponse().getStatus();
+        assertNotEquals(403, status, "ROLE_AGENT must only gate the agent-only endpoints");
     }
 }

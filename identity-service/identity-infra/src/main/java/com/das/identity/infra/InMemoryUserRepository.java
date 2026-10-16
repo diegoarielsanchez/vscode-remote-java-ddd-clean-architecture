@@ -19,9 +19,10 @@ import java.util.regex.Pattern;
  * In-memory UserRepository.
  * <p>
  * Replace this with a JPA/DB-backed implementation without changing the domain.
- * Seeds one user from {@code identity.seed-user.*}. The password arrives already
- * BCrypt-hashed, so no plain-text credential lives in source or config (OWASP A07).
- * The dev profile supplies a default; the prod profile requires it from the environment.
+ * Seeds one user from {@code identity.seed-user.*} and, optionally, the AI Agent Service
+ * account from {@code identity.agent-user.*}. Passwords arrive already BCrypt-hashed, so no
+ * plain-text credential lives in source or config (OWASP A07). The dev profile supplies a
+ * default user; the prod profile requires it from the environment.
  */
 @Service
 public class InMemoryUserRepository implements UserRepository {
@@ -35,24 +36,30 @@ public class InMemoryUserRepository implements UserRepository {
 
     public InMemoryUserRepository(
             @Value("${identity.seed-user.username:}") String seedUsername,
-            @Value("${identity.seed-user.password-hash:}") String seedPasswordHash) {
+            @Value("${identity.seed-user.password-hash:}") String seedPasswordHash,
+            @Value("${identity.agent-user.username:}") String agentUsername,
+            @Value("${identity.agent-user.password-hash:}") String agentPasswordHash) {
         if (seedUsername.isBlank()) {
             log.warn("No identity.seed-user.username configured — no user can log in");
-            return;
+        } else {
+            seed("identity.seed-user", seedUsername, seedPasswordHash, List.of(UserRole.ROLE_USER));
         }
-        if (!BCRYPT_HASH.matcher(seedPasswordHash).matches()) {
+        if (agentUsername.isBlank()) {
+            log.info("No identity.agent-user.username configured — no one can approve orders or change stock");
+        } else {
+            // ROLE_USER too: the agent reads orders and products before deciding.
+            seed("identity.agent-user", agentUsername, agentPasswordHash,
+                    List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT));
+        }
+    }
+
+    private void seed(String property, String username, String passwordHash, List<UserRole> roles) {
+        if (!BCRYPT_HASH.matcher(passwordHash).matches()) {
             // Fail fast: a plain-text password here would otherwise just never authenticate.
             throw new IllegalStateException(
-                    "identity.seed-user.password-hash must be a BCrypt hash, not a plain-text password");
+                    property + ".password-hash must be a BCrypt hash, not a plain-text password");
         }
-        User seedUser = User.reconstitute(
-            UserId.random(),
-            seedUsername,
-            seedPasswordHash,
-            List.of(UserRole.ROLE_USER),
-            true
-        );
-        store.put(seedUser.getUsername(), seedUser);
+        store.put(username, User.reconstitute(UserId.random(), username, passwordHash, roles, true));
     }
 
     @Override

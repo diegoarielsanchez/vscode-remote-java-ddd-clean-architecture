@@ -6,5 +6,7 @@ package com.das.identity.domain.entities;
  */
 public enum UserRole {
     ROLE_USER,
-    ROLE_ADMIN
+    ROLE_ADMIN,
+    /** The AI Agent Service: the only caller allowed to approve orders and change stock. */
+    ROLE_AGENT
 }

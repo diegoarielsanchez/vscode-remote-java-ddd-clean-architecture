@@ -22,7 +22,7 @@ class InMemoryUserRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        repository = new InMemoryUserRepository("user", SEED_HASH);
+        repository = new InMemoryUserRepository("user", SEED_HASH, "", "");
     }
 
     // ── seeding ──────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ class InMemoryUserRepositoryTest {
     @Test
     @DisplayName("should seed nobody when no username is configured")
     void shouldSeedNobodyWithoutUsername() {
-        InMemoryUserRepository empty = new InMemoryUserRepository("", "");
+        InMemoryUserRepository empty = new InMemoryUserRepository("", "", "", "");
 
         assertTrue(empty.findByUsername("user").isEmpty());
     }
@@ -66,7 +66,31 @@ class InMemoryUserRepositoryTest {
     @DisplayName("should refuse to start with a plain-text password instead of a BCrypt hash")
     void shouldRejectPlainTextPassword() {
         assertThrows(IllegalStateException.class,
-                () -> new InMemoryUserRepository("user", "Apatehia65$"));
+                () -> new InMemoryUserRepository("user", "Apatehia65$", "", ""));
+    }
+
+    @Test
+    @DisplayName("should seed the agent account with ROLE_AGENT when configured")
+    void shouldSeedAgentWithAgentRole() {
+        InMemoryUserRepository repo = new InMemoryUserRepository("user", SEED_HASH, "agent", SEED_HASH);
+
+        assertEquals(List.of(UserRole.ROLE_USER, UserRole.ROLE_AGENT),
+                repo.findByUsername("agent").orElseThrow().getRoles());
+        assertEquals(List.of(UserRole.ROLE_USER), repo.findByUsername("user").orElseThrow().getRoles(),
+                "the regular user must never receive ROLE_AGENT");
+    }
+
+    @Test
+    @DisplayName("should seed no agent by default, so nobody can approve orders or change stock")
+    void shouldSeedNoAgentByDefault() {
+        assertTrue(repository.findByUsername("agent").isEmpty());
+    }
+
+    @Test
+    @DisplayName("should refuse to start with a plain-text agent password")
+    void shouldRejectPlainTextAgentPassword() {
+        assertThrows(IllegalStateException.class,
+                () -> new InMemoryUserRepository("user", SEED_HASH, "agent", "secret"));
     }
 
     // ── lookup ───────────────────────────────────────────────────────────────

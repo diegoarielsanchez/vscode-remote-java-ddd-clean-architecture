@@ -46,6 +46,10 @@ public class SecurityConfig {
                 // before creating a Pharma->MSR delivery. The API Gateway is the external auth
                 // boundary; peer services must not be forced to carry a user JWT for a read-only check.
                 authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/orders/*/approval-status").permitAll();
+                // Approval decisions belong to the AI Agent Service alone (OWASP A01). Must
+                // precede the /api/** rule, which would otherwise let any USER through.
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST,
+                        "/api/v1/orders/*/approve", "/api/v1/orders/*/reject").hasRole("AGENT");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })
