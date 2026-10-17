@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.visit;
 
+import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +22,10 @@ public interface IVisitPlanRepository {
     List<VisitPlan> searchAll(int page, int pageSize);
 
     void deactivateFutureByMedicalSalesRepId(String medicalSalesRepId);
+
+    /** Active plans of this MSR scheduled in [{@code from}, {@code toExclusive}). */
+    List<VisitPlan> findActiveByMedicalSalesRepIdBetween(MedicalSalesRepId medicalSalesRepId,
+                                                         LocalDateTime from, LocalDateTime toExclusive);
 
     void deactivateFutureByHealthCareProfId(String healthCareProfId);
 

@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.visit;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,9 @@ public interface IVisitRepository {
     List<Visit> searchAll();
 
     List<Visit> searchAll(int page, int pageSize);
+
+    /** Visits by this MSR on or after {@code since}, any order. */
+    List<Visit> findByMedicalSalesRepIdSince(MedicalSalesRepId medicalSalesRepId, LocalDateTime since);
 
     boolean existsByVisitKey(HealthCareProfId healthCareProfId, MedicalSalesRepId medicalSalesRepId, VisitDateTime visitDate);
 

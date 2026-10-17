@@ -1,5 +1,6 @@
 package com.das.infra.service.visit;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,6 +57,14 @@ public final class VisitRepository implements IVisitRepository {
         if (fromIndex >= all.size()) return new ArrayList<>();
         int toIndex = Math.min(fromIndex + pageSize, all.size());
         return all.subList(fromIndex, toIndex);
+    }
+
+    @Override
+    public synchronized List<Visit> findByMedicalSalesRepIdSince(MedicalSalesRepId medicalSalesRepId, LocalDateTime since) {
+        return visits.values().stream()
+            .filter(v -> v.medicalSalesRepId().value().equals(medicalSalesRepId.value()))
+            .filter(v -> !v.visitDate().value().isBefore(since))
+            .collect(java.util.stream.Collectors.toList());
     }
 
     @Override

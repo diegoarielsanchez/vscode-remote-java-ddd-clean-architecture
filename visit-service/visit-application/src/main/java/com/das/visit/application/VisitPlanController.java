@@ -1,5 +1,6 @@
 package com.das.visit.application;
 
+import java.time.YearMonth;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -24,7 +25,9 @@ import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
 import com.das.visit.application.security.JwtCallerDetails;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
@@ -49,12 +52,14 @@ public class VisitPlanController {
     private final UseCase<UpdateVisitPlanInputDTO, VisitPlanOutputDTO> updateVisitPlanUseCase;
     private final UseCase<VisitPlanIDDto, VisitPlanOutputDTO> getVisitPlanByIdUseCase;
     private final UseCase<ListVisitPlansInputDTO, List<VisitPlanOutputDTO>> listVisitPlansUseCase;
+    private final UseCase<SuggestVisitPlansInputDTO, VisitPlanSuggestionsOutputDTO> suggestVisitPlansUseCase;
 
     public VisitPlanController(VisitPlanUseCaseFactory visitPlanUseCaseFactory) {
         this.createVisitPlanUseCase = visitPlanUseCaseFactory.getCreateVisitPlanUseCase();
         this.updateVisitPlanUseCase = visitPlanUseCaseFactory.getUpdateVisitPlanUseCase();
         this.getVisitPlanByIdUseCase = visitPlanUseCaseFactory.getVisitPlanByIdUseCase();
         this.listVisitPlansUseCase = visitPlanUseCaseFactory.getListVisitPlansUseCase();
+        this.suggestVisitPlansUseCase = visitPlanUseCaseFactory.getSuggestVisitPlansUseCase();
     }
 
     @PostMapping("/create")
@@ -82,6 +87,31 @@ public class VisitPlanController {
                 inputDTO.visitSiteId(), msrId)));
     }
 
+    /**
+     * Read-only draft of a month of visit plans, built from the MSR's visit history. Nothing is saved.
+     * A rep always gets their own; the AI Agent Service must name the MSR it is planning for.
+     */
+    @GetMapping("/suggestions")
+    @Operation(summary = "Suggest visit plans for a month (default: next month) — read-only, nothing is saved")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<VisitPlanSuggestionsOutputDTO> suggestVisitPlans(
+            @RequestParam(required = false) YearMonth month,
+            @RequestParam(required = false) String medicalSalesRepId,
+            Authentication authentication) throws DomainException {
+        log.info("GET /api/v1/visitplan/suggestions month={}", sanitize(String.valueOf(month)));
+        boolean isAgent = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
+        String msrId;
+        if (isAgent && medicalSalesRepId != null && !medicalSalesRepId.isBlank()) {
+            msrId = medicalSalesRepId;
+        } else if (isAgent && callerMsrId(authentication) == null) {
+            throw new InvalidInputException("medicalSalesRepId is required when the AI Agent Service asks for suggestions");
+        } else {
+            msrId = ownMsrId(authentication, medicalSalesRepId);
+        }
+        return ResponseEntity.ok(suggestVisitPlansUseCase.execute(new SuggestVisitPlansInputDTO(msrId, month)));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get visit plan by ID")
     @ResponseStatus(HttpStatus.OK)
@@ -106,8 +136,7 @@ public class VisitPlanController {
      * another MSR is refused rather than silently reassigned (OWASP A01).
      */
     private static String ownMsrId(Authentication authentication, String requestedMsrId) {
-        String callerMsrId = authentication.getDetails() instanceof JwtCallerDetails details
-                ? details.medicalSalesRepId() : null;
+        String callerMsrId = callerMsrId(authentication);
         if (callerMsrId == null) {
             throw new AccessDeniedException("Only a Medical Sales Rep can manage visit plans");
         }
@@ -115,6 +144,11 @@ public class VisitPlanController {
             throw new AccessDeniedException("A visit plan can only belong to your own Medical Sales Rep");
         }
         return callerMsrId;
+    }
+
+    /** The token's {@code msr_id} claim, or {@code null}. */
+    private static String callerMsrId(Authentication authentication) {
+        return authentication.getDetails() instanceof JwtCallerDetails details ? details.medicalSalesRepId() : null;
     }
 
     /** Strips log-injection characters from user-supplied values (OWASP A09). */

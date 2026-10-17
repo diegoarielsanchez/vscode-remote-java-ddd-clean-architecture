@@ -108,6 +108,15 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
         return visitPlanJpaRepository.existsDuplicateOnDay(startOfDay, endOfDay, healthCareProfId, medicalSalesRepId, excludeVisitPlanId);
     }
 
+    @Override
+    public List<VisitPlan> findActiveByMedicalSalesRepIdBetween(MedicalSalesRepId medicalSalesRepId,
+                                                                LocalDateTime from, LocalDateTime toExclusive) {
+        return visitPlanJpaRepository.findActiveByMedicalSalesRepIdBetween(medicalSalesRepId.value(), from, toExclusive)
+                .stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
     private VisitPlan toDomain(VisitPlanEntity entity) {
         String hcpId = entity.getHealthCareProfId();
         if (hcpId == null) {

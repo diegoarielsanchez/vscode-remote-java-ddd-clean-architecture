@@ -1,5 +1,6 @@
 package com.das.infra.service.visit;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -65,6 +66,14 @@ public final class SQLVisitRepository implements IVisitRepository {
     @Override
     public List<Visit> searchAll(int page, int pageSize) {
         return visitJpaRepository.findAll(PageRequest.of(page - 1, pageSize)).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Visit> findByMedicalSalesRepIdSince(MedicalSalesRepId medicalSalesRepId, LocalDateTime since) {
+        return visitJpaRepository.findByMedicalSalesRepIdAndVisitDateGreaterThanEqual(medicalSalesRepId.value(), since)
+                .stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }
