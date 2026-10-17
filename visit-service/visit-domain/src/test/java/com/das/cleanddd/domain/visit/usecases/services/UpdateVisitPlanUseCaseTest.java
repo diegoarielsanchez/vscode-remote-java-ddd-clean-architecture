@@ -203,4 +203,20 @@ class UpdateVisitPlanUseCaseTest {
             assertThat(output.visitComments()).isNull();
         }
     }
+
+    @Nested
+    class Ownership {
+
+        @Test
+        void shouldRefuseAnotherMsrsPlanLikeAMissingOne() throws Exception {
+            when(visitPlanRepository.search(any())).thenReturn(Optional.of(buildExistingPlan()));
+            UpdateVisitPlanInputDTO otherRep = new UpdateVisitPlanInputDTO(
+                PLAN_ID, FUTURE_DT, HCP_ID, "hijack", SITE_ID, "723e4567-e89b-12d3-a456-426614174009");
+
+            assertThatThrownBy(() -> useCase.execute(otherRep))
+                .isInstanceOf(DomainException.class)
+                .hasMessage("Visit plan not found.");
+            verify(visitPlanRepository, never()).save(any());
+        }
+    }
 }

@@ -1,5 +1,10 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
+import java.time.Clock;
+
+import com.das.cleanddd.domain.visit.IVisitRepository;
+import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -23,9 +28,11 @@ public class VisitPlanUseCaseFactory {
     private final UpdateVisitPlanUseCase updateVisitPlanUseCase;
     private final GetVisitPlanByIdUseCase getVisitPlanByIdUseCase;
     private final ListVisitPlansUseCase listVisitPlansUseCase;
+    private final SuggestVisitPlansUseCase suggestVisitPlansUseCase;
 
     public VisitPlanUseCaseFactory(
         IVisitPlanRepository visitPlanRepository,
+        IVisitRepository visitRepository,
         IHealthCareProfValidator healthCareProfValidator,
         IMedicalSalesRepValidator medicalSalesRepValidator
     ) {
@@ -43,6 +50,12 @@ public class VisitPlanUseCaseFactory {
         );
         this.getVisitPlanByIdUseCase = new GetVisitPlanByIdUseCase(visitPlanRepository, mapper);
         this.listVisitPlansUseCase = new ListVisitPlansUseCase(visitPlanRepository, mapper);
+        this.suggestVisitPlansUseCase = new SuggestVisitPlansUseCase(
+            visitRepository,
+            visitPlanRepository,
+            healthCareProfValidator,
+            Clock.systemDefaultZone()
+        );
     }
 
     public UseCase<CreateVisitPlanInputDTO, VisitPlanOutputDTO> getCreateVisitPlanUseCase() {
@@ -59,5 +72,9 @@ public class VisitPlanUseCaseFactory {
 
     public UseCase<ListVisitPlansInputDTO, List<VisitPlanOutputDTO>> getListVisitPlansUseCase() {
         return listVisitPlansUseCase;
+    }
+
+    public UseCase<SuggestVisitPlansInputDTO, VisitPlanSuggestionsOutputDTO> getSuggestVisitPlansUseCase() {
+        return suggestVisitPlansUseCase;
     }
 }

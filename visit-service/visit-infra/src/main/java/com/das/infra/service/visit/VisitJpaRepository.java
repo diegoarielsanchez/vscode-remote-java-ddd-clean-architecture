@@ -1,5 +1,6 @@
 package com.das.infra.service.visit;
 
+import java.util.List;
 import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -7,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitJpaRepository extends JpaRepository<VisitEntity, String> {
+
+    List<VisitEntity> findByMedicalSalesRepIdAndVisitDateGreaterThanEqual(String medicalSalesRepId, LocalDateTime since);
 
     @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM VisitEntity e " +
            "WHERE e.healthCareProfId = :healthCareProfId " +

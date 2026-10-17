@@ -64,7 +64,10 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
         try {
             VisitId visitId = new VisitId(inputDTO.id());
             Optional<VisitPlan> existingVisitPlan = visitPlanRepository.search(visitId);
-            if (existingVisitPlan.isEmpty()) {
+            // Another MSR's plan answers exactly like a missing one, so plan ids cannot be probed
+            // and a plan cannot be reassigned to a different MSR (OWASP A01).
+            if (existingVisitPlan.isEmpty()
+                    || !existingVisitPlan.get().medicalSalesRepId().value().equals(inputDTO.medicalSalesRepId())) {
                 throw new DomainException("Visit plan not found.");
             }
 

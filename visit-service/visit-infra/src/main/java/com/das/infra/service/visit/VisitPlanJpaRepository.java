@@ -1,5 +1,6 @@
 package com.das.infra.service.visit;
 
+import java.util.List;
 import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +10,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface VisitPlanJpaRepository extends JpaRepository<VisitPlanEntity, String> {
+
+    @Query("SELECT v FROM VisitPlanEntity v WHERE v.medicalSalesRepId = :msrId AND v.active = true " +
+           "AND v.visitDateTime >= :from AND v.visitDateTime < :toExclusive")
+    List<VisitPlanEntity> findActiveByMedicalSalesRepIdBetween(
+        @Param("msrId") String msrId,
+        @Param("from") LocalDateTime from,
+        @Param("toExclusive") LocalDateTime toExclusive
+    );
 
     @Transactional
     @Modifying(clearAutomatically = true)

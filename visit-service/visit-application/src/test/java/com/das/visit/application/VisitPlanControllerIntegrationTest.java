@@ -61,6 +61,9 @@ class VisitPlanControllerIntegrationTest {
     @Autowired
     private VisitPlanJpaRepository visitPlanJpaRepository;
 
+    @Autowired
+    private com.das.infra.service.visit.VisitJpaRepository visitJpaRepository;
+
         @MockitoBean
     private ConnectionFactory connectionFactory;
 
@@ -85,16 +88,148 @@ class VisitPlanControllerIntegrationTest {
     @AfterEach
     void cleanUp() {
         visitPlanJpaRepository.deleteAll();
+        visitJpaRepository.deleteAll();
+    }
+
+    // ── Ownership: a plan always belongs to the caller's own MSR (OWASP A01) ──
+
+    private static final String OTHER_MSR_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
+    @Test
+    void createVisitPlan_returns403_whenCallerIsNotLinkedToAnMsr() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, null);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + jwtFor(null))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createVisitPlan_returns403_whenBodyNamesAnotherMsr() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, OTHER_MSR_ID);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createVisitPlan_usesCallersMsr_whenBodyOmitsIt() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, null);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID));
+    }
+
+    @Test
+    void updateVisitPlan_cannotTouchAnotherMsrsPlan() throws Exception {
+        String id = createAndGetId();
+        var body = new UpdateVisitPlanInputDTO(id, LocalDateTime.now().plusDays(9), HCP_ID, "hijack", SITE_ID, null);
+
+        int status = mockMvc.perform(put(BASE_URL + "/update")
+                        .header("Authorization", "Bearer " + jwtFor(OTHER_MSR_ID))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andReturn().getResponse().getStatus();
+
+        org.junit.jupiter.api.Assertions.assertTrue(status >= 400 && status < 500, "expected a 4xx, got " + status);
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID))
+                .andExpect(jsonPath("$.visitComments").value(org.hamcrest.Matchers.not("hijack")));
+    }
+
+    // ── Suggestions: read-only drafts from the MSR's own visit history ──
+
+    private void storeVisit(String msrId, LocalDateTime at) {
+        var visit = new com.das.infra.service.visit.VisitEntity();
+        visit.setId(java.util.UUID.randomUUID().toString());
+        visit.setVisitDate(at);
+        visit.setHealthCareProfId(HCP_ID);
+        visit.setMedicalSalesRepId(msrId);
+        visit.setVisitSiteId(SITE_ID);
+        visitJpaRepository.save(visit);
+    }
+
+    @Test
+    void suggestions_draftNextMonthFromTheCallersOwnVisits_withoutSavingAnything() throws Exception {
+        storeVisit(MSR_ID, LocalDateTime.now().minusDays(20));
+        storeVisit(OTHER_MSR_ID, LocalDateTime.now().minusDays(20)); // another rep's history is not used
+
+        mockMvc.perform(get(BASE_URL + "/suggestions").header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID))
+                .andExpect(jsonPath("$.month").value(java.time.YearMonth.now().plusMonths(1).toString()))
+                .andExpect(jsonPath("$.suggestions.length()").value(1))
+                .andExpect(jsonPath("$.suggestions[0].healthCareProfId").value(HCP_ID))
+                .andExpect(jsonPath("$.suggestions[0].visitSiteId").value(SITE_ID));
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, visitPlanJpaRepository.count(), "suggestions must not create plans");
+    }
+
+    @Test
+    void suggestions_forAnotherMsr_return403() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/suggestions").param("medicalSalesRepId", OTHER_MSR_ID)
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void suggestions_callerNotLinkedToAnMsr_return403() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/suggestions").header("Authorization", "Bearer " + jwtFor(null)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void suggestions_agentMustNameTheMsr() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/suggestions").header("Authorization", "Bearer " + agentJwt()))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get(BASE_URL + "/suggestions").param("medicalSalesRepId", OTHER_MSR_ID)
+                        .header("Authorization", "Bearer " + agentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(OTHER_MSR_ID));
+    }
+
+    @Test
+    void suggestions_forAPastMonth_areRefused() throws Exception {
+        int status = mockMvc.perform(get(BASE_URL + "/suggestions")
+                        .param("month", java.time.YearMonth.now().minusMonths(1).toString())
+                        .header("Authorization", "Bearer " + authToken))
+                .andReturn().getResponse().getStatus();
+        org.junit.jupiter.api.Assertions.assertTrue(status >= 400 && status < 500, "expected a 4xx, got " + status);
     }
 
     // ── JWT helper ──────────────────────────────────────────────────────────
 
     private String generateValidJwt() {
+        return jwtFor(MSR_ID);
+    }
+
+    /** A ROLE_USER token for the given MSR, or with no msr_id claim when {@code msrId} is null. */
+    private String jwtFor(String msrId) {
+        return jwtFor(msrId, List.of("ROLE_USER"));
+    }
+
+    /** The AI Agent Service: no msr_id of its own. */
+    private String agentJwt() {
+        return jwtFor(null, List.of("ROLE_USER", "ROLE_AGENT"));
+    }
+
+    private String jwtFor(String msrId, List<String> authorities) {
         SecretKeySpec key = new SecretKeySpec(
                 JWT_SECRET.getBytes(), 0, JWT_SECRET.getBytes().length, "HmacSHA256");
         return Jwts.builder()
                 .subject("testuser")
-                .claim("authorities", List.of("ROLE_USER"))
+                .claim("authorities", authorities)
+                .claim("msr_id", msrId) // visit plans always belong to the caller's own MSR
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(key)
