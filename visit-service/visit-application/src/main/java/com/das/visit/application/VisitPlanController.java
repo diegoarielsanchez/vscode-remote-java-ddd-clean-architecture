@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +27,7 @@ import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
-import com.das.visit.application.security.JwtCallerDetails;
+import com.das.visit.application.security.CallerMsr;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.services.VisitPlanUseCaseFactory;
@@ -68,7 +67,7 @@ public class VisitPlanController {
     public ResponseEntity<Object> createVisitPlan(@Valid @RequestBody CreateVisitPlanInputDTO inputDTO,
                                                   Authentication authentication) throws DomainException {
         log.info("POST /api/v1/visitplan/create");
-        String msrId = ownMsrId(authentication, inputDTO.medicalSalesRepId());
+        String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visit plans");
         return ResponseEntity.status(HttpStatus.CREATED).body(createVisitPlanUseCase.execute(new CreateVisitPlanInputDTO(
                 inputDTO.visitDateTime(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
                 inputDTO.visitSiteId(), msrId, inputDTO.items())));
@@ -81,7 +80,7 @@ public class VisitPlanController {
                                                   Authentication authentication) throws DomainException {
         log.info("PUT /api/v1/visitplan/update");
         // The use case also refuses a plan that belongs to another MSR.
-        String msrId = ownMsrId(authentication, inputDTO.medicalSalesRepId());
+        String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visit plans");
         return ResponseEntity.ok(updateVisitPlanUseCase.execute(new UpdateVisitPlanInputDTO(
                 inputDTO.id(), inputDTO.visitDateTime(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
                 inputDTO.visitSiteId(), msrId, inputDTO.items())));
@@ -104,10 +103,10 @@ public class VisitPlanController {
         String msrId;
         if (isAgent && medicalSalesRepId != null && !medicalSalesRepId.isBlank()) {
             msrId = medicalSalesRepId;
-        } else if (isAgent && callerMsrId(authentication) == null) {
+        } else if (isAgent && CallerMsr.of(authentication) == null) {
             throw new InvalidInputException("medicalSalesRepId is required when the AI Agent Service asks for suggestions");
         } else {
-            msrId = ownMsrId(authentication, medicalSalesRepId);
+            msrId = CallerMsr.require(authentication, medicalSalesRepId, "visit plans");
         }
         return ResponseEntity.ok(suggestVisitPlansUseCase.execute(new SuggestVisitPlansInputDTO(msrId, month)));
     }
@@ -129,26 +128,6 @@ public class VisitPlanController {
         log.info("POST /api/v1/visitplan/list");
         pageSize = Math.min(pageSize, 100);
         return ResponseEntity.ok(listVisitPlansUseCase.execute(new ListVisitPlansInputDTO(page, pageSize)));
-    }
-
-    /**
-     * The caller's own MSR (token {@code msr_id}). A visit plan is always the caller's: a request naming
-     * another MSR is refused rather than silently reassigned (OWASP A01).
-     */
-    private static String ownMsrId(Authentication authentication, String requestedMsrId) {
-        String callerMsrId = callerMsrId(authentication);
-        if (callerMsrId == null) {
-            throw new AccessDeniedException("Only a Medical Sales Rep can manage visit plans");
-        }
-        if (requestedMsrId != null && !requestedMsrId.isBlank() && !requestedMsrId.equals(callerMsrId)) {
-            throw new AccessDeniedException("A visit plan can only belong to your own Medical Sales Rep");
-        }
-        return callerMsrId;
-    }
-
-    /** The token's {@code msr_id} claim, or {@code null}. */
-    private static String callerMsrId(Authentication authentication) {
-        return authentication.getDetails() instanceof JwtCallerDetails details ? details.medicalSalesRepId() : null;
     }
 
     /** Strips log-injection characters from user-supplied values (OWASP A09). */

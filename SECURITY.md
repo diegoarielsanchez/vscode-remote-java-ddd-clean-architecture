@@ -91,9 +91,9 @@ authz.requestMatchers("/api/**").hasRole("USER");   // must come after
 - `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
 - Ownership is only meaningful if it can't be chosen freely, so `POST /api/v1/orders/create` no longer trusts the body's `medicalSalesRepId`: the order is always placed for the caller's `msr_id`. Callers not linked to an MSR get `403`, and so does a body naming a different MSR.
 
-**Finding 6 — Visit Plans Could Be Created for, or Moved to, Any MSR:** `POST /api/v1/visitplan/create` and `PUT /api/v1/visitplan/update` took `medicalSalesRepId` from the body, and update never checked who owned the plan. Any user could schedule visits in another rep's name, or edit and reassign their plans.
+**Finding 6 — Visits and Visit Plans Could Be Created for, or Moved to, Any MSR:** The create and update endpoints of `/api/v1/visit` and `/api/v1/visitplan` took `medicalSalesRepId` from the body, and update never checked ownership. Any user could record visits or schedule plans in another rep's name — skewing the history visit-plan suggestions are built from — or edit and reassign them.
 
-**Fix:** Same rule as orders. visit-service's JWT filter exposes the `msr_id` claim, and the controller always uses it: callers not linked to an MSR get `403`, and so does a body naming a different MSR. `UpdateVisitPlanUseCase` refuses a plan owned by another MSR with the same `"Visit plan not found."` as a missing one.
+**Fix:** Same rule as orders. visit-service's JWT filter exposes the `msr_id` claim, and the controller always uses it: callers not linked to an MSR get `403`, and so does a body naming a different MSR. `UpdateVisitUseCase` and `UpdateVisitPlanUseCase` refuse a record owned by another MSR with the same "not found" as a missing one. Both controllers share one helper, `CallerMsr`.
 
 **Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
 

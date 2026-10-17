@@ -77,6 +77,9 @@ class VisitPlanControllerIntegrationTest {
         @MockitoBean
     private IProductPromoAttachmentStorage attachmentStorage;
 
+    @MockitoBean
+    private com.das.cleanddd.domain.visit.ports.IProductAvailability productAvailability;
+
     private String authToken;
 
     @BeforeEach
@@ -213,7 +216,12 @@ class VisitPlanControllerIntegrationTest {
     // ── Suggestions: read-only drafts from the MSR's own visit history ──
 
     private void storeVisit(String msrId, LocalDateTime at) {
+        storeVisit(msrId, at, List.of());
+    }
+
+    private void storeVisit(String msrId, LocalDateTime at, List<com.das.infra.service.visit.VisitItemEmbeddable> items) {
         var visit = new com.das.infra.service.visit.VisitEntity();
+        visit.setItems(items);
         visit.setId(java.util.UUID.randomUUID().toString());
         visit.setVisitDate(at);
         visit.setHealthCareProfId(HCP_ID);
@@ -236,6 +244,20 @@ class VisitPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.suggestions[0].visitSiteId").value(SITE_ID));
 
         org.junit.jupiter.api.Assertions.assertEquals(0, visitPlanJpaRepository.count(), "suggestions must not create plans");
+    }
+
+    @Test
+    void suggestions_listTheProductsTheHcpUsuallyReceives_withAStockFlag() throws Exception {
+        storeVisit(MSR_ID, LocalDateTime.now().minusDays(20),
+                List.of(new com.das.infra.service.visit.VisitItemEmbeddable(PRODUCT_A, 4)));
+        when(productAvailability.isAvailable(PRODUCT_A, 4)).thenReturn(java.util.Optional.of(true));
+
+        mockMvc.perform(get(BASE_URL + "/suggestions").header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions[0].items.length()").value(1))
+                .andExpect(jsonPath("$.suggestions[0].items[0].productId").value(PRODUCT_A))
+                .andExpect(jsonPath("$.suggestions[0].items[0].quantity").value(4))
+                .andExpect(jsonPath("$.suggestions[0].items[0].inStock").value(true));
     }
 
     @Test

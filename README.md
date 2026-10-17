@@ -1146,13 +1146,13 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/visit/create` | Create a visit; optional `items: [{productId, quantity}]` — the products handed out (1–1000 units each, at most 50 products; repeated products are added up) |
-| `PUT` | `/api/v1/visit/update` | Update a visit; `items` replaces the list, `[]` clears it, omitting it keeps the current items |
+| `POST` | `/api/v1/visit/create` | Create a visit for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items: [{productId, quantity}]` — the products handed out (1–1000 units each, at most 50 products; repeated products are added up) |
+| `PUT` | `/api/v1/visit/update` | Update one of the caller's own visits (another MSR's visit answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items |
 | `GET` | `/api/v1/visit/get?id=<uuid>` | Get a visit by ID |
 | `POST` | `/api/v1/visit/list` | List visits (with criteria filter) |
 | `POST` | `/api/v1/visitplan/create` | Create a visit plan for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items` — the products to bring, same rules as visits |
 | `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items |
-| `GET` | `/api/v1/visitplan/suggestions?month=YYYY-MM` | **Read-only** draft of a month of visit plans (default: next month) from the MSR's own visit history: active HCPs that are due, most overdue first, on weekdays in hourly slots from 09:00 (max 6/day) around existing plans, each with a `reason`. Nothing is saved — accept a suggestion by creating it. A rep gets their own; the AI Agent Service (`ROLE_AGENT`) must pass `medicalSalesRepId`. Products are not suggested yet |
+| `GET` | `/api/v1/visitplan/suggestions?month=YYYY-MM` | **Read-only** draft of a month of visit plans (default: next month) from the MSR's own visit history: active HCPs that are due, most overdue first, on weekdays in hourly slots from 09:00 (max 6/day) around existing plans, each with a `reason`. Nothing is saved — accept a suggestion by creating it. A rep gets their own; the AI Agent Service (`ROLE_AGENT`) must pass `medicalSalesRepId`. Each suggestion lists `items` to bring: per product, the average quantity over the HCP's last 3 visits that recorded products, with `inStock` — whether product-catalog-service has enough for that product's total across the month (`null` if the catalog can't be reached) |
 | `GET` | `/api/v1/visitplan/get?id=<uuid>` | Get a visit plan by ID |
 | `POST` | `/api/v1/visitplan/list` | List visit plans (with criteria filter) |
 

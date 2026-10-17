@@ -204,4 +204,20 @@ class UpdateVisitUseCaseTest {
             assertThat(output.visitComments()).isNull();
         }
     }
+
+    @Nested
+    class Ownership {
+
+        @Test
+        void shouldRefuseAnotherMsrsVisitLikeAMissingOne() throws Exception {
+            when(visitRepository.search(any())).thenReturn(Optional.of(buildExistingVisit()));
+            UpdateVisitInputDTO otherRep = new UpdateVisitInputDTO(
+                VISIT_ID, VALID_DATE, HCP_ID, "hijack", SITE_ID, "723e4567-e89b-12d3-a456-426614174009");
+
+            assertThatThrownBy(() -> useCase.execute(otherRep))
+                .isInstanceOf(DomainException.class)
+                .hasMessage("Visit not found.");
+            verify(visitRepository, never()).save(any());
+        }
+    }
 }
