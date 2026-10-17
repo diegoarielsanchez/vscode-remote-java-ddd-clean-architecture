@@ -63,7 +63,10 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
         try {
             VisitId visitId = new VisitId(inputDTO.id());
             Optional<Visit> existingVisit = visitRepository.search(visitId);
-            if (existingVisit.isEmpty()) {
+            // Another MSR's visit answers exactly like a missing one, so visit ids cannot be probed
+            // and a visit cannot be reassigned to a different MSR (OWASP A01).
+            if (existingVisit.isEmpty()
+                    || !existingVisit.get().medicalSalesRepId().value().equals(inputDTO.medicalSalesRepId())) {
                 throw new DomainException("Visit not found.");
             }
 

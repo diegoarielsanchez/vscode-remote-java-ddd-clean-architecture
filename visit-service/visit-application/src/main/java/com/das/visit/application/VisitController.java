@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +34,7 @@ import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UploadAttachmentsOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitIDDto;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
+import com.das.visit.application.security.CallerMsr;
 import com.das.cleanddd.domain.visit.usecases.services.VisitUseCaseFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,18 +70,27 @@ public class VisitController {
     @PostMapping("/create")
     @Operation(summary = "Create visit")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<Object> createVisit(@Valid @RequestBody CreateVisitInputDTO inputDTO) throws DomainException {
+    public ResponseEntity<Object> createVisit(@Valid @RequestBody CreateVisitInputDTO inputDTO,
+                                              Authentication authentication) throws DomainException {
         log.info("POST /api/v1/visit/create");
-        VisitOutputDTO result = createVisitUseCase.execute(inputDTO);
+        String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visits");
+        VisitOutputDTO result = createVisitUseCase.execute(new CreateVisitInputDTO(
+                inputDTO.visitDate(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
+                inputDTO.visitSiteId(), msrId, inputDTO.items()));
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PutMapping("/update")
     @Operation(summary = "Update visit")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> updateVisit(@Valid @RequestBody UpdateVisitInputDTO inputDTO) throws DomainException {
+    public ResponseEntity<Object> updateVisit(@Valid @RequestBody UpdateVisitInputDTO inputDTO,
+                                              Authentication authentication) throws DomainException {
         log.info("PUT /api/v1/visit/update");
-        return ResponseEntity.ok(updateVisitUseCase.execute(inputDTO));
+        // The use case also refuses a visit that belongs to another MSR.
+        String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visits");
+        return ResponseEntity.ok(updateVisitUseCase.execute(new UpdateVisitInputDTO(
+                inputDTO.id(), inputDTO.visitDate(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
+                inputDTO.visitSiteId(), msrId, inputDTO.items())));
     }
 
     @GetMapping("/{id}")
