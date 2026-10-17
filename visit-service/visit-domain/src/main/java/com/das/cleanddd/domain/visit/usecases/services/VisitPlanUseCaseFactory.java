@@ -4,6 +4,8 @@ import java.time.Clock;
 
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.ports.IProductAvailability;
+import com.das.cleanddd.domain.visit.usecases.dtos.DraftMonthlyOrdersInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.OrderDraftOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
 import java.util.List;
@@ -30,6 +32,7 @@ public class VisitPlanUseCaseFactory {
     private final GetVisitPlanByIdUseCase getVisitPlanByIdUseCase;
     private final ListVisitPlansUseCase listVisitPlansUseCase;
     private final SuggestVisitPlansUseCase suggestVisitPlansUseCase;
+    private final DraftMonthlyOrdersUseCase draftMonthlyOrdersUseCase;
 
     public VisitPlanUseCaseFactory(
         IVisitPlanRepository visitPlanRepository,
@@ -59,6 +62,11 @@ public class VisitPlanUseCaseFactory {
             productAvailability,
             Clock.systemDefaultZone()
         );
+        this.draftMonthlyOrdersUseCase = new DraftMonthlyOrdersUseCase(
+            visitPlanRepository,
+            productAvailability,
+            Clock.systemDefaultZone()
+        );
     }
 
     public UseCase<CreateVisitPlanInputDTO, VisitPlanOutputDTO> getCreateVisitPlanUseCase() {
@@ -79,5 +87,9 @@ public class VisitPlanUseCaseFactory {
 
     public UseCase<SuggestVisitPlansInputDTO, VisitPlanSuggestionsOutputDTO> getSuggestVisitPlansUseCase() {
         return suggestVisitPlansUseCase;
+    }
+
+    public UseCase<DraftMonthlyOrdersInputDTO, OrderDraftOutputDTO> getDraftMonthlyOrdersUseCase() {
+        return draftMonthlyOrdersUseCase;
     }
 }
