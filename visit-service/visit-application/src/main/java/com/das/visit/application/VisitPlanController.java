@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.DraftMonthlyOrdersInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.ListVisitPlansInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.OrderDraftOutputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
@@ -52,6 +54,7 @@ public class VisitPlanController {
     private final UseCase<VisitPlanIDDto, VisitPlanOutputDTO> getVisitPlanByIdUseCase;
     private final UseCase<ListVisitPlansInputDTO, List<VisitPlanOutputDTO>> listVisitPlansUseCase;
     private final UseCase<SuggestVisitPlansInputDTO, VisitPlanSuggestionsOutputDTO> suggestVisitPlansUseCase;
+    private final UseCase<DraftMonthlyOrdersInputDTO, OrderDraftOutputDTO> draftMonthlyOrdersUseCase;
 
     public VisitPlanController(VisitPlanUseCaseFactory visitPlanUseCaseFactory) {
         this.createVisitPlanUseCase = visitPlanUseCaseFactory.getCreateVisitPlanUseCase();
@@ -59,6 +62,7 @@ public class VisitPlanController {
         this.getVisitPlanByIdUseCase = visitPlanUseCaseFactory.getVisitPlanByIdUseCase();
         this.listVisitPlansUseCase = visitPlanUseCaseFactory.getListVisitPlansUseCase();
         this.suggestVisitPlansUseCase = visitPlanUseCaseFactory.getSuggestVisitPlansUseCase();
+        this.draftMonthlyOrdersUseCase = visitPlanUseCaseFactory.getDraftMonthlyOrdersUseCase();
     }
 
     @PostMapping("/create")
@@ -98,17 +102,41 @@ public class VisitPlanController {
             @RequestParam(required = false) String medicalSalesRepId,
             Authentication authentication) throws DomainException {
         log.info("GET /api/v1/visitplan/suggestions month={}", sanitize(String.valueOf(month)));
+        String msrId = plannedMsrId(authentication, medicalSalesRepId);
+        return ResponseEntity.ok(suggestVisitPlansUseCase.execute(new SuggestVisitPlansInputDTO(msrId, month)));
+    }
+
+    /**
+     * Read-only draft of the month's product order: the items of the MSR's active visit plans that month,
+     * added up per product, plus ready-to-submit bodies for {@code POST /api/v1/orders/create}. Nothing is
+     * ordered. Same caller rules as suggestions.
+     */
+    @GetMapping("/order-draft")
+    @Operation(summary = "Draft the month's product order from active visit plans (default: next month) — read-only")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<OrderDraftOutputDTO> draftMonthlyOrders(
+            @RequestParam(required = false) YearMonth month,
+            @RequestParam(required = false) String medicalSalesRepId,
+            Authentication authentication) throws DomainException {
+        log.info("GET /api/v1/visitplan/order-draft month={}", sanitize(String.valueOf(month)));
+        String msrId = plannedMsrId(authentication, medicalSalesRepId);
+        return ResponseEntity.ok(draftMonthlyOrdersUseCase.execute(new DraftMonthlyOrdersInputDTO(msrId, month)));
+    }
+
+    /**
+     * The MSR a read-only draft is for: a rep always gets their own; the AI Agent Service, which has no
+     * MSR of its own, must name one.
+     */
+    private static String plannedMsrId(Authentication authentication, String medicalSalesRepId) {
         boolean isAgent = authentication.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
-        String msrId;
         if (isAgent && medicalSalesRepId != null && !medicalSalesRepId.isBlank()) {
-            msrId = medicalSalesRepId;
-        } else if (isAgent && CallerMsr.of(authentication) == null) {
-            throw new InvalidInputException("medicalSalesRepId is required when the AI Agent Service asks for suggestions");
-        } else {
-            msrId = CallerMsr.require(authentication, medicalSalesRepId, "visit plans");
+            return medicalSalesRepId;
         }
-        return ResponseEntity.ok(suggestVisitPlansUseCase.execute(new SuggestVisitPlansInputDTO(msrId, month)));
+        if (isAgent && CallerMsr.of(authentication) == null) {
+            throw new InvalidInputException("medicalSalesRepId is required when the AI Agent Service asks for a draft");
+        }
+        return CallerMsr.require(authentication, medicalSalesRepId, "visit plans");
     }
 
     @GetMapping("/{id}")

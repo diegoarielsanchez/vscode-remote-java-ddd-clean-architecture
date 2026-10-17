@@ -293,6 +293,56 @@ class VisitPlanControllerIntegrationTest {
         org.junit.jupiter.api.Assertions.assertTrue(status >= 400 && status < 500, "expected a 4xx, got " + status);
     }
 
+    // ── Order draft: the month's products, added up from active visit plans ──
+
+    private void planNextMonth(String token, int day, List<VisitItemDTO> items) throws Exception {
+        LocalDateTime at = java.time.YearMonth.now().plusMonths(1).atDay(day).atTime(9, 0);
+        var body = new CreateVisitPlanInputDTO(at, HCP_ID, null, SITE_ID, null, items);
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void orderDraft_addsUpTheCallersPlansForNextMonth_withoutOrderingAnything() throws Exception {
+        planNextMonth(authToken, 10, List.of(new VisitItemDTO(PRODUCT_A, 4), new VisitItemDTO(PRODUCT_B, 1)));
+        planNextMonth(authToken, 11, List.of(new VisitItemDTO(PRODUCT_A, 6)));
+        planNextMonth(jwtFor(OTHER_MSR_ID), 12, List.of(new VisitItemDTO(PRODUCT_A, 100))); // another rep's plan
+        when(productAvailability.isAvailable(PRODUCT_A, 10)).thenReturn(java.util.Optional.of(true));
+        when(productAvailability.isAvailable(PRODUCT_B, 1)).thenReturn(java.util.Optional.of(false));
+
+        mockMvc.perform(get(BASE_URL + "/order-draft").header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID))
+                .andExpect(jsonPath("$.plannedVisits").value(2))
+                .andExpect(jsonPath("$.lines.length()").value(2))
+                .andExpect(jsonPath("$.lines[0].productId").value(PRODUCT_A))
+                .andExpect(jsonPath("$.lines[0].quantity").value(10))
+                .andExpect(jsonPath("$.lines[0].plannedVisits").value(2))
+                .andExpect(jsonPath("$.lines[0].inStock").value(true))
+                .andExpect(jsonPath("$.lines[1].inStock").value(false))
+                // PRODUCT_B is short, so the ready-to-submit order leaves it out
+                .andExpect(jsonPath("$.orderRequests.length()").value(1))
+                .andExpect(jsonPath("$.orderRequests[0].lines.length()").value(1))
+                .andExpect(jsonPath("$.orderRequests[0].lines[0].productId").value(PRODUCT_A))
+                .andExpect(jsonPath("$.orderRequests[0].lines[0].quantity").value(10));
+    }
+
+    @Test
+    void orderDraft_forAnotherMsr_return403_andTheAgentMustNameTheMsr() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/order-draft").param("medicalSalesRepId", OTHER_MSR_ID)
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(BASE_URL + "/order-draft").header("Authorization", "Bearer " + agentJwt()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(BASE_URL + "/order-draft").param("medicalSalesRepId", MSR_ID)
+                        .header("Authorization", "Bearer " + agentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID));
+    }
+
     // ── JWT helper ──────────────────────────────────────────────────────────
 
     private String generateValidJwt() {
