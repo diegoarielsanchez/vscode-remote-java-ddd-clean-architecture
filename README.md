@@ -1150,8 +1150,8 @@ Authorization: Bearer <token>
 | `PUT` | `/api/v1/visit/update` | Update a visit |
 | `GET` | `/api/v1/visit/get?id=<uuid>` | Get a visit by ID |
 | `POST` | `/api/v1/visit/list` | List visits (with criteria filter) |
-| `POST` | `/api/v1/visitplan/create` | Create a visit plan |
-| `PUT` | `/api/v1/visitplan/update` | Update a visit plan |
+| `POST` | `/api/v1/visitplan/create` | Create a visit plan for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`) |
+| `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found) |
 | `GET` | `/api/v1/visitplan/get?id=<uuid>` | Get a visit plan by ID |
 | `POST` | `/api/v1/visitplan/list` | List visit plans (with criteria filter) |
 

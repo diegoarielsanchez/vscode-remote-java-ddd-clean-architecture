@@ -91,6 +91,10 @@ authz.requestMatchers("/api/**").hasRole("USER");   // must come after
 - `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
 - Ownership is only meaningful if it can't be chosen freely, so `POST /api/v1/orders/create` no longer trusts the body's `medicalSalesRepId`: the order is always placed for the caller's `msr_id`. Callers not linked to an MSR get `403`, and so does a body naming a different MSR.
 
+**Finding 6 — Visit Plans Could Be Created for, or Moved to, Any MSR:** `POST /api/v1/visitplan/create` and `PUT /api/v1/visitplan/update` took `medicalSalesRepId` from the body, and update never checked who owned the plan. Any user could schedule visits in another rep's name, or edit and reassign their plans.
+
+**Fix:** Same rule as orders. visit-service's JWT filter exposes the `msr_id` claim, and the controller always uses it: callers not linked to an MSR get `403`, and so does a body naming a different MSR. `UpdateVisitPlanUseCase` refuses a plan owned by another MSR with the same `"Visit plan not found."` as a missing one.
+
 **Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
 
 **Fix:** These now require `ROLE_ADMIN` in product-catalog-service, healthcare-prof-service and medical-sales-rep-service. identity-service seeds the admin account (`ROLE_USER` + `ROLE_ADMIN`) only when `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH` are set, in every profile, so it fails closed like the agent account.

@@ -87,14 +87,75 @@ class VisitPlanControllerIntegrationTest {
         visitPlanJpaRepository.deleteAll();
     }
 
+    // ── Ownership: a plan always belongs to the caller's own MSR (OWASP A01) ──
+
+    private static final String OTHER_MSR_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
+    @Test
+    void createVisitPlan_returns403_whenCallerIsNotLinkedToAnMsr() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, null);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + jwtFor(null))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createVisitPlan_returns403_whenBodyNamesAnotherMsr() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, OTHER_MSR_ID);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createVisitPlan_usesCallersMsr_whenBodyOmitsIt() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(7), HCP_ID, null, SITE_ID, null);
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID));
+    }
+
+    @Test
+    void updateVisitPlan_cannotTouchAnotherMsrsPlan() throws Exception {
+        String id = createAndGetId();
+        var body = new UpdateVisitPlanInputDTO(id, LocalDateTime.now().plusDays(9), HCP_ID, "hijack", SITE_ID, null);
+
+        int status = mockMvc.perform(put(BASE_URL + "/update")
+                        .header("Authorization", "Bearer " + jwtFor(OTHER_MSR_ID))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andReturn().getResponse().getStatus();
+
+        org.junit.jupiter.api.Assertions.assertTrue(status >= 400 && status < 500, "expected a 4xx, got " + status);
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID))
+                .andExpect(jsonPath("$.visitComments").value(org.hamcrest.Matchers.not("hijack")));
+    }
+
     // ── JWT helper ──────────────────────────────────────────────────────────
 
     private String generateValidJwt() {
+        return jwtFor(MSR_ID);
+    }
+
+    /** A ROLE_USER token for the given MSR, or with no msr_id claim when {@code msrId} is null. */
+    private String jwtFor(String msrId) {
         SecretKeySpec key = new SecretKeySpec(
                 JWT_SECRET.getBytes(), 0, JWT_SECRET.getBytes().length, "HmacSHA256");
         return Jwts.builder()
                 .subject("testuser")
                 .claim("authorities", List.of("ROLE_USER"))
+                .claim("msr_id", msrId) // visit plans always belong to the caller's own MSR
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(key)

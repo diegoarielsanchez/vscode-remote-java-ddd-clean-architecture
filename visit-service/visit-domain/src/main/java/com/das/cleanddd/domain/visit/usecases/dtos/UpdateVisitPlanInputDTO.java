@@ -16,5 +16,5 @@ public record UpdateVisitPlanInputDTO(
     @NotNull String healthCareProfId,
     String visitComments,
     @NotNull String visitSiteId,
-    @NotNull String medicalSalesRepId
+    String medicalSalesRepId // optional in requests: visit-application sets the caller's own MSR
 ) {}
