@@ -16,6 +16,7 @@ import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 
 @Service
 public final class CreateVisitPlanUseCase implements UseCase<CreateVisitPlanInputDTO, VisitPlanOutputDTO> {
@@ -78,7 +79,9 @@ public final class CreateVisitPlanUseCase implements UseCase<CreateVisitPlanInpu
                 healthCareProfId,
                 comments,
                 visitSiteId,
-                medicalSalesRepId
+                medicalSalesRepId,
+                null,
+                VisitItemDTO.toEntities(inputDTO.items())
             );
 
             visitPlanRepository.save(visitPlan);

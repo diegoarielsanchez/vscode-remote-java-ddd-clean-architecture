@@ -142,7 +142,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
                     new HealthCareProfId(hcpId),
                     visitComments,
                     visitSiteId,
-                    List.of(),
+                    VisitItemEmbeddable.toDomain(entity.getItems()),
                     new MedicalSalesRepId(msrId),
                     entity.getActive() == null ? true : entity.getActive(),
                     addressFromEntity(entity.getAddressStreet(), entity.getAddressCity(),
@@ -172,6 +172,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
         entity.setHealthCareProfId(visitPlan.healthCareProfId() != null ? visitPlan.healthCareProfId().value() : null);
         entity.setMedicalSalesRepId(visitPlan.medicalSalesRepId() != null ? visitPlan.medicalSalesRepId().value() : null);
         entity.setActive(visitPlan.isActive());
+        entity.setItems(VisitItemEmbeddable.fromDomain(visitPlan.visitItems()));
         AddressValueObject address = visitPlan.address();
         if (address != null) {
             entity.setAddressStreet(address.street());

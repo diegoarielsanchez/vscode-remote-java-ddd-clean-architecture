@@ -20,7 +20,8 @@ public class VisitMapper {
             visit.visitComments() == null ? null : visit.visitComments().value(),
             visit.visitSideId() == null ? null : visit.visitSideId().value(),
             visit.medicalSalesRepId() == null ? null : visit.medicalSalesRepId().value(),
-            attachments
+            attachments,
+            VisitItemDTO.fromEntities(visit.visitItems())
         );
     }
 

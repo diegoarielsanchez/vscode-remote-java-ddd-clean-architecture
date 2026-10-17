@@ -10,5 +10,12 @@ public record VisitOutputDTO(
     String visitComments,
     String visitSiteId,
     String medicalSalesRepId,
-    List<AttachmentResultDTO> productPromoAttachments
-) {}
+    List<AttachmentResultDTO> productPromoAttachments,
+    List<VisitItemDTO> items
+) {
+
+    /** Without items — kept for callers that predate them. */
+    public VisitOutputDTO(String id, LocalDateTime visitDate, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId, List<AttachmentResultDTO> productPromoAttachments) {
+        this(id, visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, productPromoAttachments, List.of());
+    }
+}

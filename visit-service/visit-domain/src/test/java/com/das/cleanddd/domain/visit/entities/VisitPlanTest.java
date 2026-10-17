@@ -196,17 +196,18 @@ class VisitPlanTest {
         @Test
         void shouldAddItemToVisitPlan() throws BusinessValidationException {
             VisitPlan plan = buildValid();
-            VisitItem item = new VisitItem();
+            VisitItem item = new VisitItem(new Identifier("923e4567-e89b-12d3-a456-426614174001") {}, 3);
             plan.addItem(item);
-            plan.removeItem(item); // should not throw
+            assertThat(plan.visitItems()).containsExactly(item);
         }
 
         @Test
         void shouldRemoveItemFromVisitPlan() throws BusinessValidationException {
             VisitPlan plan = buildValid();
-            VisitItem item = new VisitItem();
+            VisitItem item = new VisitItem(new Identifier("923e4567-e89b-12d3-a456-426614174001") {}, 3);
             plan.addItem(item);
             plan.removeItem(item);
+            assertThat(plan.visitItems()).isEmpty();
         }
 
         @Test

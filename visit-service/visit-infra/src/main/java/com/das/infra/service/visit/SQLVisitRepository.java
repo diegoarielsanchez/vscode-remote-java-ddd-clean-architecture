@@ -113,7 +113,7 @@ public final class SQLVisitRepository implements IVisitRepository {
                 new HealthCareProfId(hcpId),
                 visitComments,
                 visitSiteId,
-                List.of(),
+                VisitItemEmbeddable.toDomain(entity.getItems()),
                 new MedicalSalesRepId(msrId),
                 addressFromEntity(entity.getAddressStreet(), entity.getAddressCity(),
                         entity.getAddressState(), entity.getAddressPostalCode(), entity.getAddressCountry())
@@ -139,6 +139,7 @@ public final class SQLVisitRepository implements IVisitRepository {
         entity.setVisitSiteId(visit.visitSideId() != null ? visit.visitSideId().value() : null);
         entity.setHealthCareProfId(visit.healthCareProfId() != null ? visit.healthCareProfId().value() : null);
         entity.setMedicalSalesRepId(visit.medicalSalesRepId() != null ? visit.medicalSalesRepId().value() : null);
+        entity.setItems(VisitItemEmbeddable.fromDomain(visit.visitItems()));
         AddressValueObject address = visit.address();
         if (address != null) {
             entity.setAddressStreet(address.street());

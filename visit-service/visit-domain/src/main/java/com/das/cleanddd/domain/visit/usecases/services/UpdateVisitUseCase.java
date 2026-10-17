@@ -20,6 +20,7 @@ import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 
 @Service
 public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, VisitOutputDTO> {
@@ -89,6 +90,10 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
                 visitSiteId,
                 medicalSalesRepId
             );
+            // Omitted items keep the visit's current ones; an empty list clears them.
+            if (inputDTO.items() != null) {
+                updatedVisit.replaceItems(VisitItemDTO.toEntities(inputDTO.items()));
+            }
 
             visitRepository.save(updatedVisit);
             return mapper.outputFromEntity(updatedVisit);

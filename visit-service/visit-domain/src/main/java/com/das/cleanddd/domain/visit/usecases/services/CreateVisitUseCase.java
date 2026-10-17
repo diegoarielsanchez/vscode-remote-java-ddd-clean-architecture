@@ -18,6 +18,7 @@ import com.das.cleanddd.domain.visit.ports.IMedicalSalesRepValidator;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitOutputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 
 @Service
 public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, VisitOutputDTO> {
@@ -87,7 +88,9 @@ public final class CreateVisitUseCase implements UseCase<CreateVisitInputDTO, Vi
                 healthCareProfId,
                 comments,
                 visitSiteId,
-                medicalSalesRepId
+                medicalSalesRepId,
+                null,
+                VisitItemDTO.toEntities(inputDTO.items())
             );
 
             visitRepository.save(visit);
