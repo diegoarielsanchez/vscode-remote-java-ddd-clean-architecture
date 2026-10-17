@@ -75,6 +75,7 @@ public final class VisitPlan extends AggregateRoot<Object> {
         this._medicalSalesRepId = medicalSalesRepId;
         this._active            = active;
         this._address           = address;
+        this._visitItems.addAll(VisitItem.combine(visitItems));
     }
 
     @SuppressWarnings("unused")
@@ -95,6 +96,17 @@ public final class VisitPlan extends AggregateRoot<Object> {
 
     public void removeItem(VisitItem visitItem) {
         _visitItems.remove(visitItem);
+    }
+
+    /** Replaces every item: one line per product, repeated products added up. */
+    public void replaceItems(List<VisitItem> visitItems) throws BusinessValidationException {
+        List<VisitItem> combined = VisitItem.combine(visitItems);
+        _visitItems.clear();
+        _visitItems.addAll(combined);
+    }
+
+    public List<VisitItem> visitItems() {
+        return List.copyOf(_visitItems);
     }
 
     public Identifier visitId() {

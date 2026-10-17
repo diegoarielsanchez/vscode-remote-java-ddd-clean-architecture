@@ -45,6 +45,20 @@ public class VisitPlanFactory {
         MedicalSalesRepId medicalSalesRepId,
         AddressValueObject address
     ) throws BusinessValidationException {
+        return createVisitPlan(visitDateTime, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId,
+            address, List.of());
+    }
+
+    /** @param items products and quantities to bring */
+    public VisitPlan createVisitPlan(
+        VisitDateTime visitDateTime,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address,
+        List<VisitItem> items
+    ) throws BusinessValidationException {
         if (visitDateTime == null || visitDateTime.value().toLocalDate().isBefore(LocalDate.now())) {
             throw new BusinessValidationException("Visit date/time cannot be in the past.");
         }
@@ -55,7 +69,7 @@ public class VisitPlanFactory {
             healthCareProfId,
             visitComments,
             visitSiteId,
-            List.of(),
+            items,
             medicalSalesRepId,
             true,
             address
@@ -82,6 +96,21 @@ public class VisitPlanFactory {
         MedicalSalesRepId medicalSalesRepId,
         AddressValueObject address
     ) throws BusinessValidationException {
+        return buildForUpdate(visitId, visitDateTime, healthCareProfId, visitComments, visitSiteId,
+            medicalSalesRepId, address, List.of());
+    }
+
+    /** @param items products and quantities to bring — the plan's full new list */
+    public VisitPlan buildForUpdate(
+        VisitId visitId,
+        VisitDateTime visitDateTime,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address,
+        List<VisitItem> items
+    ) throws BusinessValidationException {
         if (visitDateTime == null || visitDateTime.value().toLocalDate().isBefore(LocalDate.now())) {
             throw new BusinessValidationException("Visit date/time cannot be in the past.");
         }
@@ -92,7 +121,7 @@ public class VisitPlanFactory {
             healthCareProfId,
             visitComments,
             visitSiteId,
-            List.of(),
+            items,
             medicalSalesRepId,
             true,
             address

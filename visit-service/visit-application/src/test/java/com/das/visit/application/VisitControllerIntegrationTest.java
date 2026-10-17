@@ -111,6 +111,28 @@ class VisitControllerIntegrationTest {
     // ── CREATE ──────────────────────────────────────────────────────────────
 
     @Test
+    void createVisit_storesTheProductsHandedOut() throws Exception {
+        String product = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1";
+        var body = new com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitInputDTO(
+                LocalDate.now().minusDays(2), HCP_ID, "Samples", SITE_ID, MSR_ID,
+                List.of(new com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO(product, 6)));
+
+        String response = mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].productId").value(product))
+                .andExpect(jsonPath("$.items[0].quantity").value(6));
+    }
+
+    @Test
     void createVisit_returns201_withVisitBody() throws Exception {
         var body = new CreateVisitInputDTO(
                 LocalDate.now().minusDays(1), HCP_ID, "Routine check", SITE_ID, MSR_ID);

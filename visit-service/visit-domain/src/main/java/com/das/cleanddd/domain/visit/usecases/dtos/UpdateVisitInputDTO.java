@@ -1,10 +1,14 @@
 package com.das.cleanddd.domain.visit.usecases.dtos;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import com.das.cleanddd.domain.visit.entities.VisitItem;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 public record UpdateVisitInputDTO(
     String id,
@@ -12,5 +16,13 @@ public record UpdateVisitInputDTO(
     String healthCareProfId,
     String visitComments,
     String visitSiteId,
-    String medicalSalesRepId
-) {}
+    String medicalSalesRepId,
+    // the full new list of products handed out; omitted keeps the current items
+    @Valid @Size(max = VisitItem.MAX_ITEMS) List<VisitItemDTO> items
+) {
+
+    /** Without items — kept for callers that predate them. */
+    public UpdateVisitInputDTO(String id, LocalDate visitDate, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId) {
+        this(id, visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null);
+    }
+}

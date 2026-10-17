@@ -71,7 +71,7 @@ public class VisitPlanController {
         String msrId = ownMsrId(authentication, inputDTO.medicalSalesRepId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createVisitPlanUseCase.execute(new CreateVisitPlanInputDTO(
                 inputDTO.visitDateTime(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
-                inputDTO.visitSiteId(), msrId)));
+                inputDTO.visitSiteId(), msrId, inputDTO.items())));
     }
 
     @PutMapping("/update")
@@ -84,7 +84,7 @@ public class VisitPlanController {
         String msrId = ownMsrId(authentication, inputDTO.medicalSalesRepId());
         return ResponseEntity.ok(updateVisitPlanUseCase.execute(new UpdateVisitPlanInputDTO(
                 inputDTO.id(), inputDTO.visitDateTime(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
-                inputDTO.visitSiteId(), msrId)));
+                inputDTO.visitSiteId(), msrId, inputDTO.items())));
     }
 
     /**

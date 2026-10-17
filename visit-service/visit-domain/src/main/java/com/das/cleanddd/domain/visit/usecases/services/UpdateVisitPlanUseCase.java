@@ -19,6 +19,7 @@ import com.das.cleanddd.domain.visit.entities.VisitPlanFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanMapper;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanOutputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 
 @Service
 public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInputDTO, VisitPlanOutputDTO> {
@@ -94,7 +95,12 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
                 healthCareProfId,
                 comments,
                 visitSiteId,
-                medicalSalesRepId
+                medicalSalesRepId,
+                null,
+                // Omitted items keep the plan's current ones; an empty list clears them.
+                inputDTO.items() == null
+                    ? existingVisitPlan.get().visitItems()
+                    : VisitItemDTO.toEntities(inputDTO.items())
             );
 
             visitPlanRepository.save(updatedVisitPlan);

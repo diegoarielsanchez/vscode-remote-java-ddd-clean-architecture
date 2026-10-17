@@ -6,6 +6,7 @@ import com.das.cleanddd.domain.visit.ports.IProductPromoAttachmentStorage;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 import com.das.infra.service.visit.VisitPlanJpaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
@@ -144,6 +145,69 @@ class VisitPlanControllerIntegrationTest {
         mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
                 .andExpect(jsonPath("$.medicalSalesRepId").value(MSR_ID))
                 .andExpect(jsonPath("$.visitComments").value(org.hamcrest.Matchers.not("hijack")));
+    }
+
+    // ── Items: the products and quantities to bring ──
+
+    private static final String PRODUCT_A = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1";
+    private static final String PRODUCT_B = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2";
+
+    private String createWithItems(List<VisitItemDTO> items) throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(3), HCP_ID, null, SITE_ID, null, items);
+        String response = mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("id").asText();
+    }
+
+    private void update(String id, List<VisitItemDTO> items) throws Exception {
+        var body = new UpdateVisitPlanInputDTO(id, LocalDateTime.now().plusDays(4), HCP_ID, "moved", SITE_ID, null, items);
+        mockMvc.perform(put(BASE_URL + "/update")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void createVisitPlan_storesItems_addingUpRepeatedProducts() throws Exception {
+        String id = createWithItems(List.of(
+                new VisitItemDTO(PRODUCT_A, 2), new VisitItemDTO(PRODUCT_B, 1), new VisitItemDTO(PRODUCT_A, 3)));
+
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[?(@.productId == '" + PRODUCT_A + "')].quantity").value(5))
+                .andExpect(jsonPath("$.items[?(@.productId == '" + PRODUCT_B + "')].quantity").value(1));
+    }
+
+    @Test
+    void updateVisitPlan_withoutItemsKeepsThem_andAnEmptyListClearsThem() throws Exception {
+        String id = createWithItems(List.of(new VisitItemDTO(PRODUCT_A, 4)));
+
+        update(id, null);
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].quantity").value(4));
+
+        update(id, List.of());
+        mockMvc.perform(get(BASE_URL + "/" + id).header("Authorization", "Bearer " + authToken))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void createVisitPlan_returns400_forAnOutOfRangeQuantity() throws Exception {
+        var body = new CreateVisitPlanInputDTO(LocalDateTime.now().plusDays(3), HCP_ID, null, SITE_ID, null,
+                List.of(new VisitItemDTO(PRODUCT_A, 0)));
+
+        mockMvc.perform(post(BASE_URL + "/create")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
     }
 
     // ── Suggestions: read-only drafts from the MSR's own visit history ──

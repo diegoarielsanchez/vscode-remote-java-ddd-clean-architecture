@@ -197,18 +197,47 @@ class VisitTest {
         @Test
         void shouldAddItemToVisit() throws BusinessValidationException {
             Visit visit = buildValid();
-            VisitItem item = new VisitItem();
+            VisitItem item = new VisitItem(new Identifier("923e4567-e89b-12d3-a456-426614174001") {}, 3);
             visit.addItem(item);
-            // No direct accessor — verify indirectly by removing the same item
-            visit.removeItem(item); // should not throw
+            assertThat(visit.visitItems()).containsExactly(item);
         }
 
         @Test
         void shouldRemoveItemFromVisit() throws BusinessValidationException {
             Visit visit = buildValid();
-            VisitItem item = new VisitItem();
+            VisitItem item = new VisitItem(new Identifier("923e4567-e89b-12d3-a456-426614174001") {}, 3);
             visit.addItem(item);
-            visit.removeItem(item); // should not throw
+            visit.removeItem(item);
+            assertThat(visit.visitItems()).isEmpty();
+        }
+
+        @Test
+        void replaceItemsAddsUpRepeatedProducts() throws BusinessValidationException {
+            Visit visit = buildValid();
+            Identifier product = new Identifier("923e4567-e89b-12d3-a456-426614174001") {};
+
+            visit.replaceItems(List.of(new VisitItem(product, 2), new VisitItem(product, 5)));
+
+            assertThat(visit.visitItems()).singleElement()
+                .satisfies(item -> assertThat(item.quantity()).isEqualTo(7));
+        }
+
+        @Test
+        void replaceItemsRejectsMoreThanTheProductLimit() throws BusinessValidationException {
+            Visit visit = buildValid();
+            List<VisitItem> tooMany = java.util.stream.IntStream.rangeClosed(1, VisitItem.MAX_ITEMS + 1)
+                .mapToObj(i -> new VisitItem(new Identifier(java.util.UUID.randomUUID().toString()) {}, 1))
+                .toList();
+
+            assertThatThrownBy(() -> visit.replaceItems(tooMany)).isInstanceOf(BusinessValidationException.class);
+        }
+
+        @Test
+        void itemQuantityMustBeInRange() {
+            Identifier product = new Identifier("923e4567-e89b-12d3-a456-426614174001") {};
+            assertThatThrownBy(() -> new VisitItem(product, 0)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new VisitItem(product, VisitItem.MAX_QUANTITY + 1))
+                .isInstanceOf(IllegalArgumentException.class);
         }
     }
 

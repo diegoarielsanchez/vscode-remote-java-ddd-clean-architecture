@@ -17,7 +17,8 @@ public class VisitPlanMapper {
             visitPlan.visitComments() == null ? null : visitPlan.visitComments().value(),
             visitPlan.visitSideId() == null ? null : visitPlan.visitSideId().value(),
             visitPlan.medicalSalesRepId() == null ? null : visitPlan.medicalSalesRepId().value(),
-            visitPlan.isActive()
+            visitPlan.isActive(),
+            VisitItemDTO.fromEntities(visitPlan.visitItems())
         );
     }
 

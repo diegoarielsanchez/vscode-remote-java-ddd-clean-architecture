@@ -1146,13 +1146,13 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/visit/create` | Create a visit |
-| `PUT` | `/api/v1/visit/update` | Update a visit |
+| `POST` | `/api/v1/visit/create` | Create a visit; optional `items: [{productId, quantity}]` — the products handed out (1–1000 units each, at most 50 products; repeated products are added up) |
+| `PUT` | `/api/v1/visit/update` | Update a visit; `items` replaces the list, `[]` clears it, omitting it keeps the current items |
 | `GET` | `/api/v1/visit/get?id=<uuid>` | Get a visit by ID |
 | `POST` | `/api/v1/visit/list` | List visits (with criteria filter) |
-| `POST` | `/api/v1/visitplan/create` | Create a visit plan for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`) |
-| `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found) |
-| `GET` | `/api/v1/visitplan/suggestions?month=YYYY-MM` | **Read-only** draft of a month of visit plans (default: next month) from the MSR's own visit history: active HCPs that are due, most overdue first, on weekdays in hourly slots from 09:00 (max 6/day) around existing plans, each with a `reason`. Nothing is saved — accept a suggestion by creating it. A rep gets their own; the AI Agent Service (`ROLE_AGENT`) must pass `medicalSalesRepId`. Products are not suggested yet (visit items are not stored) |
+| `POST` | `/api/v1/visitplan/create` | Create a visit plan for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items` — the products to bring, same rules as visits |
+| `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items |
+| `GET` | `/api/v1/visitplan/suggestions?month=YYYY-MM` | **Read-only** draft of a month of visit plans (default: next month) from the MSR's own visit history: active HCPs that are due, most overdue first, on weekdays in hourly slots from 09:00 (max 6/day) around existing plans, each with a `reason`. Nothing is saved — accept a suggestion by creating it. A rep gets their own; the AI Agent Service (`ROLE_AGENT`) must pass `medicalSalesRepId`. Products are not suggested yet |
 | `GET` | `/api/v1/visitplan/get?id=<uuid>` | Get a visit plan by ID |
 | `POST` | `/api/v1/visitplan/list` | List visit plans (with criteria filter) |
 
@@ -1641,7 +1641,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
-   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`
+   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
    - The consumers declare their queues; the outboxes then have somewhere to route to.

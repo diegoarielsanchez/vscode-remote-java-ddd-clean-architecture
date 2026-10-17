@@ -59,6 +59,7 @@ public final class Visit extends AggregateRoot<Object> {
         this._visitSiteId       = visitSiteId;
         this._medicalSalesRepId = medicalSalesRepId;
         this._address           = address;
+        this._visitItems.addAll(VisitItem.combine(visitItems));
     }
 
     /**
@@ -181,6 +182,17 @@ public final class Visit extends AggregateRoot<Object> {
 
     public void removeItem(VisitItem visitItem) {
         _visitItems.remove(visitItem);
+    }
+
+    /** Replaces every item: one line per product, repeated products added up. */
+    public void replaceItems(List<VisitItem> visitItems) throws BusinessValidationException {
+        List<VisitItem> combined = VisitItem.combine(visitItems);
+        _visitItems.clear();
+        _visitItems.addAll(combined);
+    }
+
+    public List<VisitItem> visitItems() {
+        return List.copyOf(_visitItems);
     }
 
     public void addProductPromoAttachment(LargeFileValueObject attachment) {

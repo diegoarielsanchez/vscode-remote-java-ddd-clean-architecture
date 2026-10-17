@@ -31,13 +31,26 @@ public class VisitFactory {
         MedicalSalesRepId medicalSalesRepId,
         AddressValueObject address
     ) throws BusinessValidationException {
+        return createVisit(visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, address, List.of());
+    }
+
+    /** @param items products and quantities handed out */
+    public Visit createVisit(
+        VisitDateTime visitDate,
+        HealthCareProfId healthCareProfId,
+        TextValueObject visitComments,
+        Identifier visitSiteId,
+        MedicalSalesRepId medicalSalesRepId,
+        AddressValueObject address,
+        List<VisitItem> items
+    ) throws BusinessValidationException {
         return new Visit(
             new VisitId(UUID.randomUUID().toString()),
             visitDate,
             healthCareProfId,
             visitComments,
             visitSiteId,
-            List.of(),
+            items,
             medicalSalesRepId,
             address
         );
