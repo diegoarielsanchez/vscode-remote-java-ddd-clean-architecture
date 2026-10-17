@@ -1,5 +1,11 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
+import com.das.cleanddd.domain.visit.usecases.dtos.SuggestedVisitItemDTO;
+import com.das.cleanddd.domain.visit.ports.IProductAvailability;
+import com.das.cleanddd.domain.visit.entities.VisitItem;
+import java.util.Optional;
+import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,6 +62,7 @@ class SuggestVisitPlansUseCaseTest {
     @Mock private IVisitRepository visitRepository;
     @Mock private IVisitPlanRepository visitPlanRepository;
     @Mock private IHealthCareProfValidator healthCareProfValidator;
+    @Mock private IProductAvailability productAvailability;
 
     private SuggestVisitPlansUseCase useCase;
     private final List<Visit> history = new ArrayList<>();
@@ -63,7 +70,9 @@ class SuggestVisitPlansUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new SuggestVisitPlansUseCase(visitRepository, visitPlanRepository, healthCareProfValidator, TODAY);
+        useCase = new SuggestVisitPlansUseCase(visitRepository, visitPlanRepository, healthCareProfValidator,
+                productAvailability, TODAY);
+        lenient().when(productAvailability.isAvailable(anyString(), anyInt())).thenReturn(Optional.of(true));
         lenient().when(visitRepository.findByMedicalSalesRepIdSince(any(), any())).thenReturn(history);
         lenient().when(visitPlanRepository.findActiveByMedicalSalesRepIdBetween(any(), any(), any()))
                 .thenReturn(novemberPlans);
@@ -80,6 +89,17 @@ class SuggestVisitPlansUseCaseTest {
                     new VisitDateTime(date.atTime(10, 0)), new HealthCareProfId(hcpId), null,
                     new Identifier(SITE_ID) {}, List.of(), new MedicalSalesRepId(MSR_ID), null));
         }
+    }
+
+    /** One past visit at which {@code items} were handed out, as alternating productId, quantity. */
+    private void visitedWith(String hcpId, LocalDate date, Object... productAndQuantity) {
+        List<VisitItem> items = new ArrayList<>();
+        for (int i = 0; i < productAndQuantity.length; i += 2) {
+            items.add(new VisitItem(new Identifier((String) productAndQuantity[i]) {}, (Integer) productAndQuantity[i + 1]));
+        }
+        history.add(Visit.reconstruct(new VisitId(UUID.randomUUID().toString()),
+                new VisitDateTime(date.atTime(10, 0)), new HealthCareProfId(hcpId), null,
+                new Identifier(SITE_ID) {}, items, new MedicalSalesRepId(MSR_ID), null));
     }
 
     private void planned(String hcpId, LocalDateTime at) throws Exception {
@@ -227,6 +247,72 @@ class SuggestVisitPlansUseCaseTest {
         void missingMsrIsRefused() {
             assertThatThrownBy(() -> useCase.execute(new SuggestVisitPlansInputDTO(" ", NOVEMBER)))
                     .isInstanceOf(DomainException.class);
+        }
+    }
+
+    @Nested
+    class Products {
+
+        private final String productA = UUID.randomUUID().toString();
+        private final String productB = UUID.randomUUID().toString();
+        private final String productC = UUID.randomUUID().toString();
+
+        @Test
+        void averagesTheLastThreeVisitsThatRecordedProducts() throws Exception {
+            String hcp = newHcp();
+            visitedWith(hcp, LocalDate.of(2026, 6, 1), productC, 50);                 // 4th most recent: ignored
+            visitedWith(hcp, LocalDate.of(2026, 7, 1), productA, 4, productB, 1);
+            visitedWith(hcp, LocalDate.of(2026, 8, 1), productA, 6);
+            visitedWith(hcp, LocalDate.of(2026, 9, 1));                                // no products: skipped
+            visitedWith(hcp, LocalDate.of(2026, 10, 1), productA, 5);
+
+            List<SuggestedVisitItemDTO> items = forHcp(suggestNovember(), hcp).items();
+
+            // A: (4 + 6 + 5) / 3 = 5. B: 1 / 3 rounds to 0, so it is left out. C: too old.
+            assertThat(items).containsExactly(new SuggestedVisitItemDTO(productA, 5, true));
+        }
+
+        @Test
+        void noRecordedProductsMeansNoItems() throws Exception {
+            String hcp = newHcp();
+            visited(hcp, LocalDate.of(2026, 10, 1));
+
+            assertThat(forHcp(suggestNovember(), hcp).items()).isEmpty();
+            verify(productAvailability, never()).isAvailable(anyString(), anyInt());
+        }
+
+        @Test
+        void stockIsCheckedOncePerProductForTheMonthsTotal() throws Exception {
+            String first = newHcp();
+            String second = newHcp();
+            visitedWith(first, LocalDate.of(2026, 10, 1), productA, 5);
+            visitedWith(second, LocalDate.of(2026, 10, 2), productA, 7);
+            when(productAvailability.isAvailable(productA, 12)).thenReturn(Optional.of(false));
+
+            VisitPlanSuggestionsOutputDTO out = suggestNovember();
+
+            assertThat(forHcp(out, first).items()).containsExactly(new SuggestedVisitItemDTO(productA, 5, false));
+            assertThat(forHcp(out, second).items()).containsExactly(new SuggestedVisitItemDTO(productA, 7, false));
+            verify(productAvailability, times(1)).isAvailable(productA, 12);
+        }
+
+        @Test
+        void unreachableCatalogLeavesTheStockFlagUnknown() throws Exception {
+            String hcp = newHcp();
+            visitedWith(hcp, LocalDate.of(2026, 10, 1), productA, 3);
+            when(productAvailability.isAvailable(productA, 3)).thenReturn(Optional.empty());
+
+            assertThat(forHcp(suggestNovember(), hcp).items())
+                    .containsExactly(new SuggestedVisitItemDTO(productA, 3, null));
+        }
+
+        @Test
+        void mostUnitsComeFirst() throws Exception {
+            String hcp = newHcp();
+            visitedWith(hcp, LocalDate.of(2026, 10, 1), productA, 2, productB, 9);
+
+            assertThat(forHcp(suggestNovember(), hcp).items())
+                    .extracting(SuggestedVisitItemDTO::productId).containsExactly(productB, productA);
         }
     }
 }

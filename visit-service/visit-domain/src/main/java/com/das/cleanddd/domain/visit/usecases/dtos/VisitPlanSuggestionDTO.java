@@ -2,6 +2,7 @@ package com.das.cleanddd.domain.visit.usecases.dtos;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -11,6 +12,8 @@ import com.fasterxml.jackson.annotation.JsonFormat;
  *
  * @param usualIntervalDays the gap between this HCP's past visits that the suggestion assumes
  * @param reason            why this visit is suggested, in plain words
+ * @param items             products to bring, from what this HCP usually received; empty when the
+ *                          rep recorded no products on past visits
  */
 public record VisitPlanSuggestionDTO(
     String healthCareProfId,
@@ -19,5 +22,6 @@ public record VisitPlanSuggestionDTO(
     String visitSiteId,
     LocalDate lastVisitDate,
     int usualIntervalDays,
-    String reason
+    String reason,
+    List<SuggestedVisitItemDTO> items
 ) {}

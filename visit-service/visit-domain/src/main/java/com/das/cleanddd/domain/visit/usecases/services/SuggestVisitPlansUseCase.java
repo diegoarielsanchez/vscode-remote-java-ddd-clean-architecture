@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,9 +23,12 @@ import com.das.cleanddd.domain.visit.IVisitPlanRepository;
 import com.das.cleanddd.domain.visit.IVisitRepository;
 import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
+import com.das.cleanddd.domain.visit.entities.VisitItem;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.ports.IHealthCareProfValidator;
+import com.das.cleanddd.domain.visit.ports.IProductAvailability;
 import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
+import com.das.cleanddd.domain.visit.usecases.dtos.SuggestedVisitItemDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
 
@@ -37,7 +41,12 @@ import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO
  * the next due date; HCPs due by the end of the month are suggested, most overdue first, at the
  * site of their last visit. Visits go on weekdays, in hourly slots from 09:00, at most
  * {@value #MAX_VISITS_PER_DAY} a day, around the rep's existing plans. HCPs already planned that
- * month are skipped. Products are not suggested: visit items are not stored yet.
+ * month are skipped.
+ * <p>
+ * Each visit lists the products to bring: per product, the average quantity per visit over the
+ * HCP's last {@value #ITEM_LOOKBACK_VISITS} visits that recorded products (rounded; products that
+ * average under one unit are left out). Each product's total for the month is then checked once
+ * against the catalog and flagged {@code inStock}.
  */
 public final class SuggestVisitPlansUseCase
         implements UseCase<SuggestVisitPlansInputDTO, VisitPlanSuggestionsOutputDTO> {
@@ -48,19 +57,23 @@ public final class SuggestVisitPlansUseCase
     static final int MAX_INTERVAL_DAYS = 90;
     static final int MAX_VISITS_PER_DAY = 6;
     static final LocalTime FIRST_SLOT = LocalTime.of(9, 0);
+    static final int ITEM_LOOKBACK_VISITS = 3;
 
     private final IVisitRepository visitRepository;
     private final IVisitPlanRepository visitPlanRepository;
     private final IHealthCareProfValidator healthCareProfValidator;
+    private final IProductAvailability productAvailability;
     private final Clock clock;
 
     public SuggestVisitPlansUseCase(IVisitRepository visitRepository,
                                     IVisitPlanRepository visitPlanRepository,
                                     IHealthCareProfValidator healthCareProfValidator,
+                                    IProductAvailability productAvailability,
                                     Clock clock) {
         this.visitRepository = visitRepository;
         this.visitPlanRepository = visitPlanRepository;
         this.healthCareProfValidator = healthCareProfValidator;
+        this.productAvailability = productAvailability;
         this.clock = clock;
     }
 
@@ -95,7 +108,7 @@ public final class SuggestVisitPlansUseCase
         List<Candidate> candidates = dueCandidates(msrId, now, monthEnd, alreadyPlannedHcps);
 
         Calendar calendar = new Calendar(existingPlans);
-        List<VisitPlanSuggestionDTO> suggestions = new ArrayList<>();
+        Map<Candidate, LocalDateTime> scheduled = new LinkedHashMap<>();
         List<String> unscheduled = new ArrayList<>();
         for (Candidate candidate : candidates) {
             LocalDate earliest = candidate.dueDate().isAfter(firstPlannableDay) ? candidate.dueDate() : firstPlannableDay;
@@ -103,11 +116,19 @@ public final class SuggestVisitPlansUseCase
             if (slot == null) {
                 unscheduled.add(candidate.healthCareProfId());
             } else {
-                suggestions.add(new VisitPlanSuggestionDTO(candidate.healthCareProfId(), slot,
-                        candidate.visitSiteId(), candidate.lastVisitDate(), candidate.intervalDays(),
-                        candidate.reason(monthStart)));
+                scheduled.put(candidate, slot);
             }
         }
+
+        Map<String, Boolean> inStock = stockForMonthTotals(scheduled.keySet());
+        List<VisitPlanSuggestionDTO> suggestions = new ArrayList<>();
+        scheduled.forEach((candidate, slot) -> suggestions.add(new VisitPlanSuggestionDTO(
+                candidate.healthCareProfId(), slot, candidate.visitSiteId(), candidate.lastVisitDate(),
+                candidate.intervalDays(), candidate.reason(monthStart),
+                candidate.items().stream()
+                        .map(line -> new SuggestedVisitItemDTO(line.productId(), line.quantity(),
+                                inStock.get(line.productId())))
+                        .toList())));
         suggestions.sort(Comparator.comparing(VisitPlanSuggestionDTO::visitDateTime));
         return new VisitPlanSuggestionsOutputDTO(msrId.value(), month, suggestions, unscheduled);
     }
@@ -132,7 +153,8 @@ public final class SuggestVisitPlansUseCase
             LocalDate due = lastDate.plusDays(interval);
             // A plan needs a site; without one on file the rep has to plan this HCP by hand.
             if (!due.isAfter(monthEnd) && last.visitSideId() != null) {
-                candidates.add(new Candidate(hcpId, last.visitSideId().value(), lastDate, visits.size(), interval, due));
+                candidates.add(new Candidate(hcpId, last.visitSideId().value(), lastDate, visits.size(), interval, due,
+                        usualItems(visits)));
             }
         });
         candidates.sort(Comparator.comparing(Candidate::dueDate).thenComparing(Candidate::healthCareProfId));
@@ -150,8 +172,56 @@ public final class SuggestVisitPlansUseCase
         return (int) Math.max(MIN_INTERVAL_DAYS, Math.min(MAX_INTERVAL_DAYS, mean));
     }
 
+    /**
+     * Per product, the average quantity per visit over the last {@value #ITEM_LOOKBACK_VISITS} visits
+     * that recorded products, most units first. Products averaging under one unit are left out.
+     */
+    static List<ProductQuantity> usualItems(List<Visit> visitsOldestFirst) {
+        List<Visit> recentWithItems = new ArrayList<>();
+        for (int i = visitsOldestFirst.size() - 1; i >= 0 && recentWithItems.size() < ITEM_LOOKBACK_VISITS; i--) {
+            if (!visitsOldestFirst.get(i).visitItems().isEmpty()) {
+                recentWithItems.add(visitsOldestFirst.get(i));
+            }
+        }
+        if (recentWithItems.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Integer> totals = new LinkedHashMap<>();
+        for (Visit visit : recentWithItems) {
+            for (VisitItem item : visit.visitItems()) {
+                totals.merge(item.productId().value(), item.quantity(), Integer::sum);
+            }
+        }
+        List<ProductQuantity> usual = new ArrayList<>();
+        totals.forEach((productId, total) -> {
+            long average = Math.round((double) total / recentWithItems.size());
+            if (average >= 1) {
+                usual.add(new ProductQuantity(productId, (int) Math.min(average, VisitItem.MAX_QUANTITY)));
+            }
+        });
+        usual.sort(Comparator.comparingInt(ProductQuantity::quantity).reversed()
+                .thenComparing(ProductQuantity::productId));
+        return usual;
+    }
+
+    /** One catalog check per product, for its total across the month's scheduled suggestions. */
+    private Map<String, Boolean> stockForMonthTotals(Iterable<Candidate> scheduled) {
+        Map<String, Integer> monthTotals = new LinkedHashMap<>();
+        for (Candidate candidate : scheduled) {
+            for (ProductQuantity line : candidate.items()) {
+                monthTotals.merge(line.productId(), line.quantity(), Integer::sum);
+            }
+        }
+        Map<String, Boolean> inStock = new HashMap<>();
+        monthTotals.forEach((productId, total) ->
+                inStock.put(productId, productAvailability.isAvailable(productId, total).orElse(null)));
+        return inStock;
+    }
+
+    record ProductQuantity(String productId, int quantity) {}
+
     private record Candidate(String healthCareProfId, String visitSiteId, LocalDate lastVisitDate,
-                             int visitCount, int intervalDays, LocalDate dueDate) {
+                             int visitCount, int intervalDays, LocalDate dueDate, List<ProductQuantity> items) {
 
         String reason(LocalDate monthStart) {
             String cadence = visitCount < 2

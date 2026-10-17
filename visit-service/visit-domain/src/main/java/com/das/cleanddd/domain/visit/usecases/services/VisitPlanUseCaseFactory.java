@@ -3,6 +3,7 @@ package com.das.cleanddd.domain.visit.usecases.services;
 import java.time.Clock;
 
 import com.das.cleanddd.domain.visit.IVisitRepository;
+import com.das.cleanddd.domain.visit.ports.IProductAvailability;
 import com.das.cleanddd.domain.visit.usecases.dtos.SuggestVisitPlansInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitPlanSuggestionsOutputDTO;
 import java.util.List;
@@ -34,7 +35,8 @@ public class VisitPlanUseCaseFactory {
         IVisitPlanRepository visitPlanRepository,
         IVisitRepository visitRepository,
         IHealthCareProfValidator healthCareProfValidator,
-        IMedicalSalesRepValidator medicalSalesRepValidator
+        IMedicalSalesRepValidator medicalSalesRepValidator,
+        IProductAvailability productAvailability
     ) {
         VisitPlanMapper mapper = new VisitPlanMapper();
         VisitPlanFactory visitPlanFactory = new VisitPlanFactory(healthCareProfValidator, medicalSalesRepValidator);
@@ -54,6 +56,7 @@ public class VisitPlanUseCaseFactory {
             visitRepository,
             visitPlanRepository,
             healthCareProfValidator,
+            productAvailability,
             Clock.systemDefaultZone()
         );
     }
