@@ -305,7 +305,7 @@ docker exec -it mysql-ddd-clean mysql -u root -p -e "SHOW TABLES FROM settlement
 **RabbitMQ**:
 
 ```bash
-docker run -d --name rabbitmq \
+docker run -d --name rabbitmq-ddd-clean \
   -p 5672:5672 \
   -p 15672:15672 \
   rabbitmq:3-management
@@ -689,7 +689,7 @@ docker build -f api-gateway/Dockerfile -t api-gateway:local api-gateway
 # Run
 docker run -d --name api-gateway --network ddd-clean-net -p 8080:8080 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
   api-gateway:local
@@ -709,10 +709,18 @@ docker build -f identity-service/identity-application/Dockerfile \
 # Run
 docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e IDENTITY_SEED_USERNAME=user \
+  -e IDENTITY_SEED_PASSWORD_HASH='$2a$12$oxidnedWihAzJbsAXyZH5OX3caBTkilYZ5Zn0pqpUt.Fv/CiYUH26' \
   identity-service:local
 ```
+
+> Under the `prod` profile identity-service refuses to start without `IDENTITY_SEED_USERNAME` and a BCrypt
+> `IDENTITY_SEED_PASSWORD_HASH` — the hash above is the dev credential `user` / `Apatehia65$`; use your own anywhere
+> else (`htpasswd -bnBC 12 "" 'your-password' | tr -d ':\n'`). Keep the single quotes so the shell leaves the `$`s alone.
+> Optional accounts: `IDENTITY_AGENT_*` (AI Agent Service), `IDENTITY_ADMIN_*` (admin), and `IDENTITY_SEED_MSR_ID`
+> to link the user to an MSR (needed to place orders) — see `.env.example`.
 
 Auth endpoint: `POST http://localhost:8090/auth/login`
 
@@ -733,7 +741,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8086 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
   -e PG_USERNAME=root \
@@ -761,7 +769,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:8087 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
   -e PG_USERNAME=root \
@@ -793,7 +801,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:sqlserver://sqlserver-ddd-clean:1433;databaseName=visitdb;encrypt=false;trustServerCertificate=true" \
   -e DB_USERNAME=sa \
@@ -834,7 +842,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
   -e DB_USERNAME=root \
@@ -873,7 +881,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name product-catalog-service --network ddd-clean-net -p 8091:8091 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/productcatalog_db \
   -e PG_USERNAME=root \
@@ -904,7 +912,7 @@ DOCKER_BUILDKIT=1 docker build \
 # Run
 docker run -d --name order-service --network ddd-clean-net -p 8092:8092 \
   -e SPRING_PROFILES_ACTIVE=prod \
-  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/order_db \
   -e PG_USERNAME=root \
