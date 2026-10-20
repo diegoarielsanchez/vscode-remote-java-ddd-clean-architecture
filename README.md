@@ -725,14 +725,22 @@ docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e IDENTITY_SEED_USERNAME=user \
   -e IDENTITY_SEED_PASSWORD_HASH='$2a$12$oxidnedWihAzJbsAXyZH5OX3caBTkilYZ5Zn0pqpUt.Fv/CiYUH26' \
+  -e IDENTITY_ADMIN_USERNAME=admin \
+  -e IDENTITY_ADMIN_PASSWORD_HASH='$2a$12$2gd5VIxy7iE6hAshjep7p.S0dcSKefWpZ/pX1caLRtWEEtF5O6PzS' \
   identity-service:local
 ```
 
 > Under the `prod` profile identity-service refuses to start without `IDENTITY_SEED_USERNAME` and a BCrypt
-> `IDENTITY_SEED_PASSWORD_HASH` — the hash above is the dev credential `user` / `Apatehia65$`; use your own anywhere
-> else (`htpasswd -bnBC 12 "" 'your-password' | tr -d ':\n'`). Keep the single quotes so the shell leaves the `$`s alone.
-> Optional accounts: `IDENTITY_AGENT_*` (AI Agent Service), `IDENTITY_ADMIN_*` (admin), and `IDENTITY_SEED_MSR_ID`
-> to link the user to an MSR (needed to place orders) — see `.env.example`.
+> `IDENTITY_SEED_PASSWORD_HASH`. The hashes above are dev credentials only — `user` / `Apatehia65$` and the admin
+> `admin` / `Admin-dev-2026!` — so use your own anywhere else
+> (`docker run --rm httpd:2.4-alpine htpasswd -bnBC 12 "" 'your-password' | tr -d ':\n'`). Keep the single quotes so
+> the shell leaves the `$`s alone.
+>
+> Who can do what: `user` (`ROLE_USER`) reads and works with its own records. The admin (`ROLE_ADMIN`) is needed to
+> create/update products and to activate/deactivate MSRs, HCPs and products — `user` gets `403` there. Approving
+> orders and changing stock need the AI Agent Service account (`IDENTITY_AGENT_USERNAME` /
+> `IDENTITY_AGENT_PASSWORD_HASH`, `ROLE_AGENT`). Placing orders and visits needs the user linked to an MSR
+> (`IDENTITY_SEED_MSR_ID`) — see `.env.example`.
 
 Auth endpoint: `POST http://localhost:8090/auth/login`
 
