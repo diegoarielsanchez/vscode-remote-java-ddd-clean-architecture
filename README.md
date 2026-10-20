@@ -636,10 +636,22 @@ docker network create ddd-clean-net
 docker network connect ddd-clean-net postgres-ddd-clean   # MSR, HCP, Product Catalog, Order (PostgreSQL)
 docker network connect ddd-clean-net sqlserver-ddd-clean  # Visit (SQL Server)
 docker network connect ddd-clean-net mysql-ddd-clean      # Settlement (MySQL)
-docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ (or rabbitmq-ddd-clean)
+docker network connect ddd-clean-net rabbitmq-ddd-clean   # RabbitMQ
+docker network connect ddd-clean-net redis-ddd-clean      # Redis (Visit, Product Catalog, Order)
+
+# RabbitMQ's built-in guest user may only connect from inside its own container, so give the
+# services a user they can use from theirs (once):
+docker exec rabbitmq-ddd-clean rabbitmqctl add_user ddd ddd-dev-password
+docker exec rabbitmq-ddd-clean rabbitmqctl set_permissions -p / ddd ".*" ".*" ".*"
 ```
 
 > If a container is already on `ddd-clean-net` the command returns an error you can safely ignore.
+>
+> **First run against empty databases:** the `prod` profile only validates the schema
+> (`ddl-auto=validate`) and refuses to start if a table is missing. The commands below pass
+> `-e SPRING_JPA_HIBERNATE_DDL_AUTO=update` so tables are created on the first run; drop it on later
+> runs. All PostgreSQL databases must exist first — see the idempotent creation commands above.
+> Use **one** `JWT_SECRET` of at least 32 characters for every service.
 
 ---
 
@@ -743,12 +755,13 @@ docker run -d --name medical-sales-rep-service --network ddd-clean-net -p 8086:8
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/medicalsalesrep_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
   medical-sales-rep-service:local
 ```
 
@@ -771,12 +784,13 @@ docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:808
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/healthcare_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
   healthcare-prof-service:local
 ```
 
@@ -807,9 +821,10 @@ docker run -d --name visit-service --network ddd-clean-net -p 8088:8088 \
   -e DB_USERNAME=sa \
   -e DB_PASSWORD=Riverplate1! \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-  -e RABBITMQ_HOST=rabbitmq \
-  -e RABBITMQ_USERNAME=guest \
-  -e RABBITMQ_PASSWORD=guest \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
+  -e REDIS_HOST=redis-ddd-clean -e REDIS_PORT=6379 -e REDIS_PASSWORD= \
   visit-service:local
 ```
 
@@ -846,9 +861,12 @@ docker run -d --name settlement-service --network ddd-clean-net -p 8089:8089 \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
   -e DB_URL="jdbc:mysql://mysql-ddd-clean:3306/settlementdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
   -e DB_USERNAME=root \
-  -e DB_PASSWORD=yourpassword \
+  -e DB_PASSWORD=riverplate \
   -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e MSR_SERVICE_BASE_URL=http://medical-sales-rep-service \
+  -e RABBITMQ_HOST=rabbitmq-ddd-clean \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
   -e INVOICE_FILE_STORAGE_PATH=/var/settlement-service/invoice-files \
   -v settlement-invoice-files:/var/settlement-service/invoice-files \
   settlement-service:local
@@ -883,13 +901,14 @@ docker run -d --name product-catalog-service --network ddd-clean-net -p 8091:809
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/productcatalog_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
   -e RABBITMQ_HOST=rabbitmq-ddd-clean \
-  -e RABBITMQ_USERNAME=<user> \
-  -e RABBITMQ_PASSWORD=<password> \
-  -e REDIS_HOST=<redis-host> -e REDIS_PORT=6379 -e REDIS_PASSWORD=<password> \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
+  -e REDIS_HOST=redis-ddd-clean -e REDIS_PORT=6379 -e REDIS_PASSWORD= \
   product-catalog-service:local
 ```
 
@@ -914,17 +933,18 @@ docker run -d --name order-service --network ddd-clean-net -p 8092:8092 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e JWT_SECRET=change-me-to-a-random-secret-of-32-chars-or-more \
   -e EUREKA_URL=http://eureka:eureka@eureka-server:8761/eureka/ \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
   -e DB_URL=jdbc:postgresql://postgres-ddd-clean:5432/order_db \
   -e PG_USERNAME=root \
   -e PG_PASSWORD=river \
   -e RABBITMQ_HOST=rabbitmq-ddd-clean \
-  -e RABBITMQ_USERNAME=<user> \
-  -e RABBITMQ_PASSWORD=<password> \
-  -e REDIS_HOST=<redis-host> -e REDIS_PORT=6379 -e REDIS_PASSWORD=<password> \
+  -e RABBITMQ_USERNAME=ddd \
+  -e RABBITMQ_PASSWORD=ddd-dev-password \
+  -e REDIS_HOST=redis-ddd-clean -e REDIS_PORT=6379 -e REDIS_PASSWORD= \
   order-service:local
 ```
 
-> The prod profile runs with `ddl-auto=validate`: apply each service's `*-infra/src/main/resources/db/outbox-postgresql.sql` first (see [Upgrading an existing environment](#upgrading-an-existing-environment)), or add `-e SPRING_JPA_HIBERNATE_DDL_AUTO=update` on the first run as for Visit and Settlement.
+> `SPRING_JPA_HIBERNATE_DDL_AUTO=update` creates tables on first run (as for MSR, HCP, Catalog, Visit and Settlement); drop it later. For a real environment, apply each service's `*-infra/src/main/resources/db/*.sql` instead (see [Upgrading an existing environment](#upgrading-an-existing-environment)).
 >
 > Like visit-service, order-service reaches the MSR Service through Eureka (`@LoadBalanced` `RestTemplate`, service id `medical-sales-rep-service`). It never calls product-catalog-service directly: stock goes through the broker.
 
