@@ -20,6 +20,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
   - [7. Dev override — MinIO file storage (optional)](#7-dev-override--minio-file-storage-optional)
   - [8. Stop](#8-stop)
   - [9. Rebuild a single service](#9-rebuild-a-single-service)
+- [Observability](#observability)
 - [Service Reference](#service-reference)
 - [API Reference](#api-reference)
 - [Swagger UI](#swagger-ui)
@@ -1103,6 +1104,107 @@ docker compose up -d --build <service-name>
 # e.g.
 docker compose up -d --build settlement-service
 ```
+
+---
+
+## Observability
+
+Every service image ships the OpenTelemetry Java agent, which records traces, metrics and logs without any code
+changes. The agent sends them to an OpenTelemetry Collector, which passes each kind to its own backend; Grafana
+reads all three.
+
+```
+each service ──(OpenTelemetry agent, OTLP)──► otel-collector ─┬─► Jaeger      traces
+                                                              ├─► Prometheus  metrics
+                                                              └─► Loki        logs
+                                                      Grafana reads all three
+```
+
+The configuration lives in [observability/](observability/): the collector pipelines
+([otel-collector-config.yaml](observability/otel-collector-config.yaml)), the Prometheus scrape of the collector
+([prometheus.yml](observability/prometheus.yml)) and Grafana's pre-wired datasources
+([datasources.yml](observability/grafana/provisioning/datasources/datasources.yml)).
+
+| Tool | URL | What it shows |
+|---|---|---|
+| Jaeger | `http://localhost:16686` | Traces: pick a service, then *Find Traces*. A request through the gateway shows every service it touched |
+| Grafana | `http://localhost:3000` (`admin` / `GRAFANA_ADMIN_PASSWORD`, default `admin`) | *Explore* → **Loki** for logs (e.g. `{service_name="visit-service"}`), **Prometheus** for metrics, **Jaeger** for traces |
+| Prometheus | `http://localhost:9090` | Raw metrics, e.g. `http_server_request_duration_seconds_count` |
+
+### With Docker Compose (Option B)
+
+Nothing to do: `docker compose up -d` starts the collector, Jaeger, Prometheus, Loki and Grafana, and every service
+is already configured to send to the collector.
+
+### With individual containers (Option C)
+
+**1. Start the observability stack** on `ddd-clean-net`. Run from the repo root, since the commands mount files from
+`observability/`. Keep the container names: the configuration files reach each other by them.
+
+```bash
+docker run -d --name loki --network ddd-clean-net -p 3100:3100 \
+  -v loki-data:/loki \
+  grafana/loki:3.1.1 -config.file=/etc/loki/local-config.yaml
+
+docker run -d --name jaeger --network ddd-clean-net -p 16686:16686 \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  jaegertracing/all-in-one:1.76.0
+
+docker run -d --name otel-collector --network ddd-clean-net \
+  -v "$(pwd)/observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro" \
+  otel/opentelemetry-collector-contrib:0.111.0 --config=/etc/otel-collector-config.yaml
+
+docker run -d --name prometheus --network ddd-clean-net -p 9090:9090 \
+  -v "$(pwd)/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+  -v prometheus-data:/prometheus \
+  prom/prometheus:v2.55.0
+
+docker run -d --name grafana --network ddd-clean-net -p 3000:3000 \
+  -e GF_SECURITY_ADMIN_PASSWORD=admin \
+  -v "$(pwd)/observability/grafana/provisioning:/etc/grafana/provisioning:ro" \
+  -v grafana-data:/var/lib/grafana \
+  grafana/grafana:11.2.0
+
+# The collector is ready when its log ends with "Everything is ready"
+docker logs otel-collector 2>&1 | tail -5
+```
+
+**2. Point each service at the collector.** Add these lines to the service's `docker run` command (shown for MSR —
+set `OTEL_SERVICE_NAME` to the container name: `eureka-server`, `api-gateway`, `identity-service`,
+`medical-sales-rep-service`, `healthcare-prof-service`, `visit-service`, `settlement-service`,
+`product-catalog-service`, `order-service`), then `docker rm -f` the container and run it again:
+
+```bash
+  -e OTEL_SERVICE_NAME=medical-sales-rep-service \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 \
+  -e OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
+  -e OTEL_TRACES_EXPORTER=otlp \
+  -e OTEL_METRICS_EXPORTER=otlp \
+  -e OTEL_LOGS_EXPORTER=otlp \
+  -e OTEL_RESOURCE_ATTRIBUTES=service.namespace=ddd-clean-architecture \
+```
+
+> **Without the stack**, the agent still tries to send to its default `localhost:4318` and logs repeated
+> `Failed to export ... localhost:4318` errors. They are harmless; to silence them, add
+> `-e OTEL_JAVAAGENT_ENABLED=false` instead of the lines above.
+
+**3. Make a few calls** (log in, create a visit) and refresh Jaeger; data appears within 5–15 seconds.
+
+If nothing shows up:
+
+- `docker logs otel-collector` reports it when it cannot reach `jaeger` or `loki` — all five containers must be on
+  `ddd-clean-net`.
+- A service started with `OTEL_JAVAAGENT_ENABLED=false` sends nothing: check with
+  `docker inspect <container> | grep OTEL`.
+- On Git Bash for Windows, if the `-v "$(pwd)/..."` mounts fail, run the commands from WSL or replace `$(pwd)` with
+  the full path (e.g. `//c/Users/<you>/.../vscode-remote-java-ddd-clean-architecture`).
+
+### With services run locally (Option A)
+
+`mvn spring-boot:run` does not load the agent, so services started that way send nothing. To trace one, start the
+stack above with `-p 4317:4317` added to the `otel-collector` command, and run the service from its jar with
+`-javaagent:<path>/opentelemetry-javaagent.jar` and the same `OTEL_*` variables, using
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
 ---
 
