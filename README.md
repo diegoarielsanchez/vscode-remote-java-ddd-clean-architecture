@@ -727,20 +727,29 @@ docker run -d --name identity-service --network ddd-clean-net -p 8090:8090 \
   -e IDENTITY_SEED_PASSWORD_HASH='$2a$12$oxidnedWihAzJbsAXyZH5OX3caBTkilYZ5Zn0pqpUt.Fv/CiYUH26' \
   -e IDENTITY_ADMIN_USERNAME=admin \
   -e IDENTITY_ADMIN_PASSWORD_HASH='$2a$12$2gd5VIxy7iE6hAshjep7p.S0dcSKefWpZ/pX1caLRtWEEtF5O6PzS' \
+  -e IDENTITY_AGENT_USERNAME=agent \
+  -e IDENTITY_AGENT_PASSWORD_HASH='$2a$12$9tqyPISRSdf.xmNH0nTCSu7hYaK3T5ed2ahKUzzyfSZrp4dlyssFO' \
+  -e IDENTITY_SEED_MSR_ID= \
   identity-service:local
 ```
 
+> **Link `user` to an MSR before creating visits or orders.** `IDENTITY_SEED_MSR_ID` is the MSR that `user` acts
+> as (the token's `msr_id` claim). Visits, visit plans and orders always belong to the caller's MSR, so with it
+> empty `user` gets `403 Access denied` on `/api/v1/visit/create`, `/api/v1/visitplan/create` and
+> `/api/v1/orders/create`. It can stay empty on the first run, since no MSR exists yet. Once you have created an
+> MSR (the Medical Sales Rep Service step below), re-run this command with its id, e.g. `-e IDENTITY_SEED_MSR_ID=0cd948b6-8ceb-42cb-9647-1bc6e72a3ade`,
+> and log in again: accounts are read at startup and old tokens keep their old claims.
+
 > Under the `prod` profile identity-service refuses to start without `IDENTITY_SEED_USERNAME` and a BCrypt
-> `IDENTITY_SEED_PASSWORD_HASH`. The hashes above are dev credentials only — `user` / `Apatehia65$` and the admin
-> `admin` / `Admin-dev-2026!` — so use your own anywhere else
+> `IDENTITY_SEED_PASSWORD_HASH`. The hashes above are dev credentials only — `user` / `Apatehia65$`, the admin
+> `admin` / `Admin-dev-2026!` and the AI Agent Service account `agent` / `Agent-dev-2026!` — so use your own anywhere else
 > (`docker run --rm httpd:2.4-alpine htpasswd -bnBC 12 "" 'your-password' | tr -d ':\n'`). Keep the single quotes so
 > the shell leaves the `$`s alone.
 >
 > Who can do what: `user` (`ROLE_USER`) reads and works with its own records. The admin (`ROLE_ADMIN`) is needed to
 > create/update products and to activate/deactivate MSRs, HCPs and products — `user` gets `403` there. Approving
-> orders and changing stock need the AI Agent Service account (`IDENTITY_AGENT_USERNAME` /
-> `IDENTITY_AGENT_PASSWORD_HASH`, `ROLE_AGENT`). Placing orders and visits needs the user linked to an MSR
-> (`IDENTITY_SEED_MSR_ID`) — see `.env.example`.
+> orders and changing stock need the AI Agent Service account (`agent`, `ROLE_AGENT`). Placing orders and visits
+> needs `user` linked to an MSR (`IDENTITY_SEED_MSR_ID`, see the note above).
 
 Auth endpoint: `POST http://localhost:8090/auth/login`
 
@@ -1124,7 +1133,7 @@ All endpoints are accessible via the **API Gateway** at `http://localhost:8080`.
 
 All authentication is handled by the **Identity Service**. The endpoint is exposed directly on port `8090` and proxied through the API Gateway at `http://localhost:8080/auth/login`.
 
-Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`). Approving/rejecting orders and changing stock need the AI Agent Service account (`ROLE_AGENT`), which exists only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set. Managing the catalog and activating/deactivating HCPs, MSRs and products need the admin account (`ROLE_ADMIN`, `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH`). Set `IDENTITY_SEED_MSR_ID` to let the regular user confirm delivery of that MSR's orders.
+Dev credential: `user` / `Apatehia65$` (dev profile only — under `prod`, set `IDENTITY_SEED_USERNAME` and a BCrypt `IDENTITY_SEED_PASSWORD_HASH`; see `.env.example`). Approving/rejecting orders and changing stock need the AI Agent Service account (`ROLE_AGENT`), which exists only when `IDENTITY_AGENT_USERNAME` / `IDENTITY_AGENT_PASSWORD_HASH` are set. Managing the catalog and activating/deactivating HCPs, MSRs and products need the admin account (`ROLE_ADMIN`, `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH`). Set `IDENTITY_SEED_MSR_ID` to an existing MSR's id to let the regular user create visits, visit plans and orders for that MSR and confirm delivery of its orders — without it they get `403`.
 
 | Method | Path | Description |
 |---|---|---|
