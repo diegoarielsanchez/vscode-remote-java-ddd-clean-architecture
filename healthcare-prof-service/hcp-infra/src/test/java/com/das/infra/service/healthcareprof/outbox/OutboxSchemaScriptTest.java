@@ -41,11 +41,12 @@ class OutboxSchemaScriptTest {
 
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
+    @Autowired private AuditEventJpaRepository audit;
     @Autowired private EntityManager entityManager;
 
     @Test
     void everyOutboxOperationWorksOnTheScriptedSchema() {
-        OutboxHcpEventPublisher publisher = new OutboxHcpEventPublisher(outbox, versions, EventContext.NONE,
+        OutboxHcpEventPublisher publisher = new OutboxHcpEventPublisher(outbox, versions, audit, EventContext.NONE,
                 Clock.fixed(NOW, ZoneOffset.UTC));
         publisher.publish(new HcpCreatedEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a", "Ana", "Gomez", "a@b.org", true));
         publisher.publish(new HcpDeactivatedEvent("8a6e0804-2bd0-4672-b79d-d97027f9071a", false));
@@ -61,6 +62,7 @@ class OutboxSchemaScriptTest {
         entityManager.flush();
 
         assertEquals(1, outbox.deletePublishedBefore(NOW.minus(Duration.ofDays(7))));
+        assertEquals(2, audit.count(), "the audit trail keeps every event after the outbox is purged");
         assertEquals(1, outbox.countByPublishedAtIsNull());
     }
 }

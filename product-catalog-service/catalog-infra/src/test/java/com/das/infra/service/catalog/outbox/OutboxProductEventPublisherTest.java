@@ -42,13 +42,14 @@ class OutboxProductEventPublisherTest {
 
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
+    @Autowired private AuditEventJpaRepository audit;
     @Autowired private IProductEventPublisher springBean;
 
     private OutboxProductEventPublisher publisher;
 
     @BeforeEach
     void setUp() {
-        publisher = new OutboxProductEventPublisher(outbox, versions, EventContext.NONE, Clock.fixed(NOW, ZoneOffset.UTC));
+        publisher = new OutboxProductEventPublisher(outbox, versions, audit, EventContext.NONE, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

@@ -38,6 +38,7 @@ class OutboxHcpEventPublisherTest {
 
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
+    @Autowired private AuditEventJpaRepository audit;
     @Autowired private IHcpEventPublisher springBean;
 
     private OutboxHcpEventPublisher publisher;
@@ -48,7 +49,7 @@ class OutboxHcpEventPublisherTest {
             @Override public String correlationId() { return "trace-123"; }
             @Override public String actor() { return "admin"; }
         };
-        publisher = new OutboxHcpEventPublisher(outbox, versions, context, Clock.fixed(NOW, ZoneOffset.UTC));
+        publisher = new OutboxHcpEventPublisher(outbox, versions, audit, context, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

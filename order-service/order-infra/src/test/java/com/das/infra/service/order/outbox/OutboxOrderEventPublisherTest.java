@@ -43,6 +43,7 @@ class OutboxOrderEventPublisherTest {
 
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
+    @Autowired private AuditEventJpaRepository audit;
     @Autowired private IOrderEventPublisher springBean;
 
     private OutboxOrderEventPublisher publisher;
@@ -53,7 +54,7 @@ class OutboxOrderEventPublisherTest {
             @Override public String correlationId() { return "trace-123"; }
             @Override public String actor() { return "rep.manager"; }
         };
-        publisher = new OutboxOrderEventPublisher(outbox, versions, context, Clock.fixed(NOW, ZoneOffset.UTC));
+        publisher = new OutboxOrderEventPublisher(outbox, versions, audit, context, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -87,6 +88,16 @@ class OutboxOrderEventPublisherTest {
         assertEquals("Out of budget", rejected.at("/data/reason").asText());
         assertTrue(rejected.at("/data/totalAmount").isMissingNode());
         assertTrue(rejected.at("/data/lines").isMissingNode());
+
+        List<AuditEventEntity> trail = audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                OrderIntegrationEvents.AGGREGATE_TYPE, ORDER);
+        assertEquals(rows.stream().map(OutboxEventEntity::getId).toList(),
+                trail.stream().map(AuditEventEntity::getEventId).toList(), "every event is in the audit trail, in order");
+        assertEquals("rep.manager", trail.get(0).getActor());
+        assertEquals("trace-123", trail.get(0).getCorrelationId());
+        assertEquals("order-service", trail.get(0).getProducer());
+        assertEquals(NOW, trail.get(0).getOccurredAt());
+        assertEquals(rows.get(0).getPayload(), trail.get(0).getPayload(), "kept exactly as published");
     }
 
     @Test
