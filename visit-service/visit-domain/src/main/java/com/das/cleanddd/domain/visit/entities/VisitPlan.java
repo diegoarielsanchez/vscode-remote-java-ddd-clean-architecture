@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.visit.events.VisitDomainEvent;
@@ -202,11 +203,19 @@ public final class VisitPlan extends AggregateRoot<VisitDomainEvent> {
                 _visitComments == null ? null : _visitComments.value(), VisitItem.describe(_visitItems)));
     }
 
-    /** Records an edit: each field that differs from {@code before} (from {@link #auditState()}), old and new. */
+    /** Records an edit without a reason. */
     public void recordUpdatedFrom(Map<String, Object> before) {
+        recordUpdatedFrom(before, null);
+    }
+
+    /**
+     * Records an edit: each field that differs from {@code before} (from {@link #auditState()}), old and new, and
+     * {@code reason}, why it was made.
+     */
+    public void recordUpdatedFrom(Map<String, Object> before, ChangeReason reason) {
         Map<String, Object> after = auditState();
         FieldChanges changes = new FieldChanges();
         before.forEach((field, value) -> changes.compare(field, value, after.get(field)));
-        record(new VisitPlanUpdatedEvent(_visitId.value(), changes.toList()));
+        record(new VisitPlanUpdatedEvent(_visitId.value(), changes.toList(), ChangeReason.valueOf(reason)));
     }
 }

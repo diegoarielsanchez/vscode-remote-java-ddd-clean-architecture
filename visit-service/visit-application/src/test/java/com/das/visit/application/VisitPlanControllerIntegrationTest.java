@@ -167,7 +167,8 @@ class VisitPlanControllerIntegrationTest {
     }
 
     private void update(String id, List<VisitItemDTO> items) throws Exception {
-        var body = new UpdateVisitPlanInputDTO(id, LocalDateTime.now().plusDays(4), HCP_ID, "moved", SITE_ID, null, items);
+        var body = new UpdateVisitPlanInputDTO(id, LocalDateTime.now().plusDays(4), HCP_ID, "moved", SITE_ID, null, items,
+                "HCP asked to move the visit");
         mockMvc.perform(put(BASE_URL + "/update")
                         .header("Authorization", "Bearer " + authToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -437,7 +438,7 @@ class VisitPlanControllerIntegrationTest {
 
         var updateBody = new UpdateVisitPlanInputDTO(
                 id, LocalDateTime.now().plusDays(14),
-                HCP_ID, "Rescheduled appointment", SITE_ID, MSR_ID);
+                HCP_ID, "Rescheduled appointment", SITE_ID, MSR_ID, null, "HCP asked to move the visit");
 
         mockMvc.perform(put(BASE_URL + "/update")
                         .header("Authorization", "Bearer " + authToken)

@@ -71,7 +71,7 @@ class UpdateVisitPlanUseCaseTest {
     }
 
     private UpdateVisitPlanInputDTO validInput() {
-        return new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, "updated notes", SITE_ID, MSR_ID);
+        return new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, "updated notes", SITE_ID, MSR_ID, null, "Corrected after the visit");
     }
 
     @Nested
@@ -86,7 +86,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldThrowWhenPlanIdIsNull() {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(null, FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(null, FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID, null, "Corrected after the visit");
             assertThatThrownBy(() -> useCase.execute(input))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Visit plan id");
@@ -94,7 +94,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldThrowWhenPlanIdIsBlank() {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO("", FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO("", FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID, null, "Corrected after the visit");
             assertThatThrownBy(() -> useCase.execute(input))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Visit plan id");
@@ -102,7 +102,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldThrowWhenVisitDateTimeIsNull() {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, null, HCP_ID, null, SITE_ID, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, null, HCP_ID, null, SITE_ID, MSR_ID, null, "Corrected after the visit");
             assertThatThrownBy(() -> useCase.execute(input))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("date time cannot be null");
@@ -110,7 +110,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldThrowWhenHealthCareProfIdIsNull() {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, null, null, SITE_ID, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, null, null, SITE_ID, MSR_ID, null, "Corrected after the visit");
             assertThatThrownBy(() -> useCase.execute(input))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Health Care Professional");
@@ -118,7 +118,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldThrowWhenVisitSiteIdIsNull() {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, null, null, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, null, null, MSR_ID, null, "Corrected after the visit");
             assertThatThrownBy(() -> useCase.execute(input))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Visit site id");
@@ -196,7 +196,7 @@ class UpdateVisitPlanUseCaseTest {
 
         @Test
         void shouldAllowNullComments() throws DomainException {
-            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID);
+            UpdateVisitPlanInputDTO input = new UpdateVisitPlanInputDTO(PLAN_ID, FUTURE_DT, HCP_ID, null, SITE_ID, MSR_ID, null, "Corrected after the visit");
 
             VisitPlanOutputDTO output = useCase.execute(input);
 
@@ -211,12 +211,23 @@ class UpdateVisitPlanUseCaseTest {
         void shouldRefuseAnotherMsrsPlanLikeAMissingOne() throws Exception {
             when(visitPlanRepository.search(any())).thenReturn(Optional.of(buildExistingPlan()));
             UpdateVisitPlanInputDTO otherRep = new UpdateVisitPlanInputDTO(
-                PLAN_ID, FUTURE_DT, HCP_ID, "hijack", SITE_ID, "723e4567-e89b-12d3-a456-426614174009");
+                PLAN_ID, FUTURE_DT, HCP_ID, "hijack", SITE_ID, "723e4567-e89b-12d3-a456-426614174009", null,
+                "Corrected after the visit");
 
             assertThatThrownBy(() -> useCase.execute(otherRep))
                 .isInstanceOf(DomainException.class)
                 .hasMessage("Visit plan not found.");
             verify(visitPlanRepository, never()).save(any());
         }
+    }
+
+    @Test
+    void shouldRefuseAnEditWithoutAReason() {
+        UpdateVisitPlanInputDTO valid = validInput();
+        UpdateVisitPlanInputDTO withoutReason = new UpdateVisitPlanInputDTO(valid.id(), valid.visitDateTime(), valid.healthCareProfId(),
+            valid.visitComments(), valid.visitSiteId(), valid.medicalSalesRepId(), null, "  ");
+        assertThatThrownBy(() -> useCase.execute(withoutReason))
+            .isInstanceOf(DomainException.class)
+            .hasMessage("A reason for the change is required.");
     }
 }

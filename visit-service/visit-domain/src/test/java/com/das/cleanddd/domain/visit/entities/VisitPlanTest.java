@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.audit.FieldChange;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.visit.events.VisitPlanUpdatedEvent;
@@ -306,10 +307,11 @@ class VisitPlanTest {
                 new MedicalSalesRepId(MSR_ID)
             );
 
-            after.recordUpdatedFrom(before.auditState());
+            after.recordUpdatedFrom(before.auditState(), new ChangeReason("HCP asked to move the visit"));
 
             assertThat(after.pullDomainEvents()).containsExactly(new VisitPlanUpdatedEvent(VISIT_ID, List.of(
-                new FieldChange("visitDateTime", VALID_DATE.toString(), VALID_DATE.plusHours(2).toString()))));
+                new FieldChange("visitDateTime", VALID_DATE.toString(), VALID_DATE.plusHours(2).toString())),
+                "HCP asked to move the visit"));
         }
 
         @Test

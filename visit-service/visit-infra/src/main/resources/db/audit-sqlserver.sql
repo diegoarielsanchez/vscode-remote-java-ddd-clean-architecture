@@ -16,8 +16,13 @@ IF OBJECT_ID(N'dbo.audit_event', N'U') IS NULL
         occurred_at       DATETIMEOFFSET(6) NOT NULL,
         payload           VARCHAR(8000)     NOT NULL,  -- JSON envelope
         changes           VARCHAR(8000)     NULL,      -- edits: [{"field","from","to"}]
+        reason            VARCHAR(500)      NULL,      -- edits: why the record was changed
         CONSTRAINT ux_audit_event_aggregate_version UNIQUE (aggregate_type, aggregate_id, aggregate_version)
     );
+
+-- Added after audit_event was first released.
+IF COL_LENGTH(N'dbo.audit_event', N'reason') IS NULL
+    ALTER TABLE dbo.audit_event ADD reason VARCHAR(500) NULL;
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_audit_event_actor')
     CREATE INDEX ix_audit_event_actor ON dbo.audit_event (actor, occurred_at);

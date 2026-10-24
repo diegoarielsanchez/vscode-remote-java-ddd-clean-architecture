@@ -17,6 +17,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.UpdateProductInputDTO;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -59,6 +60,7 @@ public final class UpdateProductUseCase implements UseCase<UpdateProductInputDTO
             ProductPrice price = new ProductPrice(inputDTO.price());
             ProductUnit unit = new ProductUnit(inputDTO.unit());
             ProductId id = new ProductId(inputDTO.id());
+            ChangeReason reason = new ChangeReason(inputDTO.reason());
 
             Optional<Product> existing = repository.findById(id);
             if (!existing.isPresent()) {
@@ -70,7 +72,7 @@ public final class UpdateProductUseCase implements UseCase<UpdateProductInputDTO
             }
             // Never touches stock — stock is only ever mutated via the atomic
             // reserve/release/restock repository operations.
-            product = existing.get().withUpdatedDetails(name, description, price, unit, gtin);
+            product = existing.get().withUpdatedDetails(name, description, price, unit, gtin, reason);
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             return mapper.outputFromEntity(product);

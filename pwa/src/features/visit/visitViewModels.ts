@@ -111,6 +111,7 @@ type VisitForm = {
   medicalSalesRepId: string | null;
   visitSiteId: string;
   visitComments: string;
+  reason: string; // why an existing record is changed; required on edit (audit trail)
 };
 
 export function useVisitFormViewModel(id?: string) {
@@ -126,6 +127,7 @@ export function useVisitFormViewModel(id?: string) {
     medicalSalesRepId: null,
     visitSiteId: "",
     visitComments: "",
+    reason: "",
   });
 
   useLoadOnce(existing.data, (v) =>
@@ -135,6 +137,7 @@ export function useVisitFormViewModel(id?: string) {
       medicalSalesRepId: v.medicalSalesRepId ?? null,
       visitSiteId: v.visitSiteId ?? "",
       visitComments: v.visitComments ?? "",
+      reason: "",
     }),
   );
 
@@ -164,6 +167,7 @@ export function useVisitFormViewModel(id?: string) {
       if (!form.healthCareProfId) e.healthCareProfId = "Select a healthcare professional";
       if (!form.medicalSalesRepId) e.medicalSalesRepId = "Select a medical sales rep";
       if (!form.visitSiteId.trim()) e.visitSiteId = "Required";
+      if (id && !form.reason.trim()) e.reason = "Say why you are changing it";
       setErrors(e);
       if (Object.keys(e).length > 0 || save.isPending) return;
       save.mutate({
@@ -173,6 +177,7 @@ export function useVisitFormViewModel(id?: string) {
         medicalSalesRepId: form.medicalSalesRepId!,
         visitSiteId: form.visitSiteId.trim(),
         visitComments: form.visitComments,
+        reason: id ? form.reason.trim() : undefined,
       });
     },
   };
@@ -217,6 +222,7 @@ type VisitPlanForm = {
   medicalSalesRepId: string | null;
   visitSiteId: string;
   visitComments: string;
+  reason: string; // why an existing record is changed; required on edit (audit trail)
 };
 
 const tomorrowAtNine = () => {
@@ -238,6 +244,7 @@ export function useVisitPlanFormViewModel(id?: string) {
     medicalSalesRepId: null,
     visitSiteId: "",
     visitComments: "",
+    reason: "",
   });
 
   useLoadOnce(existing.data, (p) =>
@@ -247,6 +254,7 @@ export function useVisitPlanFormViewModel(id?: string) {
       medicalSalesRepId: p.medicalSalesRepId ?? null,
       visitSiteId: p.visitSiteId ?? "",
       visitComments: p.visitComments ?? "",
+      reason: "",
     }),
   );
 
@@ -278,6 +286,7 @@ export function useVisitPlanFormViewModel(id?: string) {
       if (!form.healthCareProfId) e.healthCareProfId = "Select a healthcare professional";
       if (!form.medicalSalesRepId) e.medicalSalesRepId = "Select a medical sales rep";
       if (!form.visitSiteId.trim()) e.visitSiteId = "Required";
+      if (id && !form.reason.trim()) e.reason = "Say why you are changing it";
       setErrors(e);
       if (Object.keys(e).length > 0 || save.isPending) return;
       save.mutate({
@@ -287,6 +296,7 @@ export function useVisitPlanFormViewModel(id?: string) {
         medicalSalesRepId: form.medicalSalesRepId!,
         visitSiteId: form.visitSiteId.trim(),
         visitComments: form.visitComments,
+        reason: id ? form.reason.trim() : undefined,
       });
     },
   };

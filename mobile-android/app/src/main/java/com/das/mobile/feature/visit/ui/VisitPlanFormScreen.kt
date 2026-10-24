@@ -50,6 +50,8 @@ data class VisitPlanFormUiState(
     val msr: PickerItem? = null,
     val site: String = "",
     val comments: String = "",
+    /** Why an existing record is changed; asked for on edit only (audit trail). */
+    val reason: String = "",
     val fieldErrors: Map<String, String> = emptyMap(),
     val error: String? = null,
     val saving: Boolean = false,
@@ -97,6 +99,7 @@ class VisitPlanFormViewModel @Inject constructor(
     fun onMsr(v: PickerItem) = _state.update { it.copy(msr = v, fieldErrors = it.fieldErrors - "medicalSalesRepId") }
     fun onSite(v: String) = _state.update { it.copy(site = v, fieldErrors = it.fieldErrors - "visitSiteId") }
     fun onComments(v: String) = _state.update { it.copy(comments = v) }
+    fun onReason(v: String) = _state.update { it.copy(reason = v.take(REASON_MAX), fieldErrors = it.fieldErrors - "reason") }
 
     fun save() {
         val s = _state.value
@@ -107,6 +110,7 @@ class VisitPlanFormViewModel @Inject constructor(
             if (s.hcp == null) put("healthCareProfId", "Select a healthcare professional")
             if (s.msr == null) put("medicalSalesRepId", "Select a medical sales rep")
             if (s.site.isBlank()) put("visitSiteId", "Required")
+            if (s.id != null && s.reason.isBlank()) put("reason", "Say why you are changing it")
         }
         if (errors.isNotEmpty()) {
             _state.update { it.copy(fieldErrors = errors) }
@@ -114,7 +118,7 @@ class VisitPlanFormViewModel @Inject constructor(
         }
         _state.update { it.copy(saving = true, error = null) }
         viewModelScope.launch {
-            plans.save(VisitPlanDraft(s.id, dateTime, s.hcp!!.id, s.msr!!.id, s.site.trim(), s.comments))
+            plans.save(VisitPlanDraft(s.id, dateTime, s.hcp!!.id, s.msr!!.id, s.site.trim(), s.comments, s.reason))
                 .onSuccess { _state.update { it.copy(saving = false, saved = true) } }
                 .onFailure { e ->
                     _state.update {
@@ -162,6 +166,18 @@ fun VisitPlanFormScreen(onClose: () -> Unit, vm: VisitPlanFormViewModel = hiltVi
             minLines = 3,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (s.id != null) {
+            OutlinedTextField(
+                value = s.reason,
+                onValueChange = vm::onReason,
+                label = { Text("Reason for change") },
+                placeholder = { Text("Kept in the audit trail") },
+                isError = s.fieldErrors["reason"] != null,
+                supportingText = s.fieldErrors["reason"]?.let { { Text(it) } },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         InlineError(s.error)
     }
 }

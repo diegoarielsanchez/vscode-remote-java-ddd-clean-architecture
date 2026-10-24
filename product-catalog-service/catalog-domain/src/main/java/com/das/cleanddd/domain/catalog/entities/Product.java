@@ -8,6 +8,7 @@ import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -167,6 +168,13 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     /** Never touches stock — stock is only ever mutated via the atomic reserve/release/restock repository operations. */
     public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
                                        ProductUnit unit, Gtin gtin) throws BusinessValidationException {
+        return withUpdatedDetails(name, description, price, unit, gtin, null);
+    }
+
+    /** {@code reason}: why the record is changed, kept in the audit trail; {@code null} if none was given. */
+    public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
+                                       ProductUnit unit, Gtin gtin, ChangeReason reason)
+            throws BusinessValidationException {
         if (this._gtin != null && !this._gtin.equals(gtin)) {
             // GS1 GTIN Management Standard: a GTIN stays with its trade item. A different item gets a new product.
             throw new BusinessValidationException("A product's GTIN cannot be changed or removed once set.");
@@ -187,7 +195,8 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
                         .compare("price", getPrice().value(), updated.getPrice().value())
                         .compare("unit", getUnit().value(), updated.getUnit().value())
                         .compare("gtin", gtinValue(), updated.gtinValue())
-                        .toList()));
+                        .toList(),
+                ChangeReason.valueOf(reason)));
         return updated;
     }
 

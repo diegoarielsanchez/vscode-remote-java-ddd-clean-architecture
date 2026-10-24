@@ -22,11 +22,18 @@ public record UpdateVisitPlanInputDTO(
     @NotNull String visitSiteId,
     String medicalSalesRepId, // optional in requests: visit-application sets the caller's own MSR
     // the full new list of products to bring; omitted keeps the current items
-    @Valid @Size(max = VisitItem.MAX_ITEMS) List<VisitItemDTO> items
+    @Valid @Size(max = VisitItem.MAX_ITEMS) List<VisitItemDTO> items,
+    // why the record is changed: required, at most 500 characters; kept in the audit trail
+    String reason
 ) {
 
     /** Without items — kept for callers that predate them. */
     public UpdateVisitPlanInputDTO(String id, LocalDateTime visitDateTime, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId) {
-        this(id, visitDateTime, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null);
+        this(id, visitDateTime, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null, null);
+    }
+
+    /** Without a reason, which the update refuses: kept for callers that predate it. */
+    public UpdateVisitPlanInputDTO(String id, LocalDateTime visitDateTime, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId, List<VisitItemDTO> items) {
+        this(id, visitDateTime, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, items, null);
     }
 }

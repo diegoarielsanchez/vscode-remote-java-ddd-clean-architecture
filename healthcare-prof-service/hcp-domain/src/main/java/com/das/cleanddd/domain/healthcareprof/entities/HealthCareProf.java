@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
@@ -274,7 +275,17 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
         return withUpdatedDetails(name, surname, email, specialties, this.addresses);
     }
 
+    /** Keeps the addresses; {@code reason} is why the record is changed (audit trail). */
+    public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, ChangeReason reason) {
+        return withUpdatedDetails(name, surname, email, specialties, this.addresses, reason);
+    }
+
     public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, List<AddressValueObject> addresses) {
+        return withUpdatedDetails(name, surname, email, specialties, addresses, null);
+    }
+
+    /** {@code reason}: why the record is changed, kept in the audit trail; {@code null} if none was given. */
+    public HealthCareProf withUpdatedDetails(HealthCareProfName name, HealthCareProfName surname, HealthCareProfEmail email, List<Specialty> specialties, List<AddressValueObject> addresses, ChangeReason reason) {
         HealthCareProf updated = new HealthCareProf(this._id, name, surname, email, this._active, specialties, addresses);
         updated.record(new HcpUpdatedEvent(
                 updated.getId().value(),
@@ -288,7 +299,8 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
                         .compare("email", getEmail(), updated.getEmail())
                         .compare("specialties", specialtyNames(getSpecialties()), specialtyNames(updated.getSpecialties()))
                         .compare("addresses", getAddresses(), updated.getAddresses())
-                        .toList()));
+                        .toList(),
+                ChangeReason.valueOf(reason)));
         return updated;
     }
 

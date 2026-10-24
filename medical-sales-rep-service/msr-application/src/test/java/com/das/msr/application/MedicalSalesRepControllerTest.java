@@ -153,7 +153,8 @@ class MedicalSalesRepControllerTest {
     void update_returns200_withUpdatedRepBody() throws Exception {
         String id = createAndGetId("Bob", "Jones", "bob@example.com");
 
-        var updateBody = new UpdateMedicalSalesRepInputDTO(id, "Robert", "Jones", "robert@example.com");
+        var updateBody = new UpdateMedicalSalesRepInputDTO(id, "Robert", "Jones", "robert@example.com",
+                "Name corrected at the rep's request");
 
         mockMvc.perform(put(BASE_URL + "/update")
                         .header("Authorization", "Bearer " + authToken)
@@ -282,5 +283,22 @@ class MedicalSalesRepControllerTest {
                             .content("{}"))
                     .andExpect(status().isForbidden());
         }
+    }
+
+    // ── AUDIT TRAIL ─────────────────────────────────────────────────────────
+
+    @Test
+    void history_isForAdminsOnly() throws Exception {
+        String id = java.util.UUID.randomUUID().toString();
+
+        mockMvc.perform(get(BASE_URL + "/" + id + "/history")
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isForbidden());
+
+        // The dev profile writes no events, so the trail is empty here; the infra tests cover its content.
+        mockMvc.perform(get(BASE_URL + "/" + id + "/history")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 }

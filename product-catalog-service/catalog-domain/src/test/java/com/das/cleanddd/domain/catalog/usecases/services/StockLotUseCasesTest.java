@@ -26,6 +26,8 @@ import com.das.cleanddd.domain.catalog.events.ProductDomainEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantineLiftedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantinedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductRestockedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
+import com.das.cleanddd.domain.shared.audit.FieldChange;
 import com.das.cleanddd.domain.catalog.lot.Gs1ElementString;
 import com.das.cleanddd.domain.catalog.lot.ShelfLifePolicy;
 import com.das.cleanddd.domain.catalog.lot.StockAllocator;
@@ -305,15 +307,33 @@ class StockLotUseCasesTest {
         }
 
         @Test
+        @DisplayName("an edit needs a reason, which the audit trail keeps")
+        void anEditNeedsAReason() throws Exception {
+            ProductId plain = catalog.addProduct("Plain", "1.00", true, null);
+
+            DomainException e = assertThrows(DomainException.class, () -> update.execute(new UpdateProductInputDTO(
+                    plain.value(), "Plain", null, new BigDecimal("2.00"), "BOX")));
+            assertEquals("A reason for the change is required.", e.getMessage());
+
+            update.execute(new UpdateProductInputDTO(plain.value(), "Plain", null, new BigDecimal("2.00"), "BOX", null,
+                    "Price list 2027"));
+            ProductUpdatedEvent updated = events.stream().filter(ProductUpdatedEvent.class::isInstance)
+                    .map(ProductUpdatedEvent.class::cast).reduce((a, b) -> b).orElseThrow();
+            assertEquals("Price list 2027", updated.reason());
+            assertEquals(List.of(new FieldChange("description", "Test product", null),
+                    new FieldChange("price", "1.00", "2.00")), updated.changes());
+        }
+
+        @Test
         @DisplayName("a GTIN can be set once, then neither changed nor removed")
         void gtinSetOnce() throws Exception {
             ProductId plain = catalog.addProduct("Plain", "1.00", true, null);
             assertEquals("04006381333931", update.execute(new UpdateProductInputDTO(plain.value(), "Plain", null,
-                    new BigDecimal("1.00"), "BOX", "4006381333931")).gtin());
+                    new BigDecimal("1.00"), "BOX", "4006381333931", "GTIN assigned by GS1")).gtin());
             assertEquals("04006381333931", update.execute(new UpdateProductInputDTO(plain.value(), "Plain", null,
-                    new BigDecimal("2.00"), "BOX")).gtin(), "left out: kept");
+                    new BigDecimal("2.00"), "BOX", null, "Price list 2027")).gtin(), "left out: kept");
             assertThrows(DomainException.class, () -> update.execute(new UpdateProductInputDTO(plain.value(), "Plain",
-                    null, new BigDecimal("1.00"), "BOX", "96385074")));
+                    null, new BigDecimal("1.00"), "BOX", "96385074", "Wrong GTIN")));
         }
     }
 
@@ -405,7 +425,7 @@ class StockLotUseCasesTest {
         void updateKeepsTheFlag() throws DomainException {
             UpdateProductUseCase update = new UpdateProductUseCase(catalog, mapper, events::add, UnitOfWork.immediate());
             assertFalse(update.execute(new UpdateProductInputDTO(brochure.value(), "Brochure v2", null,
-                    new BigDecimal("0.00"), "UNIT")).lotTracked());
+                    new BigDecimal("0.00"), "UNIT", null, "New edition")).lotTracked());
         }
     }
 }

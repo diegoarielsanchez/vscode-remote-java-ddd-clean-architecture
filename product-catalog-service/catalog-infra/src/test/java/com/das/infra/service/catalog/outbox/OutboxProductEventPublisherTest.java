@@ -116,7 +116,7 @@ class OutboxProductEventPublisherTest {
     @Test
     void theAuditTrailKeepsAnEditsPreviousValuesWithoutPublishingThem() throws Exception {
         publisher.publish(new ProductUpdatedEvent(PRODUCT, "Amoxicillin 500mg", "Antibiotic", new BigDecimal("13.75"), "BOX", true, null,
-                List.of(new FieldChange("price", "12.50", "13.75"))));
+                List.of(new FieldChange("price", "12.50", "13.75")), "Corrected at the HCP's request"));
 
         OutboxEventEntity row = outbox.findAll().get(0);
         AuditEventEntity audited = audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
@@ -124,6 +124,8 @@ class OutboxProductEventPublisherTest {
         assertEquals("[{\"field\":\"price\",\"from\":\"12.50\",\"to\":\"13.75\"}]", audited.getChanges());
         assertFalse(row.getPayload().contains("12.50"), "the previous value is not published");
         assertFalse(row.getPayload().contains("\"changes\""), "the changes are for the audit trail only");
+        assertEquals("Corrected at the HCP's request", audited.getReason());
+        assertFalse(row.getPayload().contains("Corrected at"), "the reason is for the audit trail only");
     }
 
     @Test

@@ -128,7 +128,8 @@ class ProductControllerSecurityTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate",
-            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1"})
+            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1",
+            "GET /{id}/history", "GET /reservations/{id}/history"})
     void regularUserCannotManageCatalog(String endpoint) throws Exception {
         mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER")))
                 .andExpect(status().isForbidden());
@@ -136,7 +137,8 @@ class ProductControllerSecurityTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate",
-            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1"})
+            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1",
+            "GET /{id}/history", "GET /reservations/{id}/history"})
     void adminPassesAuthorizationOnCatalogManagement(String endpoint) throws Exception {
         int status = mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER", "ROLE_ADMIN")))
                 .andReturn().getResponse().getStatus();

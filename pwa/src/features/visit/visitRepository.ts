@@ -42,6 +42,7 @@ export type VisitDraft = {
   medicalSalesRepId: string;
   visitSiteId: string;
   visitComments: string;
+  reason?: string; // required by the backend when changing an existing record (audit trail)
 };
 
 export type VisitPlanDraft = {
@@ -51,6 +52,7 @@ export type VisitPlanDraft = {
   medicalSalesRepId: string;
   visitSiteId: string;
   visitComments: string;
+  reason?: string; // required by the backend when changing an existing record (audit trail)
 };
 
 // ── Repositories: gateway routes /api/v1/visit/** and /api/v1/visitplan/** ──────

@@ -17,6 +17,7 @@ import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfMapper
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.HealthCareProfOutputDTO;
 import com.das.cleanddd.domain.healthcareprof.usecases.dtos.UpdateHealthCareProfInputDTO;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.UnitOfWork;
@@ -69,6 +70,7 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
             HealthCareProfName surname = new HealthCareProfName(inputDTO.surname());
             HealthCareProfEmail email = new HealthCareProfEmail(inputDTO.email());
             HealthCareProfId id = new HealthCareProfId(inputDTO.id());
+            ChangeReason reason = new ChangeReason(inputDTO.reason());
             List<Specialty> specialties = (inputDTO.specialties() == null ? List.<String>of() : inputDTO.specialties()).stream()
                 .map(code -> {
                     try {
@@ -85,7 +87,7 @@ public final class UpdateHealthCareProfUseCase implements UseCase<UpdateHealthCa
         }
         // Validate Unique Email (cross-aggregate rule enforced via domain service; excludes this HCP's own id)
         _uniqueEmailService.ensureUnique(email, id);
-        entity = existingHealthCareProf.get().withUpdatedDetails(name, surname, email, specialties);
+        entity = existingHealthCareProf.get().withUpdatedDetails(name, surname, email, specialties, reason);
         // "Specialties required" (and other entity-level invariants) is enforced
         // by the entity's own validate() method - the single source of truth,
         // reused by both create and update instead of duplicated DTO checks.

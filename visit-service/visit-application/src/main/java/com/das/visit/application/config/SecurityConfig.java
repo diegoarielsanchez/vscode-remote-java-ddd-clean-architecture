@@ -40,6 +40,8 @@ public class SecurityConfig {
                     authz.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll();
                 }
                 authz.requestMatchers("/error").permitAll();
+                // Audit trail review (ALCOA+): admins only. Must precede the /api/** rule.
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/visit/*/history", "/api/v1/visitplan/*/history").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

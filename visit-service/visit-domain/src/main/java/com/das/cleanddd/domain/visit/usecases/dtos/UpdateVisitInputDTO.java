@@ -18,11 +18,18 @@ public record UpdateVisitInputDTO(
     String visitSiteId,
     String medicalSalesRepId,
     // the full new list of products handed out; omitted keeps the current items
-    @Valid @Size(max = VisitItem.MAX_ITEMS) List<VisitItemDTO> items
+    @Valid @Size(max = VisitItem.MAX_ITEMS) List<VisitItemDTO> items,
+    // why the record is changed: required, at most 500 characters; kept in the audit trail
+    String reason
 ) {
 
     /** Without items — kept for callers that predate them. */
     public UpdateVisitInputDTO(String id, LocalDate visitDate, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId) {
-        this(id, visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null);
+        this(id, visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, null, null);
+    }
+
+    /** Without a reason, which the update refuses: kept for callers that predate it. */
+    public UpdateVisitInputDTO(String id, LocalDate visitDate, String healthCareProfId, String visitComments, String visitSiteId, String medicalSalesRepId, List<VisitItemDTO> items) {
+        this(id, visitDate, healthCareProfId, visitComments, visitSiteId, medicalSalesRepId, items, null);
     }
 }

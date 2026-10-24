@@ -1277,7 +1277,8 @@ Authorization: Bearer <token>
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/medicalsalesrep/create` | Create a new medical sales rep |
-| `PUT` | `/api/v1/medicalsalesrep/update` | Update an existing rep |
+| `PUT` | `/api/v1/medicalsalesrep/update` | Update an existing rep. Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. |
+| `GET` | `/api/v1/medicalsalesrep/{id}/history` | The rep's audit trail, oldest first — `ROLE_ADMIN` only (see [Audit trail](#audit-trail-alcoa)) |
 | `POST` | `/api/v1/medicalsalesrep/{id}/activate` | Activate a rep — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/medicalsalesrep/{id}/deactivate` | Deactivate a rep — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/medicalsalesrep/get?id=<uuid>` | Get a rep by ID |
@@ -1290,7 +1291,8 @@ Authorization: Bearer <token>
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/healthcareprof/create` | Create a new healthcare professional |
-| `PUT` | `/api/v1/healthcareprof/update` | Update an existing HCP |
+| `PUT` | `/api/v1/healthcareprof/update` | Update an existing HCP. Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. |
+| `GET` | `/api/v1/healthcareprof/{id}/history` | The HCP's audit trail, oldest first — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/healthcareprof/{id}/activate` | Activate an HCP — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/healthcareprof/{id}/deactivate` | Deactivate an HCP — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/healthcareprof/get?id=<uuid>` | Get an HCP by ID |
@@ -1306,11 +1308,13 @@ Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create Visi
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/visit/create` | Create a visit for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items: [{productId, quantity}]` — the products handed out (1–1000 units each, at most 50 products; repeated products are added up) |
-| `PUT` | `/api/v1/visit/update` | Update one of the caller's own visits (another MSR's visit answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items |
+| `PUT` | `/api/v1/visit/update` | Update one of the caller's own visits (another MSR's visit answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items. Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. |
+| `GET` | `/api/v1/visit/{id}/history` | The visit's audit trail, oldest first — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/visit/get?id=<uuid>` | Get a visit by ID |
 | `POST` | `/api/v1/visit/list` | List visits (with criteria filter) |
 | `POST` | `/api/v1/visitplan/create` | Create a visit plan for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items` — the products to bring, same rules as visits |
-| `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items |
+| `PUT` | `/api/v1/visitplan/update` | Update one of the caller's own visit plans (another MSR's plan answers as not found); `items` replaces the list, `[]` clears it, omitting it keeps the current items. Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. |
+| `GET` | `/api/v1/visitplan/{id}/history` | The visit plan's audit trail, oldest first — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/visitplan/suggestions?month=YYYY-MM` | **Read-only** draft of a month of visit plans (default: next month) from the MSR's own visit history: active HCPs that are due, most overdue first, on weekdays in hourly slots from 09:00 (max 6/day) around existing plans, each with a `reason`. Nothing is saved — accept a suggestion by creating it. A rep gets their own; the AI Agent Service (`ROLE_AGENT`) must pass `medicalSalesRepId`. Each suggestion lists `items` to bring: per product, the average quantity over the HCP's last 3 visits that recorded products, with `inStock` — whether product-catalog-service has enough for that product's total across the month (`null` if the catalog can't be reached) |
 | `GET` | `/api/v1/visitplan/order-draft?month=YYYY-MM` | **Read-only** draft of the month's product order (default: next month): the `items` of the MSR's active visit plans that month added up per product (`lines`, each with `plannedVisits` and `inStock`), plus `orderRequests` — bodies ready for `POST /api/v1/orders/create`, at most 20 lines each, leaving out products the catalog reports as short. Nothing is ordered. Samples the rep already holds are not tracked, so nothing is subtracted. Same caller rules as suggestions |
 | `GET` | `/api/v1/visitplan/get?id=<uuid>` | Get a visit plan by ID |
@@ -1335,7 +1339,9 @@ Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create Visi
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, `lotTracked` (default `true`; `false` for promotional material), and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
-| `PUT` | `/api/v1/products/update` | Update name, description, price, unit, and set the GTIN once (never stock) — `ROLE_ADMIN` only |
+| `PUT` | `/api/v1/products/update` | Update name, description, price, unit, and set the GTIN once (never stock). Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. — `ROLE_ADMIN` only |
+| `GET` | `/api/v1/products/{id}/history` | The product's audit trail (details, lots, stock), oldest first — `ROLE_ADMIN` only |
+| `GET` | `/api/v1/products/reservations/{orderId}/history` | An order's stock reservation audit trail — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis); `stock` is the units on hand across its lots |
@@ -1453,6 +1459,7 @@ Sequence diagram: [Order stock saga](docs/diagrams/order-saga.md) — create, re
 |---|---|---|
 | `POST` | `/api/v1/orders/create` | Place an order for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`) — **asynchronous**: `202 Accepted`, `Location: /api/v1/orders/{id}`, status `AWAITING_STOCK` |
 | `GET` | `/api/v1/orders/{id}` | Get an order; poll it after creating |
+| `GET` | `/api/v1/orders/{id}/history` | The order's audit trail (status changes, approver), oldest first — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
 | `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order — `ROLE_AGENT` only (approver = JWT subject) |
 | `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock — `ROLE_AGENT` only |
@@ -1562,6 +1569,7 @@ purged:
 | `payload` | Original, Legible | The event envelope as published (JSON), never re-serialised |
 | `aggregate_type`, `aggregate_id`, `aggregate_version` | Complete, Consistent | Which record changed, and its change number. The number is unique per record, so a gap shows a missing entry |
 | `event_type` | | What happened, e.g. `catalog.product.lot-quarantined` |
+| `reason` | Attributable, Complete | For an edit: why it was made, as entered by the person (required on every update) |
 | `changes` | Original, Complete | For an edit (`hcp.updated`, `msr.updated`, `catalog.product.updated`, `visit.updated`, `visit-plan.updated`): each changed field with its previous and new value, `[{"field":"email","from":"…","to":"…"}]`. Covers fields the published event leaves out, such as e-mail, specialties and addresses. `NULL` for other events |
 
 - **Append-only, at three levels:**
@@ -1573,18 +1581,32 @@ purged:
     `msr_user`, `catalog_user`, `order_user`, `visit_user`). That user owns nothing and has only `SELECT, INSERT` on
     `audit_event`, so the service can't change its trail or remove the guard. See
     [Least-privilege database users](#least-privilege-database-users).
-- **A record's history,** oldest first:
+- **A record's history,** oldest first, for admins (`ROLE_ADMIN`):
+
+  | Service | Endpoint |
+  |---|---|
+  | HCP | `GET /api/v1/healthcareprof/{id}/history` |
+  | MSR | `GET /api/v1/medicalsalesrep/{id}/history` |
+  | Product Catalog | `GET /api/v1/products/{id}/history`, `GET /api/v1/products/reservations/{orderId}/history` |
+  | Order | `GET /api/v1/orders/{id}/history` |
+  | Visit | `GET /api/v1/visit/{id}/history`, `GET /api/v1/visitplan/{id}/history` |
+
+  Each entry has `version`, `eventType`, `occurredAt`, `actor`, `correlationId`, `reason`, `changes` (`field`, `from`,
+  `to`) and `data`. An unknown id answers `[]`. Or in SQL:
   ```sql
   SELECT aggregate_version, occurred_at, actor, event_type, payload
   FROM audit_event WHERE aggregate_type = 'product' AND aggregate_id = '<id>' ORDER BY aggregate_version;
   ```
   The aggregate types are `hcp`, `msr`, `product`, `reservation` (catalog stock reservations), `order`, `visit` and
   `visit-plan`. Who created a visit and who last changed it, and when, are its first and last entries.
+- **Reason for change.** Every update (HCP, MSR, product, visit, visit plan) needs a `reason`; without one the
+  update is refused with `400 A reason for the change is required.` The web app (`application-ui`), the PWA and the
+  Android app ask for it on their edit forms. The AI Agent Service must send it too when it updates products.
 - **Not covered yet:**
-  - No reason for a change is asked for or recorded.
+  - Status changes (activate, deactivate, approve) don't ask for a reason; reject and quarantine already take one of
+    their own.
   - Status changes (activate, approve, quarantine, …) record the new state only. The previous state follows from the
     rules (e.g. only `PENDING_APPROVAL` can be approved). Stock events record the quantity moved and what was left.
-  - There's no API to read the trail.
   - Backups and the retention period are set up outside this repository.
   - Under the `dev` profile HCP, MSR, Product Catalog and Order write no events, so nothing is audited either. Visit
     audits under every profile.
@@ -2138,8 +2160,8 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
      and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
-   - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event` and its `changes` column, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. Finally, create each service's own database user with `app-user-postgresql.sql` and switch the service to it. See [Audit trail (ALCOA+)](#audit-trail-alcoa) and [Least-privilege database users](#least-privilege-database-users).
-   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`), then `audit-sqlserver.sql` (audit trail and its guard; run it on dev databases too, since `ddl-auto=update` doesn't create the guard) and `app-user-sqlserver.sql` (see [Least-privilege database users](#least-privilege-database-users))
+   - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event` and its `changes` and `reason` columns, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. Finally, create each service's own database user with `app-user-postgresql.sql` and switch the service to it. See [Audit trail (ALCOA+)](#audit-trail-alcoa) and [Least-privilege database users](#least-privilege-database-users).
+   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`), then `audit-sqlserver.sql` (audit trail and its guard; run it again after upgrading, it adds the `reason` column; run it on dev databases too, since `ddl-auto=update` doesn't create the guard) and `app-user-sqlserver.sql` (see [Least-privilege database users](#least-privilege-database-users))
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
    - The consumers declare their queues; the outboxes then have somewhere to route to.

@@ -256,7 +256,8 @@ class VisitControllerIntegrationTest {
         String id = createAndGetId();
 
         var updateBody = new UpdateVisitInputDTO(
-                id, LocalDate.now().minusDays(2), HCP_ID, "Follow-up visit", SITE_ID, MSR_ID);
+                id, LocalDate.now().minusDays(2), HCP_ID, "Follow-up visit", SITE_ID, MSR_ID, null,
+                "Visit date corrected");
 
         mockMvc.perform(put(BASE_URL + "/update")
                         .header("Authorization", "Bearer " + authToken)
@@ -265,6 +266,45 @@ class VisitControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.visitComments").value("Follow-up visit"));
+    }
+
+    @Test
+    void history_showsWhoChangedTheVisitWhenAndWhy_toAdminsOnly() throws Exception {
+        String id = createAndGetId();
+        var updateBody = new UpdateVisitInputDTO(
+                id, LocalDate.now().minusDays(2), HCP_ID, "Follow-up visit", SITE_ID, MSR_ID, null,
+                "Comment completed after the visit");
+        mockMvc.perform(put(BASE_URL + "/update")
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(BASE_URL + "/" + id + "/history")
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get(BASE_URL + "/" + id + "/history")
+                        .header("Authorization", "Bearer " + adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].version").value(1))
+                .andExpect(jsonPath("$[0].eventType").value("visit.created"))
+                .andExpect(jsonPath("$[0].actor").value("testuser"))
+                .andExpect(jsonPath("$[1].eventType").value("visit.updated"))
+                .andExpect(jsonPath("$[1].reason").value("Comment completed after the visit"))
+                .andExpect(jsonPath("$[1].changes[?(@.field == 'visitComments')].to").value("Follow-up visit"));
+    }
+
+    private String adminJwt() {
+        SecretKeySpec key = new SecretKeySpec(
+                JWT_SECRET.getBytes(), 0, JWT_SECRET.getBytes().length, "HmacSHA256");
+        return Jwts.builder()
+                .subject("auditor")
+                .claim("authorities", List.of("ROLE_USER", "ROLE_ADMIN"))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000))
+                .signWith(key)
+                .compact();
     }
 
     // ── GET ─────────────────────────────────────────────────────────────────
