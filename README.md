@@ -1301,6 +1301,8 @@ Authorization: Bearer <token>
 
 ### Visit Service — `/api/v1/visit` and `/api/v1/visitplan`
 
+Sequence diagram: [Create VisitPlan](docs/diagrams/create-visit-plan.md).
+
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/visit/create` | Create a visit for the caller's own MSR (token `msr_id`; a body `medicalSalesRepId` must match or the call gets `403`); optional `items: [{productId, quantity}]` — the products handed out (1–1000 units each, at most 50 products; repeated products are added up) |
