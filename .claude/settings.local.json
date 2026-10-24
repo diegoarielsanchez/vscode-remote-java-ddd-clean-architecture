@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn -q -pl domain-commons,settlement-service/settlement-domain,settlement-service/settlement-infra,settlement-service/settlement-application -am clean test-compile)",
+      "Bash(echo \"EXIT $?\")",
+      "Read(//tmp/**)",
+      "Bash(mvn -q -pl domain-commons,settlement-service/settlement-domain,settlement-service/settlement-infra,settlement-service/settlement-application -am clean test-compile > /tmp/mvnout10.log 2>&1; echo \"EXIT $?\"; grep -E \"\\\\[ERROR\\\\]\" /tmp/mvnout10.log)",
+      "Bash(mvn -q clean test-compile)",
+      "Bash(mvn -q -pl settlement-service/settlement-domain -am test -Dtest=InvoiceTest)",
+      "Bash(mvn -q test)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

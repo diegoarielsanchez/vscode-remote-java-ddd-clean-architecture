@@ -1,7 +1,6 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
