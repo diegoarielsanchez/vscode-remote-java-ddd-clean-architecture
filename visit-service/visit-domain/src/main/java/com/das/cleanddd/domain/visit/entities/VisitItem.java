@@ -71,4 +71,10 @@ public class VisitItem {
     public UUID visitItemId() {
         return this._visitItemId;
     }
+
+    /** Items as the audit trail shows them: {@code "<productId> x <quantity>"}. */
+    public static List<String> describe(List<VisitItem> items) {
+        return items == null ? List.of()
+                : items.stream().map(i -> i._productId.value() + " x " + i._quantity).toList();
+    }
 }

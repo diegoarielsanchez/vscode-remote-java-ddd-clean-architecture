@@ -1,7 +1,9 @@
 package com.das.cleanddd.domain.visit.entities;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -10,10 +12,14 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
+import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
+import com.das.cleanddd.domain.visit.events.VisitDomainEvent;
+import com.das.cleanddd.domain.visit.events.VisitPlanCreatedEvent;
+import com.das.cleanddd.domain.visit.events.VisitPlanUpdatedEvent;
 
 @Service
-public final class VisitPlan extends AggregateRoot<Object> {
+public final class VisitPlan extends AggregateRoot<VisitDomainEvent> {
 
     private VisitId _visitId;
     private VisitDateTime _visitDateTime;
@@ -170,4 +176,37 @@ public final class VisitPlan extends AggregateRoot<Object> {
         return Objects.hash(_visitId, _visitDateTime);
     }
 
+    // ── audit trail (ALCOA+) ──────────────────────────────────────────────────
+
+    /**
+     * The fields an edit can change, by name, as the audit trail compares them. Take it before an edit and pass it
+     * to {@link #recordUpdatedFrom} afterwards.
+     */
+    public Map<String, Object> auditState() {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("visitDateTime", _visitDateTime == null ? null : _visitDateTime.value());
+        state.put("healthCareProfId", _healthCareProfId == null ? null : _healthCareProfId.value());
+        state.put("medicalSalesRepId", _medicalSalesRepId == null ? null : _medicalSalesRepId.value());
+        state.put("visitSiteId", _visitSiteId == null ? null : _visitSiteId.value());
+        state.put("visitComments", _visitComments == null ? null : _visitComments.value());
+        state.put("address", _address);
+        state.put("items", VisitItem.describe(_visitItems));
+        state.put("active", _active);
+        return state;
+    }
+
+    /** Records that this visit plan was created. Called once, by {@link VisitPlanFactory}. */
+    void recordCreated() {
+        record(new VisitPlanCreatedEvent(_visitId.value(), _visitDateTime.value(), _healthCareProfId.value(),
+                _medicalSalesRepId.value(), _visitSiteId == null ? null : _visitSiteId.value(),
+                _visitComments == null ? null : _visitComments.value(), VisitItem.describe(_visitItems)));
+    }
+
+    /** Records an edit: each field that differs from {@code before} (from {@link #auditState()}), old and new. */
+    public void recordUpdatedFrom(Map<String, Object> before) {
+        Map<String, Object> after = auditState();
+        FieldChanges changes = new FieldChanges();
+        before.forEach((field, value) -> changes.compare(field, value, after.get(field)));
+        record(new VisitPlanUpdatedEvent(_visitId.value(), changes.toList()));
+    }
 }

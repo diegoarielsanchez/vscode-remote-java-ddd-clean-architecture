@@ -2,7 +2,9 @@ package com.das.cleanddd.domain.visit.entities;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 //import java.util.LinkedHashSet;
 import java.util.Objects;
 
@@ -13,10 +15,15 @@ import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.LargeFileValueObject;
 import com.das.cleanddd.domain.shared.TextValueObject;
+import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
+import com.das.cleanddd.domain.visit.events.VisitAttachmentAddedEvent;
+import com.das.cleanddd.domain.visit.events.VisitCreatedEvent;
+import com.das.cleanddd.domain.visit.events.VisitDomainEvent;
+import com.das.cleanddd.domain.visit.events.VisitUpdatedEvent;
 
 @Service
-public final class Visit extends AggregateRoot<Object> {
+public final class Visit extends AggregateRoot<VisitDomainEvent> {
 
     private VisitId _visitId;
     private VisitDateTime _visitDate;
@@ -200,6 +207,8 @@ public final class Visit extends AggregateRoot<Object> {
             throw new IllegalArgumentException("Product promo attachment must not be null.");
         }
         _productPromoAttachments.add(attachment);
+        record(new VisitAttachmentAddedEvent(_visitId.value(), attachment.fileName(), attachment.contentType(),
+                attachment.sizeInBytes(), attachment.sha256Hash()));
     }
 
     public void removeProductPromoAttachment(LargeFileValueObject attachment) {
@@ -263,4 +272,36 @@ public final class Visit extends AggregateRoot<Object> {
         return Objects.hash(_visitId, _visitDate);
     }
 
+    // ── audit trail (ALCOA+) ──────────────────────────────────────────────────
+
+    /**
+     * The fields an edit can change, by name, as the audit trail compares them. Take it before an edit and pass it
+     * to {@link #recordUpdatedFrom} afterwards.
+     */
+    public Map<String, Object> auditState() {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("visitDate", _visitDate == null ? null : _visitDate.value());
+        state.put("healthCareProfId", _healthCareProfId == null ? null : _healthCareProfId.value());
+        state.put("medicalSalesRepId", _medicalSalesRepId == null ? null : _medicalSalesRepId.value());
+        state.put("visitSiteId", _visitSiteId == null ? null : _visitSiteId.value());
+        state.put("visitComments", _visitComments == null ? null : _visitComments.value());
+        state.put("address", _address);
+        state.put("items", VisitItem.describe(_visitItems));
+        return state;
+    }
+
+    /** Records that this visit was created. Called once, by {@link VisitFactory}. */
+    void recordCreated() {
+        record(new VisitCreatedEvent(_visitId.value(), _visitDate.value(), _healthCareProfId.value(),
+                _medicalSalesRepId.value(), _visitSiteId == null ? null : _visitSiteId.value(),
+                _visitComments == null ? null : _visitComments.value(), VisitItem.describe(_visitItems)));
+    }
+
+    /** Records an edit: each field that differs from {@code before} (from {@link #auditState()}), old and new. */
+    public void recordUpdatedFrom(Map<String, Object> before) {
+        Map<String, Object> after = auditState();
+        FieldChanges changes = new FieldChanges();
+        before.forEach((field, value) -> changes.compare(field, value, after.get(field)));
+        record(new VisitUpdatedEvent(_visitId.value(), changes.toList()));
+    }
 }

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
@@ -20,20 +21,26 @@ import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.Visit;
 import com.das.cleanddd.domain.visit.entities.VisitDateTime;
 import com.das.cleanddd.domain.visit.entities.VisitId;
+import com.das.infra.service.visit.audit.VisitAuditTrail;
 
 @Primary
 @Service
-public final class SQLVisitRepository implements IVisitRepository {
+public class SQLVisitRepository implements IVisitRepository {
 
     @Autowired
     private VisitJpaRepository visitJpaRepository;
+    @Autowired
+    private VisitAuditTrail auditTrail;
 
+    /** The visit and the changes it recorded (audit trail, ALCOA+) commit together. */
     @Override
+    @Transactional
     public void save(Visit visit) {
         VisitEntity entity = toEntity(visit);
         if (entity != null) {
             visitJpaRepository.save(entity);
         }
+        visit.pullDomainEvents().forEach(auditTrail::record);
     }
 
     @Override

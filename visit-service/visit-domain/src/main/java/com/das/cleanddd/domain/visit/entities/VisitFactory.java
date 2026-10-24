@@ -44,7 +44,7 @@ public class VisitFactory {
         AddressValueObject address,
         List<VisitItem> items
     ) throws BusinessValidationException {
-        return new Visit(
+        Visit visit = new Visit(
             new VisitId(UUID.randomUUID().toString()),
             visitDate,
             healthCareProfId,
@@ -54,5 +54,7 @@ public class VisitFactory {
             medicalSalesRepId,
             address
         );
+        visit.recordCreated();
+        return visit;
     }
 }

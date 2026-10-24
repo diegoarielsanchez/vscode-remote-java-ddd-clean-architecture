@@ -3,6 +3,7 @@ package com.das.infra.service.visit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -26,6 +27,8 @@ import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.entities.VisitDateTime;
+import com.das.cleanddd.domain.visit.events.VisitPlanDeactivatedEvent;
+import com.das.infra.service.visit.audit.VisitAuditTrail;
 
 @ExtendWith(MockitoExtension.class)
 class SQLVisitPlanRepositoryTest {
@@ -33,8 +36,11 @@ class SQLVisitPlanRepositoryTest {
     @Mock
     private VisitPlanJpaRepository visitPlanJpaRepository;
 
+    @Mock
+    private VisitAuditTrail auditTrail;
+
     private SQLVisitPlanRepository repository() {
-        return new SQLVisitPlanRepository(visitPlanJpaRepository);
+        return new SQLVisitPlanRepository(visitPlanJpaRepository, auditTrail);
     }
 
     @Test
@@ -53,6 +59,8 @@ class SQLVisitPlanRepositoryTest {
         assertThat(futureOther.getActive()).isTrue();
         assertThat(pastMatch.getActive()).isTrue();
         verify(visitPlanJpaRepository, times(1)).save(futureMatch);
+        verify(auditTrail).record(new VisitPlanDeactivatedEvent("plan-1", "msr msr-1 deactivated"));
+        verifyNoMoreInteractions(auditTrail);
     }
 
     @Test
@@ -71,6 +79,8 @@ class SQLVisitPlanRepositoryTest {
         assertThat(futureOther.getActive()).isTrue();
         assertThat(pastMatch.getActive()).isTrue();
         verify(visitPlanJpaRepository, times(1)).save(futureMatch);
+        verify(auditTrail).record(new VisitPlanDeactivatedEvent("plan-1", "hcp hcp-1 deactivated"));
+        verifyNoMoreInteractions(auditTrail);
     }
 
     private VisitPlanEntity plan(String id, LocalDateTime visitDateTime, String msrId, String hcpId, boolean active) {

@@ -1,5 +1,6 @@
 package com.das.infra.service.visit;
 
+import com.das.infra.service.visit.audit.VisitAuditTrail;
 import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
@@ -32,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code @Repository}, so it is not included in the default JPA slice scan.
  */
 @DataJpaTest
-@Import(SQLVisitRepository.class)
+@Import({SQLVisitRepository.class, VisitAuditTrail.class})
 class SQLVisitRepositoryTest {
 
     /** Yesterday at 10:00 — in the past and within Visit's 1-month validation window. */
