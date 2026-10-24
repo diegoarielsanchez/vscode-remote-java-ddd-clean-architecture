@@ -1301,7 +1301,7 @@ Authorization: Bearer <token>
 
 ### Visit Service — `/api/v1/visit` and `/api/v1/visitplan`
 
-Sequence diagram: [Create VisitPlan](docs/diagrams/create-visit-plan.md).
+Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create VisitPlan](docs/diagrams/create-visit-plan.md).
 
 | Method | Path | Description |
 |---|---|---|
@@ -1446,6 +1446,8 @@ curl "http://localhost:8091/api/v1/products/<id>/lots/recipients?batchNumber=L20
 ---
 
 ### Order Service — `/api/v1/orders`
+
+Sequence diagram: [Order stock saga](docs/diagrams/order-saga.md) — create, reserve, approve or reject (compensation), deliver.
 
 | Method | Path | Description |
 |---|---|---|
