@@ -1545,10 +1545,15 @@ All `/auth/login` attempts (success and failure) are logged at the `AUDIT` level
 
 #### Audit trail (ALCOA+)
 
-HCP, MSR, Product Catalog and Order keep a permanent audit trail in their own database, in the `audit_event` table.
-Every integration event a service raises is written there in the **same transaction** as the change, next to its
-outbox row. The outbox row is purged a few days after it is published (`*.outbox.retention`, default `P7D`); the
-audit row is never purged.
+HCP, MSR, Product Catalog, Order and Visit keep a permanent audit trail in their own database, in the `audit_event`
+table. Every change is written there in the **same transaction** as the change itself, and the audit row is never
+purged:
+
+- **HCP, MSR, Product Catalog, Order:** every integration event the service raises, next to its outbox row. The outbox
+  row is purged a few days after it is published (`*.outbox.retention`, default `P7D`).
+- **Visit** (SQL Server): `visit.created`, `visit.updated`, `visit.attachment-added` (file name, type, size and
+  SHA-256 of the stored file), `visit-plan.created`, `visit-plan.updated` and `visit-plan.deactivated` (when its HCP
+  or MSR is deactivated). These are written for the audit trail only; visit-service publishes nothing.
 
 | Column | ALCOA+ | Content |
 |---|---|---|
@@ -1557,29 +1562,33 @@ audit row is never purged.
 | `payload` | Original, Legible | The event envelope as published (JSON), never re-serialised |
 | `aggregate_type`, `aggregate_id`, `aggregate_version` | Complete, Consistent | Which record changed, and its change number. The number is unique per record, so a gap shows a missing entry |
 | `event_type` | | What happened, e.g. `catalog.product.lot-quarantined` |
-| `changes` | Original, Complete | For an edit (`hcp.updated`, `msr.updated`, `catalog.product.updated`): each changed field with its previous and new value, `[{"field":"email","from":"…","to":"…"}]`. Covers fields the published event leaves out, such as e-mail, specialties and addresses. `NULL` for other events |
+| `changes` | Original, Complete | For an edit (`hcp.updated`, `msr.updated`, `catalog.product.updated`, `visit.updated`, `visit-plan.updated`): each changed field with its previous and new value, `[{"field":"email","from":"…","to":"…"}]`. Covers fields the published event leaves out, such as e-mail, specialties and addresses. `NULL` for other events |
 
 - **Append-only, at three levels:**
   - The application can only insert and read: the entity is `@Immutable`, and its repository has no update or delete
     methods.
-  - `audit-postgresql.sql` makes PostgreSQL refuse `UPDATE`, `DELETE` and `TRUNCATE`, whoever runs them.
-  - `app-user-postgresql.sql` creates the service's own database user (`hcp_user`, `msr_user`, `catalog_user`,
-    `order_user`). That user owns nothing and has only `SELECT, INSERT` on `audit_event`, so the service can't
-    change its trail or remove the guard. See [Least-privilege database users](#least-privilege-database-users).
+  - `audit-postgresql.sql` (and, for Visit, `audit-sqlserver.sql`) makes the database refuse `UPDATE`, `DELETE` and
+    `TRUNCATE`, whoever runs them.
+  - `app-user-postgresql.sql` (Visit: `app-user-sqlserver.sql`) creates the service's own database user (`hcp_user`,
+    `msr_user`, `catalog_user`, `order_user`, `visit_user`). That user owns nothing and has only `SELECT, INSERT` on
+    `audit_event`, so the service can't change its trail or remove the guard. See
+    [Least-privilege database users](#least-privilege-database-users).
 - **A record's history,** oldest first:
   ```sql
   SELECT aggregate_version, occurred_at, actor, event_type, payload
   FROM audit_event WHERE aggregate_type = 'product' AND aggregate_id = '<id>' ORDER BY aggregate_version;
   ```
-  The aggregate types are `hcp`, `msr`, `product`, `reservation` (catalog stock reservations) and `order`.
+  The aggregate types are `hcp`, `msr`, `product`, `reservation` (catalog stock reservations), `order`, `visit` and
+  `visit-plan`. Who created a visit and who last changed it, and when, are its first and last entries.
 - **Not covered yet:**
-  - The visit service raises no events, so visits and visit plans aren't in any trail.
   - No reason for a change is asked for or recorded.
   - Status changes (activate, approve, quarantine, …) record the new state only. The previous state follows from the
     rules (e.g. only `PENDING_APPROVAL` can be approved). Stock events record the quantity moved and what was left.
   - There's no API to read the trail.
   - Backups and the retention period are set up outside this repository.
-  - Under the `dev` profile no events are written, so nothing is audited either.
+  - Under the `dev` profile HCP, MSR, Product Catalog and Order write no events, so nothing is audited either. Visit
+    audits under every profile.
+  - Visits made before this version have no `visit.created` entry; their trail starts at their next change.
 
 #### Least-privilege database users
 
@@ -1608,6 +1617,14 @@ the scripts, as `root`.
 - The user can read and change the service's tables, but only `SELECT` and `INSERT` on `audit_event`. It owns
   nothing, so it can't drop the guard triggers, alter tables or truncate.
 - Run the script again to change a password, and after any script that adds tables.
+- **Visit (SQL Server):** create `visit_user` with `app-user-sqlserver.sql`, then start the service with
+  `DB_USERNAME=visit_user` (`.env`: `VISIT_DB_USERNAME`, `VISIT_DB_PASSWORD`). The password must not contain `'`:
+  ```bash
+  docker cp visit-service/visit-infra/src/main/resources/db/app-user-sqlserver.sql sqlserver-ddd-clean:/tmp/
+  read -rsp "Password for visit_user: " pw; echo
+  docker exec sqlserver-ddd-clean /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Riverplate1!' -No -b \
+    -d visitdb -v APP_LOGIN=visit_user APP_PASSWORD="$pw" -i /tmp/app-user-sqlserver.sql
+  ```
 - Check it: as the service's user, a `DELETE` must fail with `permission denied for table audit_event`:
   ```bash
   docker exec -e PGPASSWORD='<password>' postgres-ddd-clean psql -h localhost -U order_user -d order_db -c "DELETE FROM audit_event;"
@@ -2122,7 +2139,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
      and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
    - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event` and its `changes` column, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. Finally, create each service's own database user with `app-user-postgresql.sql` and switch the service to it. See [Audit trail (ALCOA+)](#audit-trail-alcoa) and [Least-privilege database users](#least-privilege-database-users).
-   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
+   - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`), then `audit-sqlserver.sql` (audit trail and its guard; run it on dev databases too, since `ddl-auto=update` doesn't create the guard) and `app-user-sqlserver.sql` (see [Least-privilege database users](#least-privilege-database-users))
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
    - The consumers declare their queues; the outboxes then have somewhere to route to.

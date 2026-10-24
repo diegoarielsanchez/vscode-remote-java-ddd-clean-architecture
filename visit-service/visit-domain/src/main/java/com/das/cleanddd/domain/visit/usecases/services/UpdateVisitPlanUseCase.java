@@ -103,6 +103,7 @@ public final class UpdateVisitPlanUseCase implements UseCase<UpdateVisitPlanInpu
                     : VisitItemDTO.toEntities(inputDTO.items())
             );
 
+            updatedVisitPlan.recordUpdatedFrom(existingVisitPlan.get().auditState());
             visitPlanRepository.save(updatedVisitPlan);
             return mapper.outputFromEntity(updatedVisitPlan);
         } catch (IllegalArgumentException e) {

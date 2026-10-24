@@ -21,22 +21,29 @@ import com.das.cleanddd.domain.visit.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitPlan;
 import com.das.cleanddd.domain.visit.entities.VisitDateTime;
+import com.das.cleanddd.domain.visit.events.VisitPlanDeactivatedEvent;
+import com.das.infra.service.visit.audit.VisitAuditTrail;
 
 @Service
 public class SQLVisitPlanRepository implements IVisitPlanRepository {
 
     private final VisitPlanJpaRepository visitPlanJpaRepository;
+    private final VisitAuditTrail auditTrail;
 
-    public SQLVisitPlanRepository(VisitPlanJpaRepository visitPlanJpaRepository) {
+    public SQLVisitPlanRepository(VisitPlanJpaRepository visitPlanJpaRepository, VisitAuditTrail auditTrail) {
         this.visitPlanJpaRepository = visitPlanJpaRepository;
+        this.auditTrail = auditTrail;
     }
 
+    /** The plan and the changes it recorded (audit trail, ALCOA+) commit together. */
     @Override
+    @Transactional
     public void save(VisitPlan visitPlan) {
         VisitPlanEntity entity = toEntity(visitPlan);
         if (entity != null) {
             visitPlanJpaRepository.save(entity);
         }
+        visitPlan.pullDomainEvents().forEach(auditTrail::record);
     }
 
     @Override
@@ -82,6 +89,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
                 .forEach(e -> {
                     e.setActive(false);
                     visitPlanJpaRepository.save(e);
+                    auditTrail.record(new VisitPlanDeactivatedEvent(e.getId(), "msr " + medicalSalesRepId + " deactivated"));
                 });
     }
 
@@ -98,6 +106,7 @@ public class SQLVisitPlanRepository implements IVisitPlanRepository {
                 .forEach(e -> {
                     e.setActive(false);
                     visitPlanJpaRepository.save(e);
+                    auditTrail.record(new VisitPlanDeactivatedEvent(e.getId(), "hcp " + healthCareProfId + " deactivated"));
                 });
     }
 

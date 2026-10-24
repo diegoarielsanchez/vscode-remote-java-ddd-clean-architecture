@@ -63,7 +63,7 @@ public class VisitPlanFactory {
             throw new BusinessValidationException("Visit date/time cannot be in the past.");
         }
         validateActiveParticipants(healthCareProfId, medicalSalesRepId);
-        return new VisitPlan(
+        VisitPlan visitPlan = new VisitPlan(
             new VisitId(UUID.randomUUID().toString()),
             visitDateTime,
             healthCareProfId,
@@ -74,6 +74,8 @@ public class VisitPlanFactory {
             true,
             address
         );
+        visitPlan.recordCreated();
+        return visitPlan;
     }
 
     public VisitPlan buildForUpdate(

@@ -1,5 +1,6 @@
 package com.das.cleanddd.domain.visit.usecases.services;
 
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,6 +87,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
                 : new TextValueObject(inputDTO.visitComments()) {};
 
             Visit updatedVisit = existingVisit.get();
+            Map<String, Object> before = updatedVisit.auditState();
             updatedVisit.update(
                 visitDateTime,
                 healthCareProfId,
@@ -98,6 +100,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
                 updatedVisit.replaceItems(VisitItemDTO.toEntities(inputDTO.items()));
             }
 
+            updatedVisit.recordUpdatedFrom(before);
             visitRepository.save(updatedVisit);
             return mapper.outputFromEntity(updatedVisit);
         } catch (IllegalArgumentException e) {
