@@ -1557,11 +1557,15 @@ audit row is never purged.
 | `payload` | Original, Legible | The event envelope as published (JSON), never re-serialised |
 | `aggregate_type`, `aggregate_id`, `aggregate_version` | Complete, Consistent | Which record changed, and its change number. The number is unique per record, so a gap shows a missing entry |
 | `event_type` | | What happened, e.g. `catalog.product.lot-quarantined` |
+| `changes` | Original, Complete | For an edit (`hcp.updated`, `msr.updated`, `catalog.product.updated`): each changed field with its previous and new value, `[{"field":"email","from":"…","to":"…"}]`. Covers fields the published event leaves out, such as e-mail, specialties and addresses. `NULL` for other events |
 
-- **Append-only.** The application can only insert and read the table: the entity is `@Immutable`, and its
-  repository has no update or delete methods. `audit-postgresql.sql` also makes PostgreSQL refuse `UPDATE`,
-  `DELETE` and `TRUNCATE`. The table owner can still drop that guard, so in production run each service as a
-  database role that doesn't own the table, granted only `SELECT, INSERT` on `audit_event`.
+- **Append-only, at three levels:**
+  - The application can only insert and read: the entity is `@Immutable`, and its repository has no update or delete
+    methods.
+  - `audit-postgresql.sql` makes PostgreSQL refuse `UPDATE`, `DELETE` and `TRUNCATE`, whoever runs them.
+  - `app-user-postgresql.sql` creates the service's own database user (`hcp_user`, `msr_user`, `catalog_user`,
+    `order_user`). That user owns nothing and has only `SELECT, INSERT` on `audit_event`, so the service can't
+    change its trail or remove the guard. See [Least-privilege database users](#least-privilege-database-users).
 - **A record's history,** oldest first:
   ```sql
   SELECT aggregate_version, occurred_at, actor, event_type, payload
@@ -1570,10 +1574,44 @@ audit row is never purged.
   The aggregate types are `hcp`, `msr`, `product`, `reservation` (catalog stock reservations) and `order`.
 - **Not covered yet:**
   - The visit service raises no events, so visits and visit plans aren't in any trail.
-  - Events only carry what changed, not the previous value or a reason for the change.
+  - No reason for a change is asked for or recorded.
+  - Status changes (activate, approve, quarantine, …) record the new state only. The previous state follows from the
+    rules (e.g. only `PENDING_APPROVAL` can be approved). Stock events record the quantity moved and what was left.
   - There's no API to read the trail.
   - Backups and the retention period are set up outside this repository.
   - Under the `dev` profile no events are written, so nothing is audited either.
+
+#### Least-privilege database users
+
+By default the services connect as `root`, which owns every table and can drop the audit guard. In production,
+connect each PostgreSQL service as its own user. Create the users once, after the other scripts, as `root`.
+Run this from the repository folder:
+
+```bash
+for pair in \
+  "healthcare_db:healthcare-prof-service/hcp-infra:hcp_user" \
+  "medicalsalesrep_db:medical-sales-rep-service/msr-infra:msr_user" \
+  "productcatalog_db:product-catalog-service/catalog-infra:catalog_user" \
+  "order_db:order-service/order-infra:order_user"; do
+  IFS=: read -r db dir user <<< "$pair"
+  read -rsp "Password for $user: " pw; echo
+  docker exec -i postgres-ddd-clean psql -U root -d "$db" -v ON_ERROR_STOP=1 \
+    -v app_user="$user" -v app_password="$pw" < "$dir/src/main/resources/db/app-user-postgresql.sql" || break
+done
+```
+
+Then start each service with its user: `PG_USERNAME=hcp_user` and `PG_PASSWORD=<its password>` (in `.env`:
+`HCP_PG_USERNAME`, `HCP_PG_PASSWORD`, and so on). Use `ddl-auto=validate`, the `prod` profile's default. Drop any
+`SPRING_JPA_HIBERNATE_DDL_AUTO=update`: these users can't create or alter tables. Schema changes are made with
+the scripts, as `root`.
+
+- The user can read and change the service's tables, but only `SELECT` and `INSERT` on `audit_event`. It owns
+  nothing, so it can't drop the guard triggers, alter tables or truncate.
+- Run the script again to change a password, and after any script that adds tables.
+- Check it: as the service's user, a `DELETE` must fail with `permission denied for table audit_event`:
+  ```bash
+  docker exec -e PGPASSWORD='<password>' postgres-ddd-clean psql -h localhost -U order_user -d order_db -c "DELETE FROM audit_event;"
+  ```
 
 ### Production Checklist
 
@@ -2083,7 +2121,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
      and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
-   - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event`, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. See [Audit trail (ALCOA+)](#audit-trail-alcoa).
+   - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event` and its `changes` column, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. Finally, create each service's own database user with `app-user-postgresql.sql` and switch the service to it. See [Audit trail (ALCOA+)](#audit-trail-alcoa) and [Least-privilege database users](#least-privilege-database-users).
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**

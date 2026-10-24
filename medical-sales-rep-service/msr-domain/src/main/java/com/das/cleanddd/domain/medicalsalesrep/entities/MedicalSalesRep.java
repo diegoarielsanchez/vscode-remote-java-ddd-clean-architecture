@@ -9,6 +9,7 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 
@@ -125,7 +126,13 @@ public class MedicalSalesRep extends PersonJavaBean<MsrDomainEvent> {
                 updated.getName().value(),
                 updated.getSurname().value(),
                 updated.getEmail().value(),
-                updated.getActive().value()));
+                updated.getActive().value(),
+                new FieldChanges()
+                        .compare("name", getName().value(), updated.getName().value())
+                        .compare("surname", getSurname().value(), updated.getSurname().value())
+                        .compare("email", getEmail().value(), updated.getEmail().value())
+                        .compare("address", getAddress(), updated.getAddress())
+                        .toList()));
         return updated;
     }
 

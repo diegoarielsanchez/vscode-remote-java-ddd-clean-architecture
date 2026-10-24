@@ -20,6 +20,8 @@ import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.das.cleanddd.domain.shared.audit.FieldChange;
+import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpActivatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpDeactivatedEvent;
@@ -99,5 +101,26 @@ class OutboxHcpEventPublisherTest {
         // so an event can never be recorded without the aggregate change it belongs to.
         assertThrows(IllegalTransactionStateException.class,
                 () -> springBean.publish(new HcpActivatedEvent("hcp-9", true)));
+    }
+
+    @Test
+    void theAuditTrailKeepsAnEditsPreviousValuesWithoutPublishingThem() throws Exception {
+        publisher.publish(new HcpUpdatedEvent("hcp-1", "Ana", "Gómez", "ana@new.example", true,
+                List.of(new FieldChange("email", "ana@old.example", "ana@new.example"))));
+
+        OutboxEventEntity row = outbox.findAll().get(0);
+        AuditEventEntity audited = audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                HcpIntegrationEvents.AGGREGATE_TYPE, "hcp-1").get(0);
+        assertEquals("[{\"field\":\"email\",\"from\":\"ana@old.example\",\"to\":\"ana@new.example\"}]", audited.getChanges());
+        assertFalse(row.getPayload().contains("ana@old.example"), "the previous value is not published");
+        assertFalse(row.getPayload().contains("\"changes\""), "the changes are for the audit trail only");
+    }
+
+    @Test
+    void eventsThatAreNotEditsHaveNoChanges() {
+        publisher.publish(new HcpDeactivatedEvent("hcp-1", false));
+
+        assertNull(audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(HcpIntegrationEvents.AGGREGATE_TYPE, "hcp-1")
+                .get(0).getChanges());
     }
 }

@@ -5,6 +5,7 @@ import com.das.cleanddd.domain.healthcareprof.events.HcpCreatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpDeactivatedEvent;
 import com.das.cleanddd.domain.healthcareprof.events.HcpUpdatedEvent;
 import com.das.cleanddd.domain.shared.AddressValueObject;
+import com.das.cleanddd.domain.shared.audit.FieldChange;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 import org.junit.jupiter.api.BeforeEach;
@@ -460,6 +461,19 @@ class HealthCareProfTest {
             var updated = activated.withUpdatedDetails(new HealthCareProfName("Ana"), new HealthCareProfName("Ruiz"),
                     new HealthCareProfEmail("ana@clinic.org"), specialties);
             assertEquals(id, ((HcpUpdatedEvent) updated.pullDomainEvents().get(0)).id());
+        }
+
+        @Test
+        @DisplayName("an update records each changed field with its previous value, e-mail included")
+        void updateRecordsItsChanges() {
+            HealthCareProf hcp = created();
+
+            var updated = hcp.withUpdatedDetails(new HealthCareProfName("Ana"), new HealthCareProfName("Ruiz"),
+                    new HealthCareProfEmail("ana.ruiz@clinic.org"), specialties);
+
+            assertEquals(List.of(new FieldChange("surname", "Gomez", "Ruiz"),
+                            new FieldChange("email", "ana@clinic.org", "ana.ruiz@clinic.org")),
+                    ((HcpUpdatedEvent) updated.pullDomainEvents().get(0)).changes());
         }
     }
 }
