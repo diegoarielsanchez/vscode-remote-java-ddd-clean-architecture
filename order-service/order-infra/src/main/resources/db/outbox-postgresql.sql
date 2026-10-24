@@ -43,7 +43,10 @@ CREATE TABLE IF NOT EXISTS audit_event (
     correlation_id    VARCHAR(64),
     occurred_at       TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     payload           VARCHAR(8000)               NOT NULL,      -- JSON envelope, exactly as published
+    changes           VARCHAR(8000),                             -- edits: [{"field","from","to"}], incl. unpublished fields
     CONSTRAINT ux_audit_event_aggregate_version UNIQUE (aggregate_type, aggregate_id, aggregate_version)
 );
+-- Added after audit_event was first released.
+ALTER TABLE audit_event ADD COLUMN IF NOT EXISTS changes VARCHAR(8000);
 CREATE INDEX IF NOT EXISTS ix_audit_event_actor ON audit_event (actor, occurred_at);
 CREATE INDEX IF NOT EXISTS ix_audit_event_occurred ON audit_event (occurred_at);

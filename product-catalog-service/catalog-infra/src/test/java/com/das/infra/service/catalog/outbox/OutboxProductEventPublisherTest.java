@@ -1,6 +1,8 @@
 package com.das.infra.service.catalog.outbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,6 +23,8 @@ import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.das.cleanddd.domain.shared.audit.FieldChange;
+import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductCreatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDeactivatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantinedEvent;
@@ -107,5 +111,26 @@ class OutboxProductEventPublisherTest {
     void refusesToRunOutsideAUnitOfWork() {
         assertThrows(IllegalTransactionStateException.class,
                 () -> springBean.publish(new ProductStockReservedEvent(PRODUCT, 1, 9)));
+    }
+
+    @Test
+    void theAuditTrailKeepsAnEditsPreviousValuesWithoutPublishingThem() throws Exception {
+        publisher.publish(new ProductUpdatedEvent(PRODUCT, "Amoxicillin 500mg", "Antibiotic", new BigDecimal("13.75"), "BOX", true, null,
+                List.of(new FieldChange("price", "12.50", "13.75"))));
+
+        OutboxEventEntity row = outbox.findAll().get(0);
+        AuditEventEntity audited = audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                ProductIntegrationEvents.AGGREGATE_TYPE, PRODUCT).get(0);
+        assertEquals("[{\"field\":\"price\",\"from\":\"12.50\",\"to\":\"13.75\"}]", audited.getChanges());
+        assertFalse(row.getPayload().contains("12.50"), "the previous value is not published");
+        assertFalse(row.getPayload().contains("\"changes\""), "the changes are for the audit trail only");
+    }
+
+    @Test
+    void eventsThatAreNotEditsHaveNoChanges() {
+        publisher.publish(new ProductDeactivatedEvent(PRODUCT, false));
+
+        assertNull(audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(ProductIntegrationEvents.AGGREGATE_TYPE, PRODUCT)
+                .get(0).getChanges());
     }
 }

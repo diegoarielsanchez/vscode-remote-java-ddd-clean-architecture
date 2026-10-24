@@ -1,5 +1,8 @@
 package com.das.cleanddd.domain.medicalsalesrep.entities;
 
+import java.util.List;
+import com.das.cleanddd.domain.medicalsalesrep.events.MsrUpdatedEvent;
+import com.das.cleanddd.domain.shared.audit.FieldChange;
 import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 import org.junit.jupiter.api.BeforeEach;
@@ -246,5 +249,20 @@ class MedicalSalesRepTest {
 
             assertEquals(newAddress, updated.getAddress());
         }
+    }
+
+    @Test
+    @DisplayName("an update records each changed field with its previous value")
+    void updateRecordsItsChanges() {
+        MedicalSalesRep rep = new MedicalSalesRep(null, name, surname, email, new MedicalSalesRepActive(true),
+                new AddressValueObject("1600 Amphitheatre Pkwy", "Mountain View", "CA", "94043", "USA"));
+
+        MedicalSalesRep updated = rep.withUpdatedDetails(name, surname, new MedicalSalesRepEmail("j.smith@pharma.com"),
+                new AddressValueObject("1 Infinite Loop", "Cupertino", "CA", "95014", "USA"));
+
+        assertEquals(List.of(new FieldChange("email", "john.smith@pharma.com", "j.smith@pharma.com"),
+                        new FieldChange("address", "1600 Amphitheatre Pkwy, Mountain View, CA, 94043, USA",
+                                "1 Infinite Loop, Cupertino, CA, 95014, USA")),
+                ((MsrUpdatedEvent) updated.pullDomainEvents().get(0)).changes());
     }
 }

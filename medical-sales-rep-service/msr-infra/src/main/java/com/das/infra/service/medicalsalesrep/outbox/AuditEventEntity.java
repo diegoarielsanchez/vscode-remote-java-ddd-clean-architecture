@@ -24,7 +24,8 @@ import jakarta.persistence.UniqueConstraint;
  * authenticated principal; {@code null} for steps a service takes on its own, such as the stock saga, which
  * {@code producer} and {@code correlationId} attribute), what ({@code eventType} and the data), when
  * ({@code occurredAt}) and in which order ({@code aggregateVersion}, unique per aggregate, so a gap is
- * detectable).
+ * detectable). For an edit, {@code changes} lists each changed field with its previous and new value (JSON
+ * {@code [{"field","from","to"}]}), including fields the published event leaves out; {@code null} for other events.
  */
 @Entity
 @Immutable
@@ -68,11 +69,22 @@ public class AuditEventEntity {
     @Column(name = "payload", nullable = false, updatable = false, length = OutboxEventEntity.MAX_PAYLOAD_LENGTH)
     private String payload;
 
+    @Column(name = "changes", updatable = false, length = OutboxEventEntity.MAX_PAYLOAD_LENGTH)
+    private String changes;
+
     protected AuditEventEntity() {
         // JPA
     }
 
     static AuditEventEntity of(String aggregateType, EventEnvelope<?> envelope, String payload) {
+        return of(aggregateType, envelope, payload, null);
+    }
+
+    /** @param changes JSON list of the edit's field changes, or {@code null} */
+    static AuditEventEntity of(String aggregateType, EventEnvelope<?> envelope, String payload, String changes) {
+        if (changes != null && changes.length() > OutboxEventEntity.MAX_PAYLOAD_LENGTH) {
+            throw new IllegalStateException("Audit changes exceed " + OutboxEventEntity.MAX_PAYLOAD_LENGTH + " characters");
+        }
         AuditEventEntity e = new AuditEventEntity();
         e.eventId = envelope.eventId();
         e.aggregateType = aggregateType;
@@ -84,6 +96,7 @@ public class AuditEventEntity {
         e.correlationId = envelope.correlationId();
         e.occurredAt = envelope.occurredAt();
         e.payload = payload;
+        e.changes = changes;
         return e;
     }
 
@@ -97,4 +110,5 @@ public class AuditEventEntity {
     public String getCorrelationId() { return correlationId; }
     public Instant getOccurredAt() { return occurredAt; }
     public String getPayload() { return payload; }
+    public String getChanges() { return changes; }
 }

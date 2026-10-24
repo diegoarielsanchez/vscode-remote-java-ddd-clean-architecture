@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.healthcareprof.events.HcpDomainEvent;
 import com.das.cleanddd.domain.healthcareprof.ports.IHcpEventPublisher;
+import com.das.cleanddd.domain.shared.audit.ChangeTracked;
 import com.das.cleanddd.domain.shared.bus.event.EventEnvelope;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -82,7 +83,7 @@ public class OutboxHcpEventPublisher implements IHcpEventPublisher {
         outbox.save(OutboxEventEntity.pending(envelope.eventId(), HcpIntegrationEvents.AGGREGATE_TYPE,
                 envelope.aggregateId(), version, envelope.eventType(), payload, envelope.occurredAt()));
         // Kept permanently, unlike the outbox row: the audit trail (ALCOA+).
-        audit.save(AuditEventEntity.of(HcpIntegrationEvents.AGGREGATE_TYPE, envelope, payload));
+        audit.save(AuditEventEntity.of(HcpIntegrationEvents.AGGREGATE_TYPE, envelope, payload, changesOf(event)));
     }
 
     private long nextVersion(String aggregateId) {
@@ -90,6 +91,18 @@ public class OutboxHcpEventPublisher implements IHcpEventPublisher {
         AggregateVersionEntity row = versions.findForUpdate(key)
                 .orElseGet(() -> versions.save(new AggregateVersionEntity(key)));
         return row.next();
+    }
+
+    /** The edit's field changes with their previous values, for the audit trail only; {@code null} if not an edit. */
+    private static String changesOf(Object event) {
+        if (!(event instanceof ChangeTracked tracked)) {
+            return null;
+        }
+        try {
+            return CONTRACT_JSON.writeValueAsString(tracked.changes());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot serialize the changes of " + event.getClass().getSimpleName(), e);
+        }
     }
 
     private static String toJson(EventEnvelope<?> envelope) {

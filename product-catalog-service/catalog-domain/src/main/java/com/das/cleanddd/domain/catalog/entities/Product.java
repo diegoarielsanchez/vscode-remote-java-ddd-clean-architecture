@@ -8,6 +8,7 @@ import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
@@ -179,8 +180,19 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
                 updated.getPrice().value(),
                 updated.getUnit().value(),
                 updated.getActive().value(),
-                updated.gtinValue()));
+                updated.gtinValue(),
+                new FieldChanges()
+                        .compare("name", getName().value(), updated.getName().value())
+                        .compare("description", descriptionValue(), updated.descriptionValue())
+                        .compare("price", getPrice().value(), updated.getPrice().value())
+                        .compare("unit", getUnit().value(), updated.getUnit().value())
+                        .compare("gtin", gtinValue(), updated.gtinValue())
+                        .toList()));
         return updated;
+    }
+
+    private String descriptionValue() {
+        return this._description == null ? null : this._description.value();
     }
 
     public ProductId id() {

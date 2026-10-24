@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.catalog.entities;
 
+import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
+import com.das.cleanddd.domain.shared.audit.FieldChange;
 import java.math.BigDecimal;
 
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -184,6 +186,19 @@ class ProductTest {
             assertEquals("Amoxicillin 875mg", updated.getName().value());
             assertEquals(product.getStock().value(), updated.getStock().value());
             assertEquals(1, updated.pullDomainEvents().size());
+        }
+
+        @Test
+        @DisplayName("withUpdatedDetails() records each changed field with its previous value")
+        void updateRecordsItsChanges() throws BusinessValidationException {
+            Product product = new Product(null, name, description, price, unit, stock, new ProductActive(true));
+
+            Product updated = product.withUpdatedDetails(name, null, new ProductPrice(new java.math.BigDecimal("13.75")), unit);
+
+            ProductUpdatedEvent event = (ProductUpdatedEvent) updated.pullDomainEvents().get(0);
+            assertEquals(java.util.List.of(
+                    new FieldChange("description", description.value(), null),
+                    new FieldChange("price", price.value().toPlainString(), "13.75")), event.changes());
         }
     }
 }

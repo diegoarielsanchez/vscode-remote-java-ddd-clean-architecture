@@ -12,6 +12,7 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
 
@@ -280,8 +281,20 @@ public class HealthCareProf extends PersonJavaBean<HcpDomainEvent> {
                 updated.getFirstName(),
                 updated.getLastName(),
                 updated.getEmail().toString(),
-                updated.isActive()));
+                updated.isActive(),
+                new FieldChanges()
+                        .compare("name", getFirstName(), updated.getFirstName())
+                        .compare("surname", getLastName(), updated.getLastName())
+                        .compare("email", getEmail(), updated.getEmail())
+                        .compare("specialties", specialtyNames(getSpecialties()), specialtyNames(updated.getSpecialties()))
+                        .compare("addresses", getAddresses(), updated.getAddresses())
+                        .toList()));
         return updated;
+    }
+
+    private static List<String> specialtyNames(List<Specialty> specialties) {
+        return specialties == null ? List.of()
+                : specialties.stream().map(s -> s.code() + " " + s.name()).toList();
     }
 
 }
