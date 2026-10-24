@@ -26,6 +26,7 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Swagger UI](#swagger-ui)
 - [Security](#security)
   - [Invoice File Integrity (SHA-256)](#invoice-file-integrity-sha-256)
+- [Transactions — begin, commit and rollback](#transactions--begin-commit-and-rollback)
 - [Event-Driven Architecture (EDA)](#event-driven-architecture-eda)
   - [How EDA maps onto DDD and clean architecture](#how-eda-maps-onto-ddd-and-clean-architecture)
   - [EDA in each service](#eda-in-each-service)
@@ -1482,6 +1483,154 @@ settlement-infra  InvoiceEntity      ← invoiceFileHash column (VARCHAR 64) in 
 ```
 
 The domain layer knows nothing about disk or hashing algorithms — it only defines the abstraction (`IInvoiceFileStorage`) and the exception type (`FileIntegrityException`).  All cryptographic I/O lives in the infrastructure layer.
+
+---
+
+## Transactions — begin, commit and rollback
+
+No code in the project calls "begin", "commit" or "rollback" by hand. A use case wraps its work in one call to the
+`UnitOfWork` port, and Spring does the rest:
+
+- the transaction **begins** when the work starts;
+- it **commits** when the work returns normally;
+- it **rolls back** when the work throws any exception, including the domain's checked `DomainException`.
+
+The domain only sees the port; Spring and JPA stay in the infrastructure layer.
+
+### The port and its Spring adapter
+
+[UnitOfWork](domain-commons/src/main/java/com/das/cleanddd/domain/shared/UnitOfWork.java) (shared kernel, `domain-commons`):
+
+```java
+public interface UnitOfWork {
+    <T> T execute(Work<T> work) throws DomainException;   // returns a value
+    default void run(VoidWork work) throws DomainException // no return value
+    static UnitOfWork immediate()                          // no transaction: for unit tests
+}
+```
+
+`SpringUnitOfWork` implements it in each service's infra module, e.g.
+[hcp-infra/SpringUnitOfWork](healthcare-prof-service/hcp-infra/src/main/java/com/das/infra/service/healthcareprof/SpringUnitOfWork.java)
+(the same class exists in MSR, Product Catalog and Order):
+
+```java
+return transactionTemplate.execute(status -> {        // BEGIN
+    try {
+        return work.run();                             // the use case's code
+    } catch (DomainException e) {
+        throw new DomainExceptionCarrier(e);           // → ROLLBACK
+    }
+});                                                    // returned normally → COMMIT
+```
+
+Spring rolls back automatically only on unchecked exceptions, and `DomainException` is checked. The adapter wraps it in
+an unchecked carrier so the rollback happens, then unwraps it so the caller still receives the original
+`DomainException`.
+
+### Using it in a use case
+
+From [ActivateHealthCareProfUseCase](healthcare-prof-service/hcp-domain/src/main/java/com/das/cleanddd/domain/healthcareprof/usecases/services/ActivateHealthCareProfUseCase.java):
+
+```java
+public void execute(HealthCareProfIDDto in) throws DomainException {
+    unitOfWork.run(() -> doExecute(in));                      // BEGIN … COMMIT / ROLLBACK
+}
+
+private void doExecute(HealthCareProfIDDto in) throws DomainException {
+    HealthCareProf hcp = repository.findById(id)...;          // read
+    HealthCareProf activated = hcp.setActivate();
+    repository.save(activated);                               // write 1: the HCP row
+    activated.pullDomainEvents().forEach(publisher::publish); // write 2: the outbox row
+}
+```
+
+[ActivateHealthCareProfUseCaseTest](healthcare-prof-service/hcp-domain/src/test/java/com/das/cleanddd/domain/healthcareprof/usecases/services/ActivateHealthCareProfUseCaseTest.java)
+checks that find, save and publish all run inside the unit of work. The other unit tests pass
+`UnitOfWork.immediate()` and need no database.
+
+### Why the change and its event share one transaction (transactional outbox)
+
+`publisher.publish(...)` does not send to RabbitMQ. The outbox publisher, e.g.
+[OutboxHcpEventPublisher](healthcare-prof-service/hcp-infra/src/main/java/com/das/infra/service/healthcareprof/outbox/OutboxHcpEventPublisher.java),
+**writes the event as a row in `outbox_event`**, in the same transaction as the aggregate change:
+
+| Outcome | Aggregate row | Outbox row | Event sent? |
+|---|---|---|---|
+| Commit | saved | saved | yes, shortly after |
+| Rollback (any exception) | not saved | not saved | no |
+
+A change is never saved without its event, and no event goes out for a change that was rolled back.
+
+- `publish` is `@Transactional(propagation = MANDATORY)`: called outside a unit of work, it fails at once instead of
+  writing an outbox row on its own.
+- The relay, e.g. [HcpOutboxRelay](healthcare-prof-service/hcp-infra/src/main/java/com/das/infra/service/healthcareprof/outbox/HcpOutboxRelay.java),
+  runs every second in **its own** transaction. It locks a batch of pending rows (`FOR UPDATE SKIP LOCKED`), sends
+  each to RabbitMQ, waits for the broker's confirm and marks the row published. A failed send is recorded and
+  retried on the next run. Several replicas of a service never send the same row twice.
+- In the `dev` profile a no-op publisher discards events and no relay runs.
+
+### Service by service
+
+| Service | Writes from use cases | Incoming events (consumers) | Extra protection |
+|---|---|---|---|
+| **HCP** | `UnitOfWork` in Create, Update, Activate, Deactivate, plus the outbox | none | event version numbers taken under a row lock (`AggregateVersion`, `PESSIMISTIC_WRITE`) |
+| **MSR** | same as HCP | none | same as HCP |
+| **Product Catalog** | `UnitOfWork` in the product use cases, Restock/Reserve/Release and the order-stock steps (reserve, release, fulfil), plus the outbox | [OrderEventHandler](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/events/OrderEventHandler.java) `@Transactional` | stock changes are one conditional update, `stock = stock - :qty WHERE stock >= :qty` ([ProductJpaRepository](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/ProductJpaRepository.java)), so stock cannot go below zero; `@Version` on products and reservations |
+| **Order** | `UnitOfWork` in Create, Approve, Reject, ConfirmDelivery, ConfirmStock, RejectForStock, plus the outbox | [CatalogEventHandler](order-service/order-infra/src/main/java/com/das/infra/service/order/events/CatalogEventHandler.java) `@Transactional` | reads are `@Transactional(readOnly = true)` |
+| **Visit** | **no `UnitOfWork`** (see below) | [MsrEventHandler](visit-service/visit-infra/src/main/java/com/das/infra/service/visit/events/MsrEventHandler.java) and [HcpEventHandler](visit-service/visit-infra/src/main/java/com/das/infra/service/visit/events/HcpEventHandler.java) `@Transactional` | bulk deactivations are `@Transactional @Modifying` queries |
+
+**Why Visit differs.** visit-service publishes no events, so it has no outbox and no `UnitOfWork`. Each use case writes
+**a single aggregate with one `repository.save(...)`**, and Spring Data's `save` already runs in its own transaction.
+With one write there is nothing to keep in step. Its multi-row changes live in the consumers: when an MSR or HCP is
+deactivated, the handler records the event as processed, updates its local snapshot and deactivates the future visit
+plans, all in **one `@Transactional` method**. If a Visit use case ever writes two things (e.g. a visit plus an
+event), add a `SpringUnitOfWork` to visit-infra the same way the other services do.
+
+### Consumers: how a rollback ties in with RabbitMQ
+
+Every consumer follows the same pattern, here
+[CatalogEventHandler](order-service/order-infra/src/main/java/com/das/infra/service/order/events/CatalogEventHandler.java):
+
+```java
+@Transactional                                              // BEGIN
+public Outcome handle(StockReservationReply reply) {
+    if (processedEvents.existsById(id)) return DUPLICATE;   // seen before → do nothing
+    processedEvents.save(new ProcessedEventEntity(id, ...)); // write 1: "I processed this"
+    try {
+        useCases.getConfirmOrderStockUseCase().execute(...); // write 2: the order + its outbox row
+    } catch (DomainException e) {
+        throw new IllegalStateException(..., e);             // → ROLLBACK of write 1 and write 2
+    }
+}                                                           // COMMIT
+```
+
+- **Nested transactions join.** The use case inside calls `unitOfWork.run(...)`; `TransactionTemplate` defaults to
+  `PROPAGATION_REQUIRED`, so it joins the consumer's transaction instead of opening a second one. The processed-event
+  row, the order change and the new outbox row commit together.
+- **Rollback means redelivery.** A rollback also undoes the processed-event row, so RabbitMQ redelivers the message
+  and it is retried. After the retry limit it goes to the dead-letter queue for a person to inspect.
+- **Duplicates are skipped.** An already-processed message does nothing. If two copies arrive at once, the second
+  fails on the `processed_event` primary key at commit and is skipped on retry.
+
+This is how the [order stock saga](#the-order-stock-saga) holds together across two databases (Order's outbox →
+Catalog's consumer and outbox → Order's consumer). No single transaction spans both: each step is atomic in its own
+database, and a compensating event (`Rejected` → release the stock) undoes earlier steps. There is no distributed
+two-phase commit.
+
+### Rules for a new use case
+
+1. **Put every write inside one `unitOfWork.run(...)` / `unitOfWork.execute(...)`**, including `publisher.publish(...)`.
+   Calling `publish` outside one throws (`MANDATORY`).
+2. **Make remote calls before the unit of work, not inside it.**
+   [CreateOrderUseCase](order-service/order-domain/src/main/java/com/das/cleanddd/domain/order/usecases/services/CreateOrderUseCase.java)
+   validates the MSR over HTTP first and opens the transaction afterwards, so a slow service never holds a database
+   transaction open.
+3. **To roll back, throw.** A `DomainException` or any runtime exception inside the work undoes everything. Never catch
+   an exception there and carry on, or half the work is committed.
+4. **No `@Transactional` in the domain.** Domain classes stay free of Spring; use `@Transactional` only in infra
+   classes such as repositories and consumers.
+5. **In unit tests pass `UnitOfWork.immediate()`.** To check that the work runs inside the boundary, use a recording
+   `UnitOfWork` like the one in `ActivateHealthCareProfUseCaseTest`.
 
 ---
 
