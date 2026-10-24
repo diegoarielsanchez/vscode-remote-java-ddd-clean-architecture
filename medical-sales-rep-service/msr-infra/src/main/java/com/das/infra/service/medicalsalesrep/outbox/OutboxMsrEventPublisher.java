@@ -41,19 +41,21 @@ public class OutboxMsrEventPublisher implements IMsrEventPublisher {
 
     private final OutboxEventJpaRepository outbox;
     private final AggregateVersionJpaRepository versions;
+    private final AuditEventJpaRepository audit;
     private final EventContext context;
     private final Clock clock;
 
     @Autowired
     public OutboxMsrEventPublisher(OutboxEventJpaRepository outbox, AggregateVersionJpaRepository versions,
-                                   ObjectProvider<EventContext> context) {
-        this(outbox, versions, context.getIfAvailable(() -> EventContext.NONE), Clock.systemUTC());
+                                   AuditEventJpaRepository audit, ObjectProvider<EventContext> context) {
+        this(outbox, versions, audit, context.getIfAvailable(() -> EventContext.NONE), Clock.systemUTC());
     }
 
     OutboxMsrEventPublisher(OutboxEventJpaRepository outbox, AggregateVersionJpaRepository versions,
-                            EventContext context, Clock clock) {
+                            AuditEventJpaRepository audit, EventContext context, Clock clock) {
         this.outbox = outbox;
         this.versions = versions;
+        this.audit = audit;
         this.context = context;
         this.clock = clock;
     }
@@ -76,8 +78,11 @@ public class OutboxMsrEventPublisher implements IMsrEventPublisher {
                 context.actor(),
                 mapped.data());
 
+        String payload = toJson(envelope);
         outbox.save(OutboxEventEntity.pending(envelope.eventId(), MsrIntegrationEvents.AGGREGATE_TYPE,
-                envelope.aggregateId(), version, envelope.eventType(), toJson(envelope), envelope.occurredAt()));
+                envelope.aggregateId(), version, envelope.eventType(), payload, envelope.occurredAt()));
+        // Kept permanently, unlike the outbox row: the audit trail (ALCOA+).
+        audit.save(AuditEventEntity.of(MsrIntegrationEvents.AGGREGATE_TYPE, envelope, payload));
     }
 
     private long nextVersion(String aggregateId) {

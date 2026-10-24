@@ -38,6 +38,7 @@ class OutboxMsrEventPublisherTest {
 
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
+    @Autowired private AuditEventJpaRepository audit;
     @Autowired private IMsrEventPublisher springBean;
 
     private OutboxMsrEventPublisher publisher;
@@ -48,7 +49,7 @@ class OutboxMsrEventPublisherTest {
             @Override public String correlationId() { return "trace-123"; }
             @Override public String actor() { return "admin"; }
         };
-        publisher = new OutboxMsrEventPublisher(outbox, versions, context, Clock.fixed(NOW, ZoneOffset.UTC));
+        publisher = new OutboxMsrEventPublisher(outbox, versions, audit, context, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test

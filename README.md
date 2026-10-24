@@ -1543,6 +1543,38 @@ All responses include:
 
 All `/auth/login` attempts (success and failure) are logged at the `AUDIT` level with the sanitized username and resolved client IP.
 
+#### Audit trail (ALCOA+)
+
+HCP, MSR, Product Catalog and Order keep a permanent audit trail in their own database, in the `audit_event` table.
+Every integration event a service raises is written there in the **same transaction** as the change, next to its
+outbox row. The outbox row is purged a few days after it is published (`*.outbox.retention`, default `P7D`); the
+audit row is never purged.
+
+| Column | ALCOA+ | Content |
+|---|---|---|
+| `actor` | Attributable | The authenticated principal (JWT subject). `NULL` for steps a service takes on its own, such as the stock saga; `producer` and `correlation_id` attribute those. |
+| `occurred_at` | Contemporaneous | When the change committed (UTC), taken in the same transaction |
+| `payload` | Original, Legible | The event envelope as published (JSON), never re-serialised |
+| `aggregate_type`, `aggregate_id`, `aggregate_version` | Complete, Consistent | Which record changed, and its change number. The number is unique per record, so a gap shows a missing entry |
+| `event_type` | | What happened, e.g. `catalog.product.lot-quarantined` |
+
+- **Append-only.** The application can only insert and read the table: the entity is `@Immutable`, and its
+  repository has no update or delete methods. `audit-postgresql.sql` also makes PostgreSQL refuse `UPDATE`,
+  `DELETE` and `TRUNCATE`. The table owner can still drop that guard, so in production run each service as a
+  database role that doesn't own the table, granted only `SELECT, INSERT` on `audit_event`.
+- **A record's history,** oldest first:
+  ```sql
+  SELECT aggregate_version, occurred_at, actor, event_type, payload
+  FROM audit_event WHERE aggregate_type = 'product' AND aggregate_id = '<id>' ORDER BY aggregate_version;
+  ```
+  The aggregate types are `hcp`, `msr`, `product`, `reservation` (catalog stock reservations) and `order`.
+- **Not covered yet:**
+  - The visit service raises no events, so visits and visit plans aren't in any trail.
+  - Events only carry what changed, not the previous value or a reason for the change.
+  - There's no API to read the trail.
+  - Backups and the retention period are set up outside this repository.
+  - Under the `dev` profile no events are written, so nothing is audited either.
+
 ### Production Checklist
 
 - [ ] Replace all `change-me` values in `.env`
@@ -2051,6 +2083,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
      and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
+   - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event`, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. See [Audit trail (ALCOA+)](#audit-trail-alcoa).
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
