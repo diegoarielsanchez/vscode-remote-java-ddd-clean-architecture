@@ -78,6 +78,9 @@ StyleCopReport.xml
 *.tmp
 *.tmp_proj
 *.log
+# Service logs and their rotated archives (logback writes them under each app's logs/)
+**/logs/
+*.log.*.gz
 *.vspscc
 *.vssscc
 .builds
