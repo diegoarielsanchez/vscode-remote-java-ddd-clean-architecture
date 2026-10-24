@@ -14,16 +14,21 @@ import org.springframework.data.redis.serializer.RedisSerializer;
  * Redis contents were tampered with (OWASP A08).
  *
  * <p>{@code stock} is the units on hand across the product's lots at the time of caching; every lot change evicts
- * the entry. Entries cached before {@code gtin} existed read back with it {@code null}.
+ * the entry. Entries cached before {@code gtin} or {@code lotTracked} existed read back with them {@code null};
+ * a {@code null} {@code lotTracked} means lot-tracked, as every product was then.
  */
 public record ProductSnapshot(String id, String name, String description, BigDecimal price, String unit,
-                              Integer stock, Boolean active, String gtin) {
+                              Integer stock, Boolean active, String gtin, Boolean lotTracked) {
 
     public static final String CACHE = "productById";
 
     static ProductSnapshot from(ProductEntity entity, int stock) {
         return new ProductSnapshot(entity.getId(), entity.getName(), entity.getDescription(), entity.getPrice(),
-                entity.getUnit(), stock, entity.getActive(), entity.getGtin());
+                entity.getUnit(), stock, entity.getActive(), entity.getGtin(), entity.getLotTracked());
+    }
+
+    public boolean isLotTracked() {
+        return !Boolean.FALSE.equals(lotTracked);
     }
 
     /** Typed JSON serializer for the {@code productById} Redis cache. */

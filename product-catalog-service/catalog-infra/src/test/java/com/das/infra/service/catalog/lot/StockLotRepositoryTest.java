@@ -119,6 +119,19 @@ class StockLotRepositoryTest {
     }
 
     @Test
+    void aProductHeldWithoutBatchesKeepsItsUnbatchedLotAndFlag() throws Exception {
+        Product brochure = Product.create(null, new ProductName("Patient brochure"), null,
+                new ProductPrice(new BigDecimal("0.00")), new ProductUnit("UNIT"), new ProductStock(0), null, false);
+        products.save(brochure);
+        lots.save(StockLot.receive(brochure.getId(), StockLot.UNBATCHED, null, 100, NOW));
+
+        Product back = products.findById(brochure.getId()).orElseThrow();
+        assertFalse(back.isLotTracked());
+        assertEquals(100, back.getStock().value());
+        assertTrue(products.findById(product().getId()).orElseThrow().isLotTracked());
+    }
+
+    @Test
     void aBatchNumberIsUniquePerProduct() throws Exception {
         Product p = product();
         lot(p, "L1", 10);

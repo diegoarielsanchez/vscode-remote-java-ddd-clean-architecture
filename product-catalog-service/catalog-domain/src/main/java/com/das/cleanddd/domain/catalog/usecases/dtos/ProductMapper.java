@@ -18,7 +18,8 @@ public class ProductMapper {
             product.getUnit().value(),
             product.getStock().value(),
             product.getActive().value(),
-            product.gtinValue()
+            product.gtinValue(),
+            product.isLotTracked()
         );
     }
 

@@ -17,7 +17,7 @@ import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
 /**
  * Maps private domain events to the public {@code catalog.events} contract (schema version 1).
  * Routing keys are unchanged from the previous publisher, so existing bindings keep working.
- * {@code gtin}, {@code batchNumber}, {@code expirationDate} and {@code reason} were added later as optional fields,
+ * {@code gtin}, {@code lotTracked}, {@code batchNumber}, {@code expirationDate} and {@code reason} were added later as optional fields,
  * which existing consumers ignore, so the schema version stays 1.
  */
 public final class ProductIntegrationEvents {
@@ -28,30 +28,31 @@ public final class ProductIntegrationEvents {
     /**
      * Event payload ({@code data}); null fields do not apply to the event type. Stock events carry
      * the change ({@code stockDelta}: reserved, released or added quantity) and the stock left after it.
-     * Created and updated events carry the GTIN; a restock (goods receipt) and the lot quarantine events carry the
+     * Created and updated events carry the GTIN, and the created event whether the product is lot-tracked; a restock (goods receipt) and the lot quarantine events carry the
      * batch, and the quarantine events the {@code reason} given.
      */
     public record ProductEventData(String name, String description, BigDecimal price, String unit, Boolean active,
                                    Integer stockDelta, Integer remainingStock, String gtin, String batchNumber,
-                                   LocalDate expirationDate, String reason) {
+                                   LocalDate expirationDate, String reason, Boolean lotTracked) {
 
         static ProductEventData details(String name, String description, BigDecimal price, String unit, Boolean active,
-                                        String gtin) {
-            return new ProductEventData(name, description, price, unit, active, null, null, gtin, null, null, null);
+                                        String gtin, Boolean lotTracked) {
+            return new ProductEventData(name, description, price, unit, active, null, null, gtin, null, null, null,
+                    lotTracked);
         }
 
         static ProductEventData active(boolean active) {
-            return new ProductEventData(null, null, null, null, active, null, null, null, null, null, null);
+            return new ProductEventData(null, null, null, null, active, null, null, null, null, null, null, null);
         }
 
         static ProductEventData stock(Integer delta, Integer remaining) {
-            return new ProductEventData(null, null, null, null, null, delta, remaining, null, null, null, null);
+            return new ProductEventData(null, null, null, null, null, delta, remaining, null, null, null, null, null);
         }
 
         static ProductEventData lot(String batchNumber, LocalDate expirationDate, Integer delta, Integer remaining,
                                     String reason) {
             return new ProductEventData(null, null, null, null, null, delta, remaining, null, batchNumber, expirationDate,
-                    reason);
+                    reason, null);
         }
     }
 
@@ -62,9 +63,10 @@ public final class ProductIntegrationEvents {
     public static Mapped map(ProductDomainEvent event) {
         return switch (event) {
             case ProductCreatedEvent e -> new Mapped("catalog.product.created", e.id(),
-                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin()));
+                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin(),
+                            e.lotTracked()));
             case ProductUpdatedEvent e -> new Mapped("catalog.product.updated", e.id(),
-                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin()));
+                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin(), null));
             case ProductActivatedEvent e -> new Mapped("catalog.product.activated", e.id(), ProductEventData.active(true));
             case ProductDeactivatedEvent e -> new Mapped("catalog.product.deactivated", e.id(), ProductEventData.active(false));
             case ProductStockReservedEvent e -> new Mapped("catalog.product.stock-reserved", e.id(),

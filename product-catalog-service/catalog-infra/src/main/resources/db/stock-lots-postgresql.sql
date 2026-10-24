@@ -2,7 +2,8 @@
 -- (PostgreSQL). Required before deploying this version with SPRING_PROFILES_ACTIVE=prod
 -- (ddl-auto=validate). Also run it once on a dev database that already has products: ddl-auto=update
 -- creates the new tables but does not move existing stock into lots.
--- Idempotent: safe to run more than once. Run after outbox-postgresql.sql.
+-- Idempotent: safe to run more than once. Run after outbox-postgresql.sql. If you ran an earlier version of
+-- this script (before products.lot_tracked), run it again.
 --
 -- Replaces product-traceability-postgresql.sql (batch/serial/expiration on the product itself); works
 -- whether or not that script was run.
@@ -11,12 +12,16 @@
 ALTER TABLE products ADD COLUMN IF NOT EXISTS gtin VARCHAR(14);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_products_gtin ON products (gtin);
 
+-- FALSE for products held without batches (promotional material, e.g. brochures): their units may be received
+-- without a batch number or expiration date, into the product's 'UNBATCHED' lot. Existing products are medicines.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS lot_tracked BOOLEAN NOT NULL DEFAULT TRUE;
+
 -- One row per product and batch (GS1 identifies a lot by GTIN + batch number).
 CREATE TABLE IF NOT EXISTS stock_lot (
     id              VARCHAR(64)                 NOT NULL PRIMARY KEY,
     product_id      VARCHAR(36)                 NOT NULL,
     batch_number    VARCHAR(20)                 NOT NULL,   -- GS1 AI 10, exactly as printed
-    expiration_date DATE,                                   -- GS1 AI 17; NULL only for migrated stock
+    expiration_date DATE,                                   -- GS1 AI 17; NULL for migrated stock and non-lot-tracked products
     quantity        INTEGER                     NOT NULL CHECK (quantity >= 0),
     status          VARCHAR(20)                 NOT NULL,   -- AVAILABLE | QUARANTINED
     received_at     TIMESTAMP(6) WITH TIME ZONE NOT NULL,

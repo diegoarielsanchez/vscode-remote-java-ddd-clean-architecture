@@ -22,20 +22,29 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     private final ProductStock _stock;
     private final ProductActive _active;
     private final Gtin _gtin;
+    private final boolean _lotTracked;
     private final transient ValidationUtils _validationUtils;
 
     /** Description is optional: a product may have none on file yet. */
     public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                     ProductUnit unit, ProductStock stock, ProductActive active) throws BusinessValidationException {
-        this(id, name, description, price, unit, stock, active, null);
+        this(id, name, description, price, unit, stock, active, null, true);
+    }
+
+    /** Lot-tracked, the rule for medicines. */
+    public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
+                    ProductUnit unit, ProductStock stock, ProductActive active, Gtin gtin) throws BusinessValidationException {
+        this(id, name, description, price, unit, stock, active, gtin, true);
     }
 
     /**
      * {@code gtin} is optional. {@code stock} is the units on hand across the product's lots; it is read from the
-     * lots, never set from here.
+     * lots, never set from here. {@code lotTracked} products (medicines) receive stock by batch and expiration date
+     * only; the others (promotional material such as brochures) may receive it without either. Fixed at creation.
      */
     public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
-                    ProductUnit unit, ProductStock stock, ProductActive active, Gtin gtin) throws BusinessValidationException {
+                    ProductUnit unit, ProductStock stock, ProductActive active, Gtin gtin, boolean lotTracked)
+            throws BusinessValidationException {
         this._id = id == null ? ProductId.random() : id;
         this._name = name;
         this._description = description;
@@ -44,6 +53,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         this._stock = stock == null ? new ProductStock(0) : stock;
         this._active = active == null ? new ProductActive(false) : active;
         this._gtin = gtin;
+        this._lotTracked = lotTracked;
         this._validationUtils = (new UtilsFactory()).getValidationUtils();
     }
 
@@ -83,18 +93,24 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         return this._gtin == null ? null : this._gtin.value();
     }
 
+    public boolean isLotTracked() {
+        return this._lotTracked;
+    }
+
     public Boolean isActive() {
         return this._active != null && Boolean.TRUE.equals(this._active.value()) ? Boolean.TRUE : Boolean.FALSE;
     }
 
     public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                                   ProductUnit unit, ProductStock stock) throws BusinessValidationException {
-        return create(id, name, description, price, unit, stock, null);
+        return create(id, name, description, price, unit, stock, null, true);
     }
 
     public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
-                                  ProductUnit unit, ProductStock stock, Gtin gtin) throws BusinessValidationException {
-        Product product = new Product(id, name, description, price, unit, stock, new ProductActive(false), gtin);
+                                  ProductUnit unit, ProductStock stock, Gtin gtin, boolean lotTracked)
+            throws BusinessValidationException {
+        Product product = new Product(id, name, description, price, unit, stock, new ProductActive(false), gtin,
+                lotTracked);
         product.record(new ProductCreatedEvent(
                 product.getId().value(),
                 product.getName().value(),
@@ -102,7 +118,8 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
                 product.getPrice().value(),
                 product.getUnit().value(),
                 product.getActive().value(),
-                product.gtinValue()));
+                product.gtinValue(),
+                product.isLotTracked()));
         return product;
     }
 
@@ -125,7 +142,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product activated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(true), this._gtin);
+                this._stock, new ProductActive(true), this._gtin, this._lotTracked);
         activated.record(new ProductActivatedEvent(activated.getId().value(), activated.getActive().value()));
         return activated;
     }
@@ -135,7 +152,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product deactivated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(false), this._gtin);
+                this._stock, new ProductActive(false), this._gtin, this._lotTracked);
         deactivated.record(new ProductDeactivatedEvent(deactivated.getId().value(), deactivated.getActive().value()));
         return deactivated;
     }
@@ -153,7 +170,8 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             // GS1 GTIN Management Standard: a GTIN stays with its trade item. A different item gets a new product.
             throw new BusinessValidationException("A product's GTIN cannot be changed or removed once set.");
         }
-        Product updated = new Product(this._id, name, description, price, unit, this._stock, this._active, gtin);
+        Product updated = new Product(this._id, name, description, price, unit, this._stock, this._active, gtin,
+                this._lotTracked);
         updated.record(new ProductUpdatedEvent(
                 updated.getId().value(),
                 updated.getName().value(),

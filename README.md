@@ -937,7 +937,7 @@ docker run -d --name product-catalog-service --network ddd-clean-net -p 8091:809
 > docker exec -i postgres-ddd-clean psql -U root -d productcatalog_db \
 >   < product-catalog-service/catalog-infra/src/main/resources/db/stock-lots-postgresql.sql
 > ```
-> Run it once, before receiving stock with this version.
+> Run it before receiving stock with this version, and again after upgrading (it is idempotent).
 > Add `-e CATALOG_MIN_REMAINING_SHELF_LIFE_DAYS=<days>` to keep lots that are about to expire from being delivered.
 
 ---
@@ -1332,14 +1332,14 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, `lotTracked` (default `true`; `false` for promotional material), and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
 | `PUT` | `/api/v1/products/update` | Update name, description, price, unit, and set the GTIN once (never stock) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis); `stock` is the units on hand across its lots |
 | `POST` | `/api/v1/products/list` | List products by name |
 | `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active, and its deliverable lots hold at least `n`? (internal, unauthenticated) |
-| `POST` | `/api/v1/products/{id}/restock` | Goods receipt of one batch: `quantity` with `batchNumber` + `expirationDate`, or the pack's GS1 code in `gs1` — `ROLE_AGENT` only (AI Agent Service) |
+| `POST` | `/api/v1/products/{id}/restock` | Goods receipt of one batch: `quantity` with `batchNumber` + `expirationDate`, or the pack's GS1 code in `gs1`; only `quantity` for a product that is not lot-tracked — `ROLE_AGENT` only (AI Agent Service) |
 | `GET` | `/api/v1/products/{id}/lots` | The product's lots, first expiry first out, with `expired` / `allocatable` as of today |
 | `POST` | `/api/v1/products/{id}/lots/quarantine` | Block a lot (`batchNumber`, `reason`): its units are no longer delivered — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/lots/lift-quarantine` | Release a lot from quarantine (`batchNumber`, `reason`) — `ROLE_ADMIN` only |
@@ -1396,8 +1396,8 @@ curl "http://localhost:8091/api/v1/products/<id>/lots/recipients?batchNumber=L20
 **Business rules.**
 
 - **No stock without a lot.** Stock only enters through a goods receipt (or `initialStock` on create), which needs a
-  batch number and an expiration date. Receiving a batch already on file adds to that lot, and only with the same
-  expiration date. Expired goods are refused.
+  batch number and an expiration date for a lot-tracked product. Receiving a batch already on file adds to that lot,
+  and only with the same expiration date. Expired goods are refused.
 - **First expiry, first out (FEFO).** Orders take units from the lot that expires first, then the next. One order
   line may span several lots, and the lots used are stored with the reservation. Releasing an order (rejected or
   cancelled) gives the units back to those same lots.
@@ -1412,6 +1412,23 @@ curl "http://localhost:8091/api/v1/products/<id>/lots/recipients?batchNumber=L20
 - **Quarantine and recall.** Quarantining a lot blocks it at once; units already allocated to orders are not taken
   back. `lots/recipients` lists every order that received units of the lot, with its reservation status, and
   order-service resolves each order to its MSR. Both quarantine changes need a reason.
+- **Promotional material** (brochures, leaflets, samples' literature): create the product with `"lotTracked":false`.
+  Batch numbers and expiration dates are medicine traceability rules (EU FMD, DSCSA, GDP) and GS1 does not require
+  them, so such a product may receive stock with only a `quantity`. Those units go into its `UNBATCHED` lot, which has
+  no expiration date; `release-stock`, `lots/quarantine`, `lots/lift-quarantine` and `lots/recipients` reach it when
+  `batchNumber` is left out. To withdraw a version of the material, receive it under its approval code as
+  `batchNumber` with the date its approval ends as `expirationDate` (EFPIA / PhRMA codes): it is delivered before
+  undated units and never after that date. An expiration date needs a batch number. `UNBATCHED` is reserved, and
+  `lotTracked` is fixed at creation.
+
+  ```bash
+  curl -X POST http://localhost:8091/api/v1/products/create \
+    -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+    -d '{"name":"Insulin patient brochure","price":0.00,"unit":"UNIT","lotTracked":false,"initialStock":500}'
+  curl -X POST http://localhost:8091/api/v1/products/<id>/restock \
+    -H "Authorization: Bearer $AGENT_TOKEN" -H "Content-Type: application/json" \
+    -d '{"quantity":200,"batchNumber":"PP-INS-0042","expirationDate":"2027-06-30"}'
+  ```
 - **GTIN.** A GTIN stays with its trade item (GS1 GTIN Management Standard). It can be set once, on create or on a
   later update, and then neither changed nor removed. A different item gets a new product.
 - **Kept exactly as entered, or refused** (GAMP 5 data integrity, ALCOA+). Codes are never trimmed, re-cased or
@@ -1847,7 +1864,7 @@ The same design as HCP, class for class: `MedicalSalesRep` records events; the `
 #### product-catalog-service: producer (`catalog.events`) and saga consumer (`order.events`)
 
 - **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`, `.lot-quarantined`, `.lot-quarantine-lifted`, and the saga's answers `catalog.reservation.confirmed`, `.rejected`, `.released`.
-  - Product events carry `name`, `description`, `price`, `unit`, `active`, `gtin`; stock events carry `stockDelta` and `remainingStock`; lot events carry `batchNumber` (and `expirationDate` or `reason`).
+  - Product events carry `name`, `description`, `price`, `unit`, `active`, `gtin` (and `lotTracked` on `.created`); stock events carry `stockDelta` and `remainingStock`; lot events carry `batchNumber` (and `expirationDate` or `reason`).
   - Reservation events have aggregate type `reservation`, and their `aggregateId` is the order id. `confirmed` carries `lines` (`productId`, `quantity`, `productName`, `unitPrice`); `rejected` carries `reason`.
 - **Domain:**
   - All product write use cases run in a `UnitOfWork`. Stock lives in `lot/` (`StockLot`, one per product and batch). `StockAllocator` takes units first expiry first out with atomic per-lot SQL (`tryTake`, `give`), and each change records its event in the same transaction.
@@ -2029,7 +2046,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
-     and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it also replaces the previous release's `product-traceability-postgresql.sql`.
+     and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**

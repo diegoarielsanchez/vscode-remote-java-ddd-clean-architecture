@@ -68,6 +68,8 @@ class StockLotsSchemaScriptTest {
             assertEquals(List.of(), lots.findByProductId(OUT_OF_STOCK));
             assertFalse(jdbc.queryForList("SELECT column_name FROM information_schema.columns WHERE table_name = 'products'",
                     String.class).contains("batch_number"), "the product-level columns are gone");
+            assertEquals(Boolean.TRUE, jdbc.queryForObject("SELECT lot_tracked FROM products WHERE id = ?", Boolean.class,
+                    ASPIRIN), "existing products are lot-tracked medicines");
         }
 
         @Test

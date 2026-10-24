@@ -162,6 +162,7 @@ public class ProductController {
         return ResponseEntity.ok(reserveProductStockUseCase.execute(new StockQuantityInputDTO(id, body.quantity())));
     }
 
+    /** {@code batchNumber} may be left out for a product that is not lot-tracked: its units go back to its UNBATCHED lot. */
     @PostMapping("/{id}/release-stock")
     @Operation(summary = "Give manually reserved units back to the batch they came from (internal use)")
     @ResponseStatus(HttpStatus.OK)
@@ -176,6 +177,8 @@ public class ProductController {
     /**
      * Goods receipt of one batch. Give {@code batchNumber} and {@code expirationDate}, or the GS1 code scanned from
      * the pack in {@code gs1} (e.g. {@code (01)09506000134352(17)270331(10)L2026-07A}), or both when they agree.
+     * A product that is not lot-tracked (promotional material) needs neither: give only the quantity, or a batch
+     * number (e.g. the approval code) with or without the date its approval ends.
      */
     @PostMapping("/{id}/restock")
     @Operation(summary = "Receive units of one batch into stock (goods receipt; GS1 code accepted)")
@@ -215,24 +218,29 @@ public class ProductController {
         return ResponseEntity.ok(liftLotQuarantineUseCase.execute(new LotInputDTO(id, body.batchNumber(), body.reason())));
     }
 
-    /** Recall: which orders received units of the batch. The batch goes in the query string, URL-encoded. */
+    /**
+     * Recall: which orders received units of the batch. The batch goes in the query string, URL-encoded; leave it
+     * out for the UNBATCHED lot of a product that is not lot-tracked.
+     */
     @GetMapping("/{id}/lots/recipients")
     @Operation(summary = "List the orders that received units of a lot (recall)")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<List<LotRecipientOutputDTO>> lotRecipients(
         @PathVariable String id,
-        @RequestParam String batchNumber
+        @RequestParam(required = false) String batchNumber
     ) throws DomainException {
         return ResponseEntity.ok(findLotRecipientsUseCase.execute(new LotInputDTO(id, batchNumber, null)));
     }
 
     public record QuantityRequest(@Min(1) int quantity) {}
 
-    public record LotQuantityRequest(@Min(1) int quantity, @NotBlank String batchNumber) {}
+    /** {@code batchNumber} is required for a lot-tracked product; the use case checks it. */
+    public record LotQuantityRequest(@Min(1) int quantity, String batchNumber) {}
 
     /** {@code expirationDate} is ISO {@code yyyy-MM-dd}; {@code gs1} is the pack's GS1 element string. */
     public record ReceiveLotRequest(@Min(1) int quantity, String batchNumber, LocalDate expirationDate,
                                     @Size(max = 200) String gs1) {}
 
-    public record LotChangeRequest(@NotBlank String batchNumber, @NotBlank @Size(max = 500) String reason) {}
+    /** {@code batchNumber} is required for a lot-tracked product; the use case checks it. */
+    public record LotChangeRequest(String batchNumber, @NotBlank @Size(max = 500) String reason) {}
 }

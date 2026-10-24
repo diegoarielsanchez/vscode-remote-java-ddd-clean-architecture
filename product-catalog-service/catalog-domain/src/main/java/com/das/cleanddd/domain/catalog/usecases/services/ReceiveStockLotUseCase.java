@@ -26,8 +26,9 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  * Goods receipt: units of one batch come into stock.
  *
  * <ul>
- *   <li>The batch number and expiration date are required. They can be typed, read from the pack's GS1 code, or
- *       both; when both are given they must agree.</li>
+ *   <li>The batch number and expiration date can be typed, read from the pack's GS1 code, or both; when both are
+ *       given they must agree. A lot-tracked product needs both; any other product may have neither (see
+ *       {@link ProductUseCaseSupport#receivingBatch}).</li>
  *   <li>A GS1 code's GTIN must be the product's GTIN, so the wrong item cannot be booked in.</li>
  *   <li>Expired goods are refused.</li>
  *   <li>A batch already on file gets the units added, provided the expiration date is the same: one batch has
@@ -74,33 +75,29 @@ public final class ReceiveStockLotUseCase implements UseCase<ReceiveStockLotInpu
         }
         LocalDate today = LocalDate.now(clock);
         Gs1Data scanned = input.gs1() == null ? null : Gs1ElementString.parse(input.gs1(), today);
-        BatchNumber batchNumber = agree("batchNumber",
+        BatchNumber typedOrScanned = agree("batchNumber",
                 input.batchNumber() == null ? null : new BatchNumber(input.batchNumber()),
                 scanned == null ? null : scanned.batchNumber());
         LocalDate expiry = agree("expirationDate", input.expirationDate(), scanned == null ? null : scanned.expirationDate());
-        if (batchNumber == null) {
-            throw new DomainException("Batch number is required: give batchNumber or a GS1 code with (10).");
-        }
-        if (expiry == null) {
-            throw new DomainException("Expiration date is required: give expirationDate or a GS1 code with (17).");
-        }
-        ExpirationDate expirationDate = new ExpirationDate(expiry);
 
         Product product = ProductUseCaseSupport.requireProduct(products, input.productId());
+        BatchNumber batchNumber = ProductUseCaseSupport.receivingBatch(product.isLotTracked(), typedOrScanned, expiry,
+                ": give batchNumber or a GS1 code with (10)", ": give expirationDate or a GS1 code with (17)");
+        ExpirationDate expirationDate = expiry == null ? null : new ExpirationDate(expiry);
         if (scanned != null && scanned.gtin() != null && !scanned.gtin().equals(product.getGtin())) {
             throw new DomainException(product.getGtin() == null
                     ? "This product has no GTIN on file, so a GS1 code with (01) cannot be matched to it."
                     : "The GS1 code is for GTIN " + scanned.gtin().value() + ", not this product's GTIN "
                             + product.getGtin().value() + ".");
         }
-        if (expirationDate.isExpiredOn(today)) {
+        if (expirationDate != null && expirationDate.isExpiredOn(today)) {
             throw new DomainException("Expired goods cannot be received (expired on " + expirationDate + ").");
         }
 
         Optional<StockLot> existing = lots.findByProductIdAndBatchNumber(product.getId(), batchNumber);
         if (existing.isPresent()) {
             StockLot lot = existing.get();
-            if (!expirationDate.equals(lot.expirationDate())) {
+            if (!Objects.equals(expirationDate, lot.expirationDate())) {
                 throw new DomainException("Batch " + batchNumber.value() + " is on file with expiration date "
                         + lot.expirationDateValue() + "; one batch has one expiration date.");
             }

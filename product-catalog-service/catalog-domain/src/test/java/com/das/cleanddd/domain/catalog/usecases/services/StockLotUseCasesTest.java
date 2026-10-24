@@ -142,7 +142,7 @@ class StockLotUseCasesTest {
         @Test
         @DisplayName("batch and expiry are required; expired goods are refused")
         void requiredAndNotExpired() {
-            assertThrows(DomainException.class, () -> receive(5, null, EXPIRES, null));
+            assertThrows(DomainException.class, () -> StockLotUseCasesTest.this.receive(5, null, EXPIRES, null));
             assertThrows(DomainException.class, () -> receive(5, "L1", null, null));
             DomainException e = assertThrows(DomainException.class, () -> receive(5, "L1", LocalDate.of(2026, 10, 23), null));
             assertTrue(e.getMessage().startsWith("Expired goods cannot be received"), e.getMessage());
@@ -314,6 +314,98 @@ class StockLotUseCasesTest {
                     new BigDecimal("2.00"), "BOX")).gtin(), "left out: kept");
             assertThrows(DomainException.class, () -> update.execute(new UpdateProductInputDTO(plain.value(), "Plain",
                     null, new BigDecimal("1.00"), "BOX", "96385074")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Promotional material (not lot-tracked)")
+    class PromotionalMaterial {
+
+        private CreateProductUseCase create;
+        private ProductId brochure;
+
+        @BeforeEach
+        void setUp() throws DomainException {
+            create = new CreateProductUseCase(catalog, catalog, mapper, events::add, UnitOfWork.immediate(), TODAY);
+            ProductOutputDTO out = create.execute(new CreateProductInputDTO("Insulin patient brochure", null,
+                    new BigDecimal("0.00"), "UNIT", 100, null, null, null, false));
+            brochure = new ProductId(out.id());
+            assertFalse(out.lotTracked());
+            catalog.save(catalog.findById(brochure).orElseThrow().setActivate());
+            events.clear();
+        }
+
+        private StockLotOutputDTO receive(int quantity, String batch, LocalDate expiry) throws DomainException {
+            return receive.execute(new ReceiveStockLotInputDTO(brochure.value(), quantity, batch, expiry, null));
+        }
+
+        @Test
+        @DisplayName("units without a batch or expiry go into the product's UNBATCHED lot")
+        void unbatched() throws DomainException {
+            StockLotOutputDTO lot = receive(50, null, null);
+
+            assertEquals("UNBATCHED", lot.batchNumber());
+            assertEquals(null, lot.expirationDate());
+            assertEquals(150, lot.quantity(), "initial stock and the receipt share the lot");
+            assertTrue(lot.allocatable());
+            assertEquals(1, list.execute(new ProductIDDto(brochure.value())).size());
+        }
+
+        @Test
+        @DisplayName("an approval code with the date its approval ends is a batch that is delivered first")
+        void approvalCodeWithEndDate() throws DomainException {
+            receive(10, "PP-INS-0042", LocalDate.of(2026, 12, 31));
+
+            ReserveStockOutputDTO reserved = reserve.execute(new StockQuantityInputDTO(brochure.value(), 4));
+
+            assertEquals(6, catalog.lotQuantity(brochure, "PP-INS-0042"), "the dated batch goes first");
+            assertEquals(100, catalog.lotQuantity(brochure, "UNBATCHED"), "undated units last");
+            assertEquals(1, reserved.lots().size());
+        }
+
+        @Test
+        @DisplayName("material past its approval end date is refused")
+        void expiredApprovalRefused() {
+            DomainException e = assertThrows(DomainException.class,
+                    () -> receive(10, "PP-INS-0041", LocalDate.of(2026, 10, 1)));
+            assertTrue(e.getMessage().startsWith("Expired goods cannot be received"), e.getMessage());
+        }
+
+        @Test
+        @DisplayName("an expiration date needs a batch number")
+        void expiryNeedsBatch() {
+            DomainException e = assertThrows(DomainException.class, () -> receive(10, null, EXPIRES));
+            assertTrue(e.getMessage().startsWith("An expiration date needs a batch number"), e.getMessage());
+        }
+
+        @Test
+        @DisplayName("release, quarantine and recipients work on the UNBATCHED lot without a batch number")
+        void lotOperationsWithoutBatch() throws DomainException {
+            reserve.execute(new StockQuantityInputDTO(brochure.value(), 30));
+            release.execute(new LotQuantityInputDTO(brochure.value(), null, 10));
+            assertEquals(80, catalog.lotQuantity(brochure, "UNBATCHED"));
+
+            quarantine.execute(new LotInputDTO(brochure.value(), null, "Superseded by a new version"));
+            assertFalse(availability.execute(new StockQuantityInputDTO(brochure.value(), 1)).available());
+            assertTrue(recipients.execute(new LotInputDTO(brochure.value(), null, null)).isEmpty());
+        }
+
+        @Test
+        @DisplayName("a lot-tracked product still needs a batch, and cannot use UNBATCHED")
+        void medicinesKeepTheirRules() {
+            assertThrows(DomainException.class, () -> StockLotUseCasesTest.this.receive(5, null, EXPIRES, null));
+            DomainException e = assertThrows(DomainException.class, () -> StockLotUseCasesTest.this.receive(5, "UNBATCHED", EXPIRES, null));
+            assertTrue(e.getMessage().contains("is reserved"), e.getMessage());
+            assertThrows(DomainException.class,
+                    () -> release.execute(new LotQuantityInputDTO(insulin.value(), null, 1)));
+        }
+
+        @Test
+        @DisplayName("updating the product keeps it not lot-tracked")
+        void updateKeepsTheFlag() throws DomainException {
+            UpdateProductUseCase update = new UpdateProductUseCase(catalog, mapper, events::add, UnitOfWork.immediate());
+            assertFalse(update.execute(new UpdateProductInputDTO(brochure.value(), "Brochure v2", null,
+                    new BigDecimal("0.00"), "UNIT")).lotTracked());
         }
     }
 }

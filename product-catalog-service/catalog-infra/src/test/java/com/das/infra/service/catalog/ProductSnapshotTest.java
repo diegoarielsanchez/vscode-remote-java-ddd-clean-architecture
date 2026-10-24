@@ -3,6 +3,7 @@ package com.das.infra.service.catalog;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +19,7 @@ class ProductSnapshotTest {
     @Test
     void roundTripsExactlyThroughTheRedisSerializer() {
         ProductSnapshot snapshot = new ProductSnapshot("7c3e2a1b-9d8f-4e6a-b5c4-3d2e1f0a9b87", "Amoxicillin 500mg",
-                null, new BigDecimal("12.50"), "BOX", 10, true, "09506000134352");
+                null, new BigDecimal("12.50"), "BOX", 10, true, "09506000134352", false);
 
         ProductSnapshot back = Objects.requireNonNull(serializer.deserialize(serializer.serialize(snapshot)),
                 "deserialized snapshot");
@@ -30,7 +31,7 @@ class ProductSnapshotTest {
     @Test
     void storesPlainJsonWithoutTypeMetadata() {
         String json = new String(serializer.serialize(
-                new ProductSnapshot("id-1", "Ibuprofen", "Analgesic", new BigDecimal("3.20"), "BOX", 5, false, null)),
+                new ProductSnapshot("id-1", "Ibuprofen", "Analgesic", new BigDecimal("3.20"), "BOX", 5, false, null, true)),
                 StandardCharsets.UTF_8);
 
         assertFalse(json.contains("@class") || json.contains("com.das") || json.contains("java."),
@@ -38,7 +39,7 @@ class ProductSnapshotTest {
     }
 
     @Test
-    void entriesCachedBeforeTheGtinExistedReadBackWithItNull() {
+    void entriesCachedBeforeTheGtinExistedReadBackWithItNullAndLotTracked() {
         String cachedEarlier = "{\"id\":\"id-1\",\"name\":\"Ibuprofen\",\"description\":null,"
                 + "\"price\":3.20,\"unit\":\"BOX\",\"stock\":5,\"active\":true}";
 
@@ -48,5 +49,6 @@ class ProductSnapshotTest {
         assertEquals("Ibuprofen", back.name());
         assertEquals(5, back.stock());
         assertNull(back.gtin());
+        assertTrue(back.isLotTracked());
     }
 }
