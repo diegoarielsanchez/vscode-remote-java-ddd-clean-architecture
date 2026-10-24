@@ -25,6 +25,9 @@ public class ProductEntity {
      */
     @Column(length = 14)
     private String gtin;
+    /** False for products held without batches (promotional material). Set at creation, never changed. */
+    @Column(name = "lot_tracked", nullable = false)
+    private Boolean lotTracked = Boolean.TRUE;
 
     /** Protects the update path (details and GTIN) from concurrent clobbering. */
     @Version
@@ -87,6 +90,14 @@ public class ProductEntity {
 
     public void setGtin(String gtin) {
         this.gtin = gtin;
+    }
+
+    public Boolean getLotTracked() {
+        return lotTracked;
+    }
+
+    public void setLotTracked(Boolean lotTracked) {
+        this.lotTracked = lotTracked;
     }
 
     public Long getVersion() {

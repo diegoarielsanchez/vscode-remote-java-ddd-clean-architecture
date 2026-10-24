@@ -93,7 +93,7 @@ public final class InMemoryCatalog implements IProductRepository, IStockLotRepos
         if (p == null) return Optional.empty();
         try {
             return Optional.of(new Product(p.getId(), p.getName(), p.getDescription(), p.getPrice(), p.getUnit(),
-                    new ProductStock(onHand(id)), p.getActive(), p.getGtin()));
+                    new ProductStock(onHand(id)), p.getActive(), p.getGtin(), p.isLotTracked()));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

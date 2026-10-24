@@ -26,8 +26,8 @@ import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
- * Creates a product, inactive. An {@code initialStock} above zero becomes the product's first lot, so stock is never
- * held without a batch number and expiration date.
+ * Creates a product, inactive. An {@code initialStock} above zero becomes the product's first lot, under the same
+ * rules as receiving stock: a lot-tracked product's stock is never held without a batch number and expiration date.
  */
 public final class CreateProductUseCase implements UseCase<CreateProductInputDTO, ProductOutputDTO> {
 
@@ -77,7 +77,7 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
             ProductId id = ProductId.random();
             StockLot firstLot = null;
             if (initialStock > 0) {
-                firstLot = firstLot(id, inputDTO, initialStock);
+                firstLot = firstLot(id, inputDTO, initialStock, inputDTO.isLotTracked());
             } else if (inputDTO.batchNumber() != null || inputDTO.expirationDate() != null) {
                 throw new DomainException("A batch number and expiration date need an initialStock above zero.");
             }
@@ -87,7 +87,8 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
 
             // New products are created inactive — mirrors the MSR/HCP "create
             // inactive, explicit activate step" convention.
-            Product product = Product.create(id, name, description, price, unit, new ProductStock(initialStock), gtin);
+            Product product = Product.create(id, name, description, price, unit, new ProductStock(initialStock), gtin,
+                    inputDTO.isLotTracked());
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             if (firstLot != null) {
@@ -101,14 +102,17 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
         }
     }
 
-    private StockLot firstLot(ProductId id, CreateProductInputDTO inputDTO, int quantity) throws DomainException {
-        if (inputDTO.batchNumber() == null || inputDTO.expirationDate() == null) {
-            throw new DomainException("Initial stock needs its batchNumber and expirationDate: stock is held in lots.");
-        }
-        ExpirationDate expirationDate = new ExpirationDate(inputDTO.expirationDate());
-        if (expirationDate.isExpiredOn(LocalDate.now(clock))) {
+    private StockLot firstLot(ProductId id, CreateProductInputDTO inputDTO, int quantity, boolean lotTracked)
+            throws DomainException {
+        String hint = " for initialStock: stock is held in lots";
+        BatchNumber batchNumber = ProductUseCaseSupport.receivingBatch(lotTracked,
+                inputDTO.batchNumber() == null ? null : new BatchNumber(inputDTO.batchNumber()),
+                inputDTO.expirationDate(), hint, hint);
+        ExpirationDate expirationDate = inputDTO.expirationDate() == null
+                ? null : new ExpirationDate(inputDTO.expirationDate());
+        if (expirationDate != null && expirationDate.isExpiredOn(LocalDate.now(clock))) {
             throw new DomainException("Expired goods cannot be received (expired on " + expirationDate + ").");
         }
-        return StockLot.receive(id, new BatchNumber(inputDTO.batchNumber()), expirationDate, quantity, clock.instant());
+        return StockLot.receive(id, batchNumber, expirationDate, quantity, clock.instant());
     }
 }

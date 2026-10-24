@@ -13,6 +13,9 @@ import com.das.cleanddd.domain.catalog.entities.ProductId;
  * product has at most one lot per batch number, and that lot has one expiration date. A product's stock on hand
  * is the sum of its lots.
  *
+ * <p>A product that is not lot-tracked (promotional material) may hold units without a batch: they go into its
+ * {@link #UNBATCHED} lot, which has no expiration date.
+ *
  * <p>Quantity only changes through the repository's atomic take/give operations, never by saving a copy.
  */
 public final class StockLot {
@@ -23,6 +26,9 @@ public final class StockLot {
                     Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(StockLot::receivedAt)
             .thenComparing(l -> l.batchNumber.value());
+
+    /** Batch of the units of a non-lot-tracked product received without one. Lot-tracked products cannot use it. */
+    public static final BatchNumber UNBATCHED = new BatchNumber("UNBATCHED");
 
     private final String id;
     private final ProductId productId;
@@ -46,10 +52,12 @@ public final class StockLot {
         this.receivedAt = Objects.requireNonNull(receivedAt, "receivedAt");
     }
 
-    /** A newly received lot. Every received lot has an expiration date; only migrated stock may lack one. */
+    /**
+     * A newly received lot. {@code expirationDate} is {@code null} only for a product that is not lot-tracked; the
+     * receiving use case enforces which product may omit it.
+     */
     public static StockLot receive(ProductId productId, BatchNumber batchNumber, ExpirationDate expirationDate,
                                    int quantity, Instant now) {
-        Objects.requireNonNull(expirationDate, "expirationDate");
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than zero.");
         }

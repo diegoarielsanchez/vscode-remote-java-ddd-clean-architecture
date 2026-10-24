@@ -9,10 +9,17 @@ public record ProductCreatedEvent(
         BigDecimal price,
         String unit,
         Boolean active,
-        String gtin) implements ProductDomainEvent {
+        String gtin,
+        Boolean lotTracked) implements ProductDomainEvent {
 
-    /** Without a GTIN. */
+    /** Without a GTIN, lot-tracked. */
     public ProductCreatedEvent(String id, String name, String description, BigDecimal price, String unit, Boolean active) {
-        this(id, name, description, price, unit, active, null);
+        this(id, name, description, price, unit, active, null, true);
+    }
+
+    /** Lot-tracked. */
+    public ProductCreatedEvent(String id, String name, String description, BigDecimal price, String unit, Boolean active,
+                               String gtin) {
+        this(id, name, description, price, unit, active, gtin, true);
     }
 }
