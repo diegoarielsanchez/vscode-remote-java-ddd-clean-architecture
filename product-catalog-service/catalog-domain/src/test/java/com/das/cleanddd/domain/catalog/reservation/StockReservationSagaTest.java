@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -108,6 +109,22 @@ class StockReservationSagaTest {
         assertTrue(reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
                 List.of(new Line(inactive.value(), 1)))).reason().contains("not available"));
         assertEquals(100, catalog.stock(inactive));
+    }
+
+    @Test
+    @DisplayName("an expired product is rejected and gives back the lines already taken; it is usable on its expiration day")
+    void rejectsExpiredProducts() throws Exception {
+        ProductId expired = catalog.addExpiring("Insulin 100IU", "20.00", 50, LocalDate.of(2026, 10, 7));
+        ProductId lastDay = catalog.addExpiring("Paracetamol 1g", "2.00", 50, LocalDate.of(2026, 10, 8));
+
+        StockReservationOutputDTO out = reserve(new Line(amoxicillin.value(), 4), new Line(expired.value(), 1));
+
+        assertEquals("REJECTED", out.status());
+        assertEquals("Product " + expired.value() + " is expired", out.reason());
+        assertEquals(10, catalog.stock(amoxicillin), "the first line's stock is back");
+        assertEquals(50, catalog.stock(expired));
+        assertEquals("RESERVED", reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
+                List.of(new Line(lastDay.value(), 1)))).status());
     }
 
     @Test

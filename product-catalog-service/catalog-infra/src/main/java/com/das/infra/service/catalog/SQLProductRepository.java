@@ -1,5 +1,7 @@
 package com.das.infra.service.catalog;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -17,6 +19,7 @@ import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
 import com.das.cleanddd.domain.catalog.entities.ProductPrice;
 import com.das.cleanddd.domain.catalog.entities.ProductStock;
+import com.das.cleanddd.domain.catalog.entities.ProductTraceability;
 import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
@@ -127,8 +130,10 @@ public class SQLProductRepository implements IProductRepository {
                     new ProductPrice(snapshot.price()),
                     new ProductUnit(snapshot.unit()),
                     new ProductStock(snapshot.stock()),
-                    new ProductActive(snapshot.active()));
-        } catch (BusinessValidationException e) {
+                    new ProductActive(snapshot.active()),
+                    ProductTraceability.of(snapshot.batchNumber(), snapshot.serialNumber(),
+                            snapshot.expirationDate() == null ? null : LocalDate.parse(snapshot.expirationDate())));
+        } catch (BusinessValidationException | IllegalArgumentException | DateTimeParseException e) {
             // A persisted row has already passed these invariants once; a violation here
             // means the stored data itself is corrupt, which is an infrastructure failure,
             // not a domain error the caller can recover from.
@@ -145,6 +150,9 @@ public class SQLProductRepository implements IProductRepository {
         entity.setUnit(domain.getUnit().value());
         entity.setStock(domain.getStock().value());
         entity.setActive(domain.getActive().value());
+        entity.setBatchNumber(domain.getTraceability().batchNumberValue());
+        entity.setSerialNumber(domain.getTraceability().serialNumberValue());
+        entity.setExpirationDate(domain.getTraceability().expirationDateValue());
         return entity;
     }
 }

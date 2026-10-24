@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.catalog.usecases.services;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,10 +31,18 @@ public class ReserveProductStockUseCase implements UseCase<StockQuantityInputDTO
     private final IProductEventPublisher publisher;
     private final UnitOfWork unitOfWork;
 
+    private final Clock clock;
+
     public ReserveProductStockUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
+        this(repository, publisher, unitOfWork, Clock.systemUTC());
+    }
+
+    public ReserveProductStockUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork,
+                                      Clock clock) {
         this.repository = repository;
         this.publisher = publisher;
         this.unitOfWork = unitOfWork;
+        this.clock = clock;
     }
 
     /**
@@ -55,6 +65,9 @@ public class ReserveProductStockUseCase implements UseCase<StockQuantityInputDTO
         Optional<Product> existing = repository.findById(id);
         if (!existing.isPresent()) {
             throw new DomainException("Product not found.");
+        }
+        if (existing.get().isExpiredOn(LocalDate.now(clock))) {
+            throw new DomainException("Product " + id.value() + " is expired.");
         }
 
         boolean reserved = repository.tryReserveStock(id, inputDTO.quantity());

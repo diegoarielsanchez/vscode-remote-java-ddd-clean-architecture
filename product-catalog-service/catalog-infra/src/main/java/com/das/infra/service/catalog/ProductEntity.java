@@ -1,6 +1,7 @@
 package com.das.infra.service.catalog;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,8 +28,14 @@ public class ProductEntity {
     @Column(updatable = false)
     private Integer stock;
     private Boolean active;
+    /** Optional traceability (GS1 AI 10 / 21 / 17). */
+    @Column(length = 20)
+    private String batchNumber;
+    @Column(length = 20)
+    private String serialNumber;
+    private LocalDate expirationDate;
 
-    /** Protects the non-stock update path (name/description/price/unit) from concurrent clobbering. */
+    /** Protects the non-stock update path (details and traceability) from concurrent clobbering. */
     @Version
     private Long version;
 
@@ -89,6 +96,30 @@ public class ProductEntity {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public String getBatchNumber() {
+        return batchNumber;
+    }
+
+    public void setBatchNumber(String batchNumber) {
+        this.batchNumber = batchNumber;
+    }
+
+    public String getSerialNumber() {
+        return serialNumber;
+    }
+
+    public void setSerialNumber(String serialNumber) {
+        this.serialNumber = serialNumber;
+    }
+
+    public LocalDate getExpirationDate() {
+        return expirationDate;
+    }
+
+    public void setExpirationDate(LocalDate expirationDate) {
+        this.expirationDate = expirationDate;
     }
 
     public Long getVersion() {

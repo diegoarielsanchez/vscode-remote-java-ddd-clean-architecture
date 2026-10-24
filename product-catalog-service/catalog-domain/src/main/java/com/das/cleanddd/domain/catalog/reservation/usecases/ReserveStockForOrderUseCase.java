@@ -1,6 +1,7 @@
 package com.das.cleanddd.domain.catalog.reservation.usecases;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +23,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  * Saga step: reserve every line of a new order, all or nothing, in one {@link UnitOfWork}.
  *
  * <p>Each line is taken with the repository's atomic conditional decrement. If a line cannot be
- * served (unknown or inactive product, not enough stock), the lines already taken are given back in
+ * served (unknown, inactive or expired product, not enough stock), the lines already taken are given back in
  * the same transaction and a REJECTED reservation is stored — a business outcome, not an error, so
  * order-service hears about it. Either way the answer ({@code catalog.reservation.confirmed} or
  * {@code .rejected}) commits with the stock change through the outbox.
@@ -105,6 +106,9 @@ public final class ReserveStockForOrderUseCase implements UseCase<ReserveStockFo
         }
         if (!Boolean.TRUE.equals(product.get().isActive())) {
             return "Product " + line.productId() + " is not available";
+        }
+        if (product.get().isExpiredOn(LocalDate.now(clock))) {
+            return "Product " + line.productId() + " is expired";
         }
         if (!products.tryReserveStock(id, line.quantity())) {
             return "Insufficient stock for product " + line.productId();

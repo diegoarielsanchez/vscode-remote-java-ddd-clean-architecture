@@ -1323,16 +1323,48 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`). New products are **inactive** — `ROLE_ADMIN` only |
-| `PUT` | `/api/v1/products/update` | Update name, description, price or unit (never stock) — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`, and optionally `batchNumber`, `serialNumber`, `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
+| `PUT` | `/api/v1/products/update` | Update name, description, price, unit and the traceability fields (never stock) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis) |
 | `POST` | `/api/v1/products/list` | List products by name |
-| `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active and at least `n` in stock? (internal, unauthenticated) |
+| `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active, not expired and at least `n` in stock? (internal, unauthenticated) |
 | `POST` | `/api/v1/products/{id}/restock` | Add stock — `ROLE_AGENT` only (AI Agent Service) |
 | `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually — `ROLE_AGENT` only (orders reserve through the saga) |
 | `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually — `ROLE_AGENT` only |
+
+#### Batch number, serial number and expiration date
+
+Each product can carry the identifiers printed on the medicine pack, so what reaches Medical Sales Reps and
+Healthcare Professionals can be traced and recalled. All three are optional.
+
+| Field | Format | Pack code |
+|---|---|---|
+| `batchNumber` | 1–20 characters: letters, digits, `-`, `.`, `/` (no spaces) | GS1 AI 10 (batch/lot) |
+| `serialNumber` | same as `batchNumber` | GS1 AI 21 (serial) |
+| `expirationDate` | ISO date `yyyy-MM-dd` | GS1 AI 17 (expiry) |
+
+```bash
+curl -X POST http://localhost:8091/api/v1/products/create \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":50,
+       "batchNumber":"L2026-07A","serialNumber":"SN-000123","expirationDate":"2027-03-31"}'
+```
+
+Rules, chosen for GAMP 5 data integrity (ALCOA+) and Good Distribution Practice:
+
+- **Kept exactly as entered, or refused.** Values are never trimmed, re-cased or shortened. A malformed code or an
+  impossible date (`2027-02-30`) is answered with `400` and nothing is stored.
+- **Expired products are not delivered.** A product is usable through its expiration day and expired from the next
+  day (UTC). From then on the order saga rejects any order that includes it (reason `Product <id> is expired`), a manual
+  reserve-stock is refused, and `availability` answers `false`. A product without an expiration date never expires.
+- **Updates never erase them by accident.** On `PUT /update`, leaving a field out (or `null`) keeps the stored value,
+  so an older client cannot wipe it. `""` removes a batch or serial number. An expiration date can be corrected but
+  not removed.
+- **Every change is attributable.** `catalog.product.created` and `catalog.product.updated` events carry the three
+  values as they stand after the change, together with the authenticated `actor`, `correlationId` and `occurredAt`
+  of the envelope. The fields are additive, so the event schema version stays `1`.
 
 ---
 
@@ -1938,6 +1970,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
+     and `product-traceability-postgresql.sql` next to it (adds `batch_number`, `serial_number`, `expiration_date` to `products`; existing products keep them empty)
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**

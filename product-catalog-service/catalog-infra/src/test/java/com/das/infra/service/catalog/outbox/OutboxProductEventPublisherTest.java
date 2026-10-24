@@ -2,6 +2,7 @@ package com.das.infra.service.catalog.outbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -71,6 +72,24 @@ class OutboxProductEventPublisherTest {
 
         JsonNode deactivated = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
         assertEquals(false, deactivated.at("/data/active").asBoolean(true));
+    }
+
+    @Test
+    void createdAndUpdatedEventsCarryTheTraceabilityFields() throws Exception {
+        publisher.publish(new ProductCreatedEvent(PRODUCT, "Insulin 100IU", null, new BigDecimal("20.00"), "VIAL", false,
+                "L2026-07A", "SN-000123", java.time.LocalDate.of(2027, 3, 31)));
+        publisher.publish(new ProductStockReservedEvent(PRODUCT, 1, 49));
+
+        List<OutboxEventEntity> rows = outbox.findAll().stream()
+                .sorted(Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
+        JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
+        assertEquals("L2026-07A", created.at("/data/batchNumber").asText());
+        assertEquals("SN-000123", created.at("/data/serialNumber").asText());
+        assertEquals("2027-03-31", created.at("/data/expirationDate").asText(), "ISO date, not a timestamp");
+        assertEquals(1, created.at("/schemaVersion").asInt(), "additive optional fields keep schema version 1");
+
+        JsonNode reserved = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
+        assertTrue(reserved.at("/data/expirationDate").isNull(), "stock events do not carry it");
     }
 
     @Test

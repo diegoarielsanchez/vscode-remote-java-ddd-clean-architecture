@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.catalog.entities;
 
+import java.time.LocalDate;
+
 import com.das.cleanddd.domain.catalog.events.ProductActivatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductCreatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDeactivatedEvent;
@@ -21,11 +23,19 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     private final ProductUnit _unit;
     private final ProductStock _stock;
     private final ProductActive _active;
+    private final ProductTraceability _traceability;
     private final transient ValidationUtils _validationUtils;
 
     /** Description is optional: a product may have none on file yet. */
     public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                     ProductUnit unit, ProductStock stock, ProductActive active) throws BusinessValidationException {
+        this(id, name, description, price, unit, stock, active, ProductTraceability.NONE);
+    }
+
+    /** Batch number, serial number and expiration date are optional, each on its own. */
+    public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
+                    ProductUnit unit, ProductStock stock, ProductActive active,
+                    ProductTraceability traceability) throws BusinessValidationException {
         this._id = id == null ? ProductId.random() : id;
         this._name = name;
         this._description = description;
@@ -33,6 +43,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         this._unit = unit;
         this._stock = stock == null ? new ProductStock(0) : stock;
         this._active = active == null ? new ProductActive(false) : active;
+        this._traceability = traceability == null ? ProductTraceability.NONE : traceability;
         this._validationUtils = (new UtilsFactory()).getValidationUtils();
     }
 
@@ -64,20 +75,39 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         return this._active;
     }
 
+    public ProductTraceability getTraceability() {
+        return this._traceability;
+    }
+
     public Boolean isActive() {
         return this._active != null && Boolean.TRUE.equals(this._active.value()) ? Boolean.TRUE : Boolean.FALSE;
     }
 
+    /** True when the product has an expiration date and {@code today} is past it. No date means never expired. */
+    public boolean isExpiredOn(LocalDate today) {
+        return this._traceability.expirationDate() != null && this._traceability.expirationDate().isExpiredOn(today);
+    }
+
     public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                                   ProductUnit unit, ProductStock stock) throws BusinessValidationException {
-        Product product = new Product(id, name, description, price, unit, stock, new ProductActive(false));
+        return create(id, name, description, price, unit, stock, ProductTraceability.NONE);
+    }
+
+    public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
+                                  ProductUnit unit, ProductStock stock,
+                                  ProductTraceability traceability) throws BusinessValidationException {
+        Product product = new Product(id, name, description, price, unit, stock, new ProductActive(false), traceability);
+        ProductTraceability t = product.getTraceability();
         product.record(new ProductCreatedEvent(
                 product.getId().value(),
                 product.getName().value(),
                 product.getDescription() == null ? null : product.getDescription().value(),
                 product.getPrice().value(),
                 product.getUnit().value(),
-                product.getActive().value()));
+                product.getActive().value(),
+                t.batchNumberValue(),
+                t.serialNumberValue(),
+                t.expirationDateValue()));
         return product;
     }
 
@@ -92,7 +122,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         }
         if (this._validationUtils.isNull(this._stock)) throw new RequiredFieldException("stock");
         if (this._validationUtils.isNull(this._active)) throw new RequiredFieldException("active");
-        // Description is optional — no requiredness check.
+        // Description, batch number, serial number and expiration date are optional — no requiredness check.
     }
 
     public Product setActivate() throws BusinessValidationException {
@@ -100,7 +130,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product activated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(true));
+                this._stock, new ProductActive(true), this._traceability);
         activated.record(new ProductActivatedEvent(activated.getId().value(), activated.getActive().value()));
         return activated;
     }
@@ -110,22 +140,32 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product deactivated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(false));
+                this._stock, new ProductActive(false), this._traceability);
         deactivated.record(new ProductDeactivatedEvent(deactivated.getId().value(), deactivated.getActive().value()));
         return deactivated;
     }
 
-    /** Never touches stock — stock is only ever mutated via the atomic reserve/release/restock repository operations. */
+    /** Keeps the batch number, serial number and expiration date as they are. */
     public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
                                        ProductUnit unit) throws BusinessValidationException {
-        Product updated = new Product(this._id, name, description, price, unit, this._stock, this._active);
+        return withUpdatedDetails(name, description, price, unit, this._traceability);
+    }
+
+    /** Never touches stock — stock is only ever mutated via the atomic reserve/release/restock repository operations. */
+    public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
+                                       ProductUnit unit, ProductTraceability traceability) throws BusinessValidationException {
+        Product updated = new Product(this._id, name, description, price, unit, this._stock, this._active, traceability);
+        ProductTraceability t = updated.getTraceability();
         updated.record(new ProductUpdatedEvent(
                 updated.getId().value(),
                 updated.getName().value(),
                 updated.getDescription() == null ? null : updated.getDescription().value(),
                 updated.getPrice().value(),
                 updated.getUnit().value(),
-                updated.getActive().value()));
+                updated.getActive().value(),
+                t.batchNumberValue(),
+                t.serialNumberValue(),
+                t.expirationDateValue()));
         return updated;
     }
 

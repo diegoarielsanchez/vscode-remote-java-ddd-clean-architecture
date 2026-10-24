@@ -9,6 +9,7 @@ import com.das.cleanddd.domain.catalog.entities.ProductDescription;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
 import com.das.cleanddd.domain.catalog.entities.ProductPrice;
 import com.das.cleanddd.domain.catalog.entities.ProductStock;
+import com.das.cleanddd.domain.catalog.entities.ProductTraceability;
 import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
@@ -51,7 +52,8 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
         Product product;
         try {
             // Presence/format rules are enforced by their respective Value Objects
-            // (ProductName, ProductPrice, ProductUnit, ProductStock); duplicating
+            // (ProductName, ProductPrice, ProductUnit, ProductStock and the
+            // traceability codes); duplicating
             // those checks here would just create a second, divergent source of
             // truth for the same invariant.
             ProductName name = new ProductName(inputDTO.name());
@@ -60,10 +62,12 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
             ProductPrice price = new ProductPrice(inputDTO.price());
             ProductUnit unit = new ProductUnit(inputDTO.unit());
             ProductStock stock = new ProductStock(inputDTO.initialStock() == null ? 0 : inputDTO.initialStock());
+            ProductTraceability traceability = ProductTraceability.of(
+                    inputDTO.batchNumber(), inputDTO.serialNumber(), inputDTO.expirationDate());
 
             // New products are created inactive — mirrors the MSR/HCP "create
             // inactive, explicit activate step" convention.
-            product = Product.create(null, name, description, price, unit, stock);
+            product = Product.create(null, name, description, price, unit, stock, traceability);
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             return mapper.outputFromEntity(product);
