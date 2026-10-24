@@ -1,5 +1,7 @@
 package com.das.cleanddd.domain.catalog.usecases.services;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,14 +14,24 @@ import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
-/** Read-only check — never reserves stock, just reports whether {@code quantity} is currently available. */
+/**
+ * Read-only check — never reserves stock, just reports whether {@code quantity} is currently available.
+ * An expired product is never available.
+ */
 public class CheckProductAvailabilityUseCase implements UseCase<StockQuantityInputDTO, AvailabilityOutputDTO> {
 
     @Autowired
     private final IProductRepository repository;
 
+    private final Clock clock;
+
     public CheckProductAvailabilityUseCase(IProductRepository repository) {
+        this(repository, Clock.systemUTC());
+    }
+
+    public CheckProductAvailabilityUseCase(IProductRepository repository, Clock clock) {
         this.repository = repository;
+        this.clock = clock;
     }
 
     @Override
@@ -33,7 +45,8 @@ public class CheckProductAvailabilityUseCase implements UseCase<StockQuantityInp
             throw new DomainException("Product not found.");
         }
         Product p = product.get();
-        boolean available = Boolean.TRUE.equals(p.isActive()) && p.getStock().value() >= inputDTO.quantity();
+        boolean available = Boolean.TRUE.equals(p.isActive()) && !p.isExpiredOn(LocalDate.now(clock))
+                && p.getStock().value() >= inputDTO.quantity();
         return new AvailabilityOutputDTO(available);
     }
 }

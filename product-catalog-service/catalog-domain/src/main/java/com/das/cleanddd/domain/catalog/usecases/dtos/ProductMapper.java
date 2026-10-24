@@ -17,7 +17,10 @@ public class ProductMapper {
             product.getPrice().value(),
             product.getUnit().value(),
             product.getStock().value(),
-            product.getActive().value()
+            product.getActive().value(),
+            product.getTraceability().batchNumberValue(),
+            product.getTraceability().serialNumberValue(),
+            product.getTraceability().expirationDateValue()
         );
     }
 

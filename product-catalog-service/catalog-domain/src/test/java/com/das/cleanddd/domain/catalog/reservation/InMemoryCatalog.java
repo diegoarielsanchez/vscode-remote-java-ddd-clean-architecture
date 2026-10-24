@@ -1,6 +1,7 @@
 package com.das.cleanddd.domain.catalog.reservation;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
 import com.das.cleanddd.domain.catalog.entities.ProductPrice;
 import com.das.cleanddd.domain.catalog.entities.ProductStock;
+import com.das.cleanddd.domain.catalog.entities.ProductTraceability;
 import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.reservation.entities.StockReservation;
@@ -27,10 +29,19 @@ final class InMemoryCatalog implements IProductRepository, IStockReservationRepo
     final Map<String, StockReservation> reservations = new HashMap<>();
 
     ProductId add(String name, String price, int stock, boolean active) throws Exception {
+        return add(name, price, stock, active, null);
+    }
+
+    /** An active product whose pack expires on {@code expirationDate}. */
+    ProductId addExpiring(String name, String price, int stock, LocalDate expirationDate) throws Exception {
+        return add(name, price, stock, true, expirationDate);
+    }
+
+    private ProductId add(String name, String price, int stock, boolean active, LocalDate expirationDate) throws Exception {
         ProductId id = ProductId.random();
         products.put(id.value(), new Product(id, new ProductName(name), new ProductDescription("Test product"),
                 new ProductPrice(new BigDecimal(price)), new ProductUnit("BOX"), new ProductStock(stock),
-                new ProductActive(active)));
+                new ProductActive(active), ProductTraceability.of("L2026-07A", null, expirationDate)));
         return id;
     }
 
@@ -42,7 +53,7 @@ final class InMemoryCatalog implements IProductRepository, IStockReservationRepo
         Product p = products.get(id.value());
         try {
             products.put(id.value(), new Product(p.getId(), p.getName(), p.getDescription(), p.getPrice(), p.getUnit(),
-                    new ProductStock(stock), p.getActive()));
+                    new ProductStock(stock), p.getActive(), p.getTraceability()));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

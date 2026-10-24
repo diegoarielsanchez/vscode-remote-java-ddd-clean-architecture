@@ -1,6 +1,7 @@
 package com.das.cleanddd.domain.catalog.events;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record ProductUpdatedEvent(
         String id,
@@ -8,5 +9,13 @@ public record ProductUpdatedEvent(
         String description,
         BigDecimal price,
         String unit,
-        Boolean active) implements ProductDomainEvent {
+        Boolean active,
+        String batchNumber,
+        String serialNumber,
+        LocalDate expirationDate) implements ProductDomainEvent {
+
+    /** Without batch number, serial number or expiration date. */
+    public ProductUpdatedEvent(String id, String name, String description, BigDecimal price, String unit, Boolean active) {
+        this(id, name, description, price, unit, active, null, null, null);
+    }
 }

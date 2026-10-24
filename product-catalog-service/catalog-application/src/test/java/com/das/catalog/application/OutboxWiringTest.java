@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Date;
@@ -116,4 +117,38 @@ class OutboxWiringTest {
         assertEquals(rows.findAll().get(0).getId(), envelope.get("aggregateId").asText());
     }
 
+    @Test
+    void createTakesTheTraceabilityFieldsAndRecordsThemWithTheActor() throws Exception {
+        String body = """
+                {"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":50,
+                 "batchNumber":"L2026-07A","serialNumber":"SN-000123","expirationDate":"2027-03-31"}
+                """;
+
+        mockMvc.perform(post("/api/v1/products/create")
+                        .header("Authorization", "Bearer " + jwtFor("qa.admin"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.batchNumber").value("L2026-07A"))
+                .andExpect(jsonPath("$.serialNumber").value("SN-000123"))
+                .andExpect(jsonPath("$.expirationDate").value("2027-03-31"));
+
+        JsonNode envelope = objectMapper.readTree(outbox.findAll().get(0).getPayload());
+        assertEquals("qa.admin", envelope.get("actor").asText());
+        assertEquals("L2026-07A", envelope.at("/data/batchNumber").asText());
+        assertEquals("2027-03-31", envelope.at("/data/expirationDate").asText());
+    }
+
+    @Test
+    void createRefusesAMalformedBatchNumberOrAnImpossibleDate() throws Exception {
+        for (String extra : List.of("\"batchNumber\":\"LOT 7\"", "\"expirationDate\":\"2027-02-30\"")) {
+            mockMvc.perform(post("/api/v1/products/create")
+                            .header("Authorization", "Bearer " + jwtFor("qa.admin"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Insulin\",\"price\":20.00,\"unit\":\"VIAL\"," + extra + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        assertEquals(0, rows.count(), "nothing stored");
+        assertEquals(0, outbox.count(), "no event recorded");
+    }
 }
