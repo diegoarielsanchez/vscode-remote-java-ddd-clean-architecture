@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.das.cleanddd.domain.catalog.reservation.usecases.StockReservationUseCaseFactory;
 import com.das.infra.service.catalog.ProductEntity;
 import com.das.infra.service.catalog.ProductJpaRepository;
+import com.das.infra.service.catalog.lot.StockLotJpaRepository;
+import com.das.infra.service.catalog.lot.TestStockLots;
 import com.das.infra.service.catalog.ProductSnapshotLookup;
 import com.das.infra.service.catalog.SQLProductRepository;
 import com.das.infra.service.catalog.SpringUnitOfWork;
@@ -39,7 +41,7 @@ import com.das.infra.service.catalog.reservation.StockReservationJpaRepository;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({SQLProductRepository.class, ProductSnapshotLookup.class, SQLStockReservationRepository.class,
         SpringUnitOfWork.class, OutboxProductEventPublisher.class, OutboxStockReservationEventPublisher.class,
-        StockReservationUseCaseFactory.class, OrderEventHandler.class})
+        StockReservationUseCaseFactory.class, OrderEventHandler.class, TestStockLots.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
@@ -48,6 +50,7 @@ class OrderEventHandlerTest {
 
     @Autowired private OrderEventHandler handler;
     @Autowired private ProductJpaRepository productRows;
+    @Autowired private StockLotJpaRepository lotRows;
     @Autowired private StockReservationJpaRepository reservations;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
@@ -61,6 +64,7 @@ class OrderEventHandlerTest {
         outbox.deleteAll();
         versions.deleteAll();
         reservations.deleteAll();
+        lotRows.deleteAll();
         productRows.deleteAll();
     }
 
@@ -71,13 +75,14 @@ class OrderEventHandlerTest {
         entity.setDescription("Test product");
         entity.setPrice(new BigDecimal("12.50"));
         entity.setUnit("box");
-        entity.setStock(stock);
         entity.setActive(true);
-        return productRows.save(entity).getId();
+        String id = productRows.save(entity).getId();
+        if (stock > 0) TestStockLots.addLot(lotRows, id, stock);
+        return id;
     }
 
     private int stock(String productId) {
-        return productRows.findById(productId).orElseThrow().getStock();
+        return lotRows.onHand(productId);
     }
 
     private List<String> outboxTypes() {

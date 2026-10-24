@@ -931,6 +931,15 @@ docker run -d --name product-catalog-service --network ddd-clean-net -p 8091:809
   product-catalog-service:local
 ```
 
+> Stock is held in lots (see [Stock lots and GS1](#stock-lots-and-gs1)). If `productcatalog_db` already has products
+> with stock from an earlier version, move that stock into lots once:
+> ```bash
+> docker exec -i postgres-ddd-clean psql -U root -d productcatalog_db \
+>   < product-catalog-service/catalog-infra/src/main/resources/db/stock-lots-postgresql.sql
+> ```
+> Run it once, before receiving stock with this version.
+> Add `-e CATALOG_MIN_REMAINING_SHELF_LIFE_DAYS=<days>` to keep lots that are about to expire from being delivered.
+
 ---
 
 ### 9. Order Service
@@ -1323,48 +1332,97 @@ Authorization: Bearer <token>
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, `initialStock`, and optionally `batchNumber`, `serialNumber`, `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
-| `PUT` | `/api/v1/products/update` | Update name, description, price, unit and the traceability fields (never stock) — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
+| `PUT` | `/api/v1/products/update` | Update name, description, price, unit, and set the GTIN once (never stock) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/deactivate` | Deactivate a product — `ROLE_ADMIN` only |
-| `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis) |
+| `GET` | `/api/v1/products/{id}` | Get a product by ID (cached in Redis); `stock` is the units on hand across its lots |
 | `POST` | `/api/v1/products/list` | List products by name |
-| `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active, not expired and at least `n` in stock? (internal, unauthenticated) |
-| `POST` | `/api/v1/products/{id}/restock` | Add stock — `ROLE_AGENT` only (AI Agent Service) |
-| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually — `ROLE_AGENT` only (orders reserve through the saga) |
-| `POST` | `/api/v1/products/{id}/release-stock` | Release stock manually — `ROLE_AGENT` only |
+| `GET` | `/api/v1/products/{id}/availability?quantity=<n>` | Active, and its deliverable lots hold at least `n`? (internal, unauthenticated) |
+| `POST` | `/api/v1/products/{id}/restock` | Goods receipt of one batch: `quantity` with `batchNumber` + `expirationDate`, or the pack's GS1 code in `gs1` — `ROLE_AGENT` only (AI Agent Service) |
+| `GET` | `/api/v1/products/{id}/lots` | The product's lots, first expiry first out, with `expired` / `allocatable` as of today |
+| `POST` | `/api/v1/products/{id}/lots/quarantine` | Block a lot (`batchNumber`, `reason`): its units are no longer delivered — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/{id}/lots/lift-quarantine` | Release a lot from quarantine (`batchNumber`, `reason`) — `ROLE_ADMIN` only |
+| `GET` | `/api/v1/products/{id}/lots/recipients?batchNumber=<b>` | Recall: the orders that received units of the lot — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually, first expiry first out; the answer lists the lots — `ROLE_AGENT` only (orders reserve through the saga) |
+| `POST` | `/api/v1/products/{id}/release-stock` | Give manually reserved units back to a batch (`quantity`, `batchNumber`) — `ROLE_AGENT` only |
 
-#### Batch number, serial number and expiration date
+#### Stock lots and GS1
 
-Each product can carry the identifiers printed on the medicine pack, so what reaches Medical Sales Reps and
-Healthcare Professionals can be traced and recalled. All three are optional.
+A product is one trade item, identified by its **GTIN**. Its stock is held in **lots**: units of one manufacturing
+batch, each with its own expiration date, quantity and status. A product's stock on hand is the sum of its lots.
+This follows GS1 (the identifiers printed on medicine packs) and Good Distribution Practice, so what reaches Medical
+Sales Reps and Healthcare Professionals can be traced and recalled.
 
-| Field | Format | Pack code |
-|---|---|---|
-| `batchNumber` | 1–20 characters: letters, digits, `-`, `.`, `/` (no spaces) | GS1 AI 10 (batch/lot) |
-| `serialNumber` | same as `batchNumber` | GS1 AI 21 (serial) |
-| `expirationDate` | ISO date `yyyy-MM-dd` | GS1 AI 17 (expiry) |
+| Identifier | Where | Rule | GS1 |
+|---|---|---|---|
+| `gtin` | product | 8, 12, 13 or 14 digits with a valid mod-10 check digit; stored as 14 digits (GTIN-13 `9506000134352` is stored as `09506000134352`); one product per GTIN | AI 01 |
+| `batchNumber` | lot | 1–20 characters of GS1 character set 82 (letters, digits, `!"%&'()*+,-./:;<=>?_`; no spaces); unique per product | AI 10 |
+| `expirationDate` | lot | ISO `yyyy-MM-dd`; one per batch | AI 17 |
 
 ```bash
+# Create a product with its GTIN and a first lot (admin)
 curl -X POST http://localhost:8091/api/v1/products/create \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":50,
-       "batchNumber":"L2026-07A","serialNumber":"SN-000123","expirationDate":"2027-03-31"}'
+  -d '{"name":"Insulin 100IU","price":20.00,"unit":"VIAL","gtin":"9506000134352",
+       "initialStock":50,"batchNumber":"L2026-07A","expirationDate":"2027-03-31"}'
+
+# Receive another batch by scanning the pack (AI Agent Service)
+curl -X POST http://localhost:8091/api/v1/products/<id>/restock \
+  -H "Authorization: Bearer $AGENT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"quantity":100,"gs1":"(01)09506000134352(17)270630(10)L2026-09B(21)SN000124"}'
+
+# Recall: quarantine the batch, then list who received it (admin)
+curl -X POST http://localhost:8091/api/v1/products/<id>/lots/quarantine \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"batchNumber":"L2026-07A","reason":"Recall R-2026-17"}'
+curl "http://localhost:8091/api/v1/products/<id>/lots/recipients?batchNumber=L2026-07A" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-Rules, chosen for GAMP 5 data integrity (ALCOA+) and Good Distribution Practice:
+**GS1 codes.** `restock` reads the GS1 element string of the pack's DataMatrix:
 
-- **Kept exactly as entered, or refused.** Values are never trimmed, re-cased or shortened. A malformed code or an
-  impossible date (`2027-02-30`) is answered with `400` and nothing is stored.
-- **Expired products are not delivered.** A product is usable through its expiration day and expired from the next
-  day (UTC). From then on the order saga rejects any order that includes it (reason `Product <id> is expired`), a manual
-  reserve-stock is refused, and `availability` answers `false`. A product without an expiration date never expires.
-- **Updates never erase them by accident.** On `PUT /update`, leaving a field out (or `null`) keeps the stored value,
-  so an older client cannot wipe it. `""` removes a batch or serial number. An expiration date can be corrected but
-  not removed.
-- **Every change is attributable.** `catalog.product.created` and `catalog.product.updated` events carry the three
-  values as they stand after the change, together with the authenticated `actor`, `correlationId` and `occurredAt`
-  of the envelope. The fields are additive, so the event schema version stays `1`.
+- Both forms are accepted: the human-readable one with each AI in parentheses, as above, and raw scanner output.
+  Raw output has a leading symbology identifier such as `]d2`, and each variable-length field ends with the GS
+  separator (ASCII 29). In the human-readable form a batch number cannot contain `(` or `)`; use the raw form.
+- Supported AIs: 01 GTIN, 10 batch, 17 expiration date, 11 production date and 21 serial. Anything else, a repeated AI
+  or malformed data is refused with `400` rather than guessed.
+- Dates are YYMMDD, and day `00` means the last day of the month. The century follows the GS1 rule: the one placing
+  the year between 49 years before and 50 years after the current year.
+- When `batchNumber` / `expirationDate` are also typed they must agree with the code. The code's GTIN must be the
+  product's GTIN, so the wrong item cannot be booked in.
+- A serial number (AI 21) is read but not stored: stock is tracked per lot, not per pack.
+
+**Business rules.**
+
+- **No stock without a lot.** Stock only enters through a goods receipt (or `initialStock` on create), which needs a
+  batch number and an expiration date. Receiving a batch already on file adds to that lot, and only with the same
+  expiration date. Expired goods are refused.
+- **First expiry, first out (FEFO).** Orders take units from the lot that expires first, then the next. One order
+  line may span several lots, and the lots used are stored with the reservation. Releasing an order (rejected or
+  cancelled) gives the units back to those same lots.
+- **What is never delivered:**
+  - quarantined lots;
+  - expired lots (a lot is usable through its expiration day, UTC);
+  - lots expiring within `catalog.stock.min-remaining-shelf-life-days` (env `CATALOG_MIN_REMAINING_SHELF_LIFE_DAYS`;
+    default `0`). This is the GDP minimum remaining shelf life at dispatch.
+
+  Their units stay on hand (`stock`) but don't count for `availability`. An order that can't be covered by deliverable
+  lots is rejected with `Insufficient stock for product <id>`.
+- **Quarantine and recall.** Quarantining a lot blocks it at once; units already allocated to orders are not taken
+  back. `lots/recipients` lists every order that received units of the lot, with its reservation status, and
+  order-service resolves each order to its MSR. Both quarantine changes need a reason.
+- **GTIN.** A GTIN stays with its trade item (GS1 GTIN Management Standard). It can be set once, on create or on a
+  later update, and then neither changed nor removed. A different item gets a new product.
+- **Kept exactly as entered, or refused** (GAMP 5 data integrity, ALCOA+). Codes are never trimmed, re-cased or
+  shortened.
+- **Every change is attributable.** These events carry the authenticated `actor`, `correlationId` and `occurredAt` in
+  their envelope:
+  - `catalog.product.created` / `.updated` (with `gtin`);
+  - `.restocked` (with `batchNumber`, `expirationDate`, `stockDelta`);
+  - `.lot-quarantined` / `.lot-quarantine-lifted` (with `batchNumber`, `reason`).
+
+  The fields are additive, so the event schema version stays `1`.
 
 ---
 
@@ -1607,7 +1665,7 @@ A change is never saved without its event, and no event goes out for a change th
 |---|---|---|---|
 | **HCP** | `UnitOfWork` in Create, Update, Activate, Deactivate, plus the outbox | none | event version numbers taken under a row lock (`AggregateVersion`, `PESSIMISTIC_WRITE`) |
 | **MSR** | same as HCP | none | same as HCP |
-| **Product Catalog** | `UnitOfWork` in the product use cases, Restock/Reserve/Release and the order-stock steps (reserve, release, fulfil), plus the outbox | [OrderEventHandler](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/events/OrderEventHandler.java) `@Transactional` | stock changes are one conditional update, `stock = stock - :qty WHERE stock >= :qty` ([ProductJpaRepository](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/ProductJpaRepository.java)), so stock cannot go below zero; `@Version` on products and reservations |
+| **Product Catalog** | `UnitOfWork` in the product use cases, Restock/Reserve/Release and the order-stock steps (reserve, release, fulfil), plus the outbox | [OrderEventHandler](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/events/OrderEventHandler.java) `@Transactional` | stock changes are one conditional update per lot, `quantity = quantity - :qty WHERE status = 'AVAILABLE' AND quantity >= :qty` ([ProductJpaRepository](product-catalog-service/catalog-infra/src/main/java/com/das/infra/service/catalog/ProductJpaRepository.java)), so stock cannot go below zero; `@Version` on products and reservations |
 | **Order** | `UnitOfWork` in Create, Approve, Reject, ConfirmDelivery, ConfirmStock, RejectForStock, plus the outbox | [CatalogEventHandler](order-service/order-infra/src/main/java/com/das/infra/service/order/events/CatalogEventHandler.java) `@Transactional` | reads are `@Transactional(readOnly = true)` |
 | **Visit** | **no `UnitOfWork`** (see below) | [MsrEventHandler](visit-service/visit-infra/src/main/java/com/das/infra/service/visit/events/MsrEventHandler.java) and [HcpEventHandler](visit-service/visit-infra/src/main/java/com/das/infra/service/visit/events/HcpEventHandler.java) `@Transactional` | bulk deactivations are `@Transactional @Modifying` queries |
 
@@ -1788,15 +1846,16 @@ The same design as HCP, class for class: `MedicalSalesRep` records events; the `
 
 #### product-catalog-service: producer (`catalog.events`) and saga consumer (`order.events`)
 
-- **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`, and the saga's answers `catalog.reservation.confirmed`, `.rejected`, `.released`.
-  - Product events carry `name`, `description`, `price`, `unit`, `active`; stock events carry `stockDelta` and `remainingStock`.
+- **Events:** `catalog.product.created`, `.updated`, `.activated`, `.deactivated`, `.stock-reserved`, `.stock-released`, `.restocked`, `.lot-quarantined`, `.lot-quarantine-lifted`, and the saga's answers `catalog.reservation.confirmed`, `.rejected`, `.released`.
+  - Product events carry `name`, `description`, `price`, `unit`, `active`, `gtin`; stock events carry `stockDelta` and `remainingStock`; lot events carry `batchNumber` (and `expirationDate` or `reason`).
   - Reservation events have aggregate type `reservation`, and their `aggregateId` is the order id. `confirmed` carries `lines` (`productId`, `quantity`, `productName`, `unitPrice`); `rejected` carries `reason`.
 - **Domain:**
-  - All product write use cases run in a `UnitOfWork`. Stock changes use atomic SQL (`tryReserveStock`, `releaseStock`, `restock`) and record their event in the same transaction.
+  - All product write use cases run in a `UnitOfWork`. Stock lives in `lot/` (`StockLot`, one per product and batch). `StockAllocator` takes units first expiry first out with atomic per-lot SQL (`tryTake`, `give`), and each change records its event in the same transaction.
   - `reservation/`: the `StockReservation` aggregate (one per order: `RESERVED`, `REJECTED`, `RELEASED`, `FULFILLED`) and the saga steps `ReserveStockForOrderUseCase` (all or nothing), `ReleaseStockForOrderUseCase` (compensation) and `FulfilStockReservationUseCase`. All three are idempotent per order.
 - **Infrastructure:**
   - `outbox/`: `OutboxProductEventPublisher` and `OutboxStockReservationEventPublisher` write to the same outbox; `ProductOutboxRelay` publishes both.
-  - `reservation/`: `stock_reservation` and `stock_reservation_line` tables.
+  - `reservation/`: `stock_reservation`, `stock_reservation_line` and `stock_reservation_allocation` (the lots each line came from) tables.
+  - `lot/`: the `stock_lot` table and `SQLStockLotRepository`; every lot change evicts the cached product.
   - `events/`: `OrderEventListener` → `OrderEventTranslator` → `OrderEventHandler` (same validation and dedup as order-service).
   - `ProductRabbitMqConfig`: the `catalog.events` exchange, plus `catalog-service.order.queue` bound to `order.events` with `order.#` and its DLQ `catalog-service.order.dlq`.
   - The stock `@Modifying` queries flush before they clear the persistence context, so rows written earlier in the same transaction (outbox, `processed_event`) are kept.
@@ -1970,7 +2029,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - MSR (PostgreSQL): `medical-sales-rep-service/msr-infra/src/main/resources/db/outbox-postgresql.sql`
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
-     and `product-traceability-postgresql.sql` next to it (adds `batch_number`, `serial_number`, `expiration_date` to `products`; existing products keep them empty)
+     and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it also replaces the previous release's `product-traceability-postgresql.sql`.
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`)
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`
 2. **Deploy the consumers first (Visit, Settlement), then the producers (HCP, MSR).**
@@ -1984,7 +2043,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
 4. **Stock saga (order + catalog).**
    - Deploy product-catalog-service before order-service, so `order.created` has a queue to route to. Either order works, though: unroutable events wait in the outbox.
    - Clients of `POST /api/v1/orders/create` must accept **202** and poll `Location` (it used to answer 201 with a priced order). No UI or script in this repository calls it.
-   - Orders created before the upgrade reserved their stock over REST and have no `stock_reservation` row, so rejecting one later won't give its stock back. Release it manually with `POST /api/v1/products/{id}/release-stock` for each line.
+   - Orders created before the upgrade reserved their stock over REST and have no `stock_reservation` row, so rejecting one later won't give its stock back. Release it manually with `POST /api/v1/products/{id}/release-stock` for each line, naming the batch to return the units to (`batchNumber`, e.g. `LEGACY`). The same applies to orders reserved before stock lots existed.
 5. **Watch:**
    - The `visit-service.*.dlq`, `catalog-service.order.dlq` and `order-service.catalog.dlq` depth; anything there needs attention.
    - Orders stuck in `AWAITING_STOCK`: `SELECT count(*), min(created_at) FROM orders WHERE status = 'AWAITING_STOCK'`.
@@ -2023,7 +2082,7 @@ Redis backs a small set of read-heavy, cross-service lookups to cut down on repe
 | `hcpActiveStatus` | Visit Service | `HealthCareProfValidatorAdapter.existsAndActive` — the HTTP call to HCP's `GET /{id}/active-status`, made on every visit/visit-plan creation | 60s | `HcpEventHandler` evicts on every applied HCP event (create/update/activate/deactivate) |
 | `msrActiveStatus` | Visit Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same pattern for MSR | 60s | `MsrEventHandler` evicts on every applied MSR event |
 | `msrActiveStatus` | Order Service | `MedicalSalesRepValidatorAdapter.existsAndActive` — same HTTP call, made on every order creation | 30s (shorter — this service has no snapshot table or event listener, so TTL is the only staleness bound) | TTL only |
-| `productById` | Product Catalog Service | `SQLProductRepository.findById`, through `ProductSnapshotLookup`. The cache stores a `ProductSnapshot` (an infra-layer copy of the row, not the domain aggregate) as **typed JSON**: no Java serialization and no class names, so reading it back can't instantiate arbitrary types (OWASP A08) | 5 min | Evicted on every write path (`save`, `tryReserveStock`, `releaseStock`, `restock`) |
+| `productById` | Product Catalog Service | `SQLProductRepository.findById`, through `ProductSnapshotLookup`. The cache stores a `ProductSnapshot` (an infra-layer copy of the row, not the domain aggregate) as **typed JSON**: no Java serialization and no class names, so reading it back can't instantiate arbitrary types (OWASP A08) | 5 min | Evicted on every write path: the product's `save`, and every lot change (`SQLStockLotRepository.save`, `tryTake`, `give`), since those change its stock |
 
 **Deliberately not cached:**
 - `GET /{id}/availability` (Product Catalog) — reflects live stock quantity; caching it risks overselling.

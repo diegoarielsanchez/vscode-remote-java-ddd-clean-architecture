@@ -5,6 +5,9 @@ import java.time.Clock;
 import org.springframework.stereotype.Service;
 
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
+import com.das.cleanddd.domain.catalog.lot.IStockLotRepository;
+import com.das.cleanddd.domain.catalog.lot.ShelfLifePolicy;
+import com.das.cleanddd.domain.catalog.lot.StockAllocator;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.reservation.ports.IStockReservationEventPublisher;
@@ -19,12 +22,17 @@ public class StockReservationUseCaseFactory {
     private final ReleaseStockForOrderUseCase release;
     private final FulfilStockReservationUseCase fulfil;
 
-    public StockReservationUseCaseFactory(IProductRepository products, IStockReservationRepository reservations,
+    public StockReservationUseCaseFactory(IProductRepository products, IStockLotRepository lots,
+                                          IStockReservationRepository reservations,
                                           IProductEventPublisher productEvents,
-                                          IStockReservationEventPublisher reservationEvents, UnitOfWork unitOfWork) {
+                                          IStockReservationEventPublisher reservationEvents, UnitOfWork unitOfWork,
+                                          ShelfLifePolicy shelfLifePolicy) {
         Clock clock = Clock.systemUTC();
-        this.reserve = new ReserveStockForOrderUseCase(products, reservations, productEvents, reservationEvents, unitOfWork, clock);
-        this.release = new ReleaseStockForOrderUseCase(products, reservations, productEvents, reservationEvents, unitOfWork, clock);
+        StockAllocator allocator = new StockAllocator(lots, shelfLifePolicy, clock);
+        this.reserve = new ReserveStockForOrderUseCase(products, lots, allocator, reservations, productEvents,
+                reservationEvents, unitOfWork, clock);
+        this.release = new ReleaseStockForOrderUseCase(lots, allocator, reservations, productEvents, reservationEvents,
+                unitOfWork, clock);
         this.fulfil = new FulfilStockReservationUseCase(reservations, unitOfWork, clock);
     }
 

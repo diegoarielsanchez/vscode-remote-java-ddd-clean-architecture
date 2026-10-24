@@ -13,20 +13,17 @@ import org.springframework.data.redis.serializer.RedisSerializer;
  * class names in the payload, so reading the cache back cannot instantiate arbitrary types even if
  * Redis contents were tampered with (OWASP A08).
  *
- * <p>{@code expirationDate} is kept as an ISO {@code yyyy-MM-dd} string, which the plain serializer handles
- * without a date/time module. Entries cached before these fields existed read back with them {@code null}.
+ * <p>{@code stock} is the units on hand across the product's lots at the time of caching; every lot change evicts
+ * the entry. Entries cached before {@code gtin} existed read back with it {@code null}.
  */
 public record ProductSnapshot(String id, String name, String description, BigDecimal price, String unit,
-                              Integer stock, Boolean active, String batchNumber, String serialNumber,
-                              String expirationDate) {
+                              Integer stock, Boolean active, String gtin) {
 
     public static final String CACHE = "productById";
 
-    static ProductSnapshot from(ProductEntity entity) {
+    static ProductSnapshot from(ProductEntity entity, int stock) {
         return new ProductSnapshot(entity.getId(), entity.getName(), entity.getDescription(), entity.getPrice(),
-                entity.getUnit(), entity.getStock(), entity.getActive(), entity.getBatchNumber(),
-                entity.getSerialNumber(),
-                entity.getExpirationDate() == null ? null : entity.getExpirationDate().toString());
+                entity.getUnit(), stock, entity.getActive(), entity.getGtin());
     }
 
     /** Typed JSON serializer for the {@code productById} Redis cache. */

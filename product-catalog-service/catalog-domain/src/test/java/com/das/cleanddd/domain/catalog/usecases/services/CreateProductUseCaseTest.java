@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
+import com.das.cleanddd.domain.catalog.lot.IStockLotRepository;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
@@ -28,6 +29,7 @@ class CreateProductUseCaseTest {
 
     @Mock private IProductRepository repository;
     @Mock private IProductEventPublisher publisher;
+    @Mock private IStockLotRepository lots;
 
     private ProductMapper mapper;
     private CreateProductUseCase useCase;
@@ -35,7 +37,7 @@ class CreateProductUseCaseTest {
     @BeforeEach
     void setUp() {
         mapper = new ProductMapper();
-        useCase = new CreateProductUseCase(repository, mapper, publisher, UnitOfWork.immediate());
+        useCase = new CreateProductUseCase(repository, lots, mapper, publisher, UnitOfWork.immediate(), java.time.Clock.systemUTC());
     }
 
     @Nested
@@ -46,7 +48,8 @@ class CreateProductUseCaseTest {
         @DisplayName("should create and persist a new Product, inactive by default")
         void shouldCreateAndPersist() throws DomainException {
             CreateProductInputDTO input =
-                    new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new BigDecimal("12.50"), "BOX", 100);
+                    new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new BigDecimal("12.50"), "BOX", 100,
+                            null, "L2026-07A", java.time.LocalDate.of(2099, 12, 31));
 
             ProductOutputDTO output = useCase.execute(input);
 
@@ -58,7 +61,8 @@ class CreateProductUseCaseTest {
             assertFalse(output.active()); // newly created → inactive
 
             verify(repository, times(1)).save(any(Product.class));
-            verify(publisher, times(1)).publish(any());
+            verify(lots, times(1)).save(any(com.das.cleanddd.domain.catalog.lot.StockLot.class));
+            verify(publisher, times(2)).publish(any()); // created, then the first lot's restock
         }
 
         @Test

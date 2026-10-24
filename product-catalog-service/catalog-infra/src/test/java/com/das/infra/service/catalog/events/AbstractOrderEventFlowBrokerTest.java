@@ -28,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.das.cleanddd.domain.catalog.reservation.usecases.StockReservationUseCaseFactory;
 import com.das.infra.service.catalog.ProductEntity;
 import com.das.infra.service.catalog.ProductJpaRepository;
+import com.das.infra.service.catalog.lot.StockLotJpaRepository;
+import com.das.infra.service.catalog.lot.TestStockLots;
 import com.das.infra.service.catalog.ProductRabbitMqConfig;
 import com.das.infra.service.catalog.ProductSnapshotLookup;
 import com.das.infra.service.catalog.SQLProductRepository;
@@ -51,7 +53,7 @@ import com.das.infra.service.catalog.reservation.StockReservationJpaRepository;
 @Import({ProductRabbitMqConfig.class, SQLProductRepository.class, ProductSnapshotLookup.class,
         SQLStockReservationRepository.class, SpringUnitOfWork.class, OutboxProductEventPublisher.class,
         OutboxStockReservationEventPublisher.class, StockReservationUseCaseFactory.class,
-        OrderEventTranslator.class, OrderEventHandler.class, OrderEventListener.class})
+        OrderEventTranslator.class, OrderEventHandler.class, OrderEventListener.class, TestStockLots.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
@@ -60,6 +62,7 @@ abstract class AbstractOrderEventFlowBrokerTest {
 
     @Autowired private RabbitTemplate rabbit;
     @Autowired private ProductJpaRepository productRows;
+    @Autowired private StockLotJpaRepository lotRows;
     @Autowired private StockReservationJpaRepository reservations;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private AggregateVersionJpaRepository versions;
@@ -120,9 +123,9 @@ abstract class AbstractOrderEventFlowBrokerTest {
         product.setDescription("Antibiotic");
         product.setPrice(new BigDecimal("12.50"));
         product.setUnit("box");
-        product.setStock(10);
         product.setActive(true);
         productRows.save(product);
+        TestStockLots.addLot(lotRows, product.getId(), 10);
         String order = UUID.randomUUID().toString();
         UUID eventId = UUID.randomUUID();
 
@@ -131,7 +134,7 @@ abstract class AbstractOrderEventFlowBrokerTest {
 
         await(() -> processed.existsById(eventId.toString()), "event processed");
         assertEquals("RESERVED", reservations.findById(order).orElseThrow().getStatus());
-        assertEquals(6, productRows.findById(product.getId()).orElseThrow().getStock());
+        assertEquals(6, lotRows.onHand(product.getId()));
     }
 
     @Test

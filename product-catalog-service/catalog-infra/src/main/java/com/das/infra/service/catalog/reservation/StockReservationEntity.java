@@ -35,6 +35,12 @@ public class StockReservationEntity {
     @OrderColumn(name = "line_no")
     private List<StockReservationLineEmbeddable> lines = new ArrayList<>();
 
+    /** The lots each line was served from (first expiry first out). */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "stock_reservation_allocation", joinColumns = @JoinColumn(name = "order_id"))
+    @OrderColumn(name = "allocation_no")
+    private List<StockReservationAllocationEmbeddable> allocations = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -61,6 +67,7 @@ public class StockReservationEntity {
     public void setReason(String reason) { this.reason = reason; }
     public List<StockReservationLineEmbeddable> getLines() { return lines; }
     public void setLines(List<StockReservationLineEmbeddable> lines) { this.lines = lines; }
+    public List<StockReservationAllocationEmbeddable> getAllocations() { return allocations; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

@@ -19,7 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.das.cleanddd.domain.catalog.InMemoryCatalog;
 import com.das.cleanddd.domain.catalog.entities.ProductId;
+import com.das.cleanddd.domain.catalog.lot.ShelfLifePolicy;
+import com.das.cleanddd.domain.catalog.lot.StockAllocator;
 import com.das.cleanddd.domain.catalog.events.ProductDomainEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReleasedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
@@ -59,11 +62,16 @@ class StockReservationSagaTest {
         catalog = new InMemoryCatalog();
         amoxicillin = catalog.add("Amoxicillin 500mg", "12.50", 10, true);
         ibuprofen = catalog.add("Ibuprofen 400mg", "3.00", 2, true);
-        reserve = new ReserveStockForOrderUseCase(catalog, catalog, productEvents::add, reservationEvents::add,
-                UnitOfWork.immediate(), clock);
-        release = new ReleaseStockForOrderUseCase(catalog, catalog, productEvents::add, reservationEvents::add,
-                UnitOfWork.immediate(), clock);
+        useShelfLife(ShelfLifePolicy.NONE);
         fulfil = new FulfilStockReservationUseCase(catalog, UnitOfWork.immediate(), clock);
+    }
+
+    private void useShelfLife(ShelfLifePolicy policy) {
+        StockAllocator allocator = new StockAllocator(catalog, policy, clock);
+        reserve = new ReserveStockForOrderUseCase(catalog, catalog, allocator, catalog, productEvents::add,
+                reservationEvents::add, UnitOfWork.immediate(), clock);
+        release = new ReleaseStockForOrderUseCase(catalog, allocator, catalog, productEvents::add, reservationEvents::add,
+                UnitOfWork.immediate(), clock);
     }
 
     private StockReservationOutputDTO reserve(Line... lines) throws DomainException {
@@ -80,8 +88,10 @@ class StockReservationSagaTest {
         assertEquals(0, catalog.stock(ibuprofen));
         StockReservationConfirmedEvent confirmed = assertInstanceOf(StockReservationConfirmedEvent.class, reservationEvents.get(0));
         assertEquals(order, confirmed.orderId());
-        assertEquals(new ReservationLine(amoxicillin.value(), 4, "Amoxicillin 500mg", new BigDecimal("12.50")),
-                confirmed.lines().get(0));
+        ReservationLine line = confirmed.lines().get(0);
+        assertEquals(new ReservationLine(amoxicillin.value(), 4, "Amoxicillin 500mg", new BigDecimal("12.50"),
+                line.allocations()), line);
+        assertEquals(4, line.allocations().get(0).quantity(), "served from the product's lot");
         assertEquals(2, productEvents.stream().filter(ProductStockReservedEvent.class::isInstance).count());
     }
 
@@ -112,19 +122,71 @@ class StockReservationSagaTest {
     }
 
     @Test
-    @DisplayName("an expired product is rejected and gives back the lines already taken; it is usable on its expiration day")
-    void rejectsExpiredProducts() throws Exception {
-        ProductId expired = catalog.addExpiring("Insulin 100IU", "20.00", 50, LocalDate.of(2026, 10, 7));
-        ProductId lastDay = catalog.addExpiring("Paracetamol 1g", "2.00", 50, LocalDate.of(2026, 10, 8));
+    @DisplayName("FEFO: the earliest expiring lot goes first and a line may span lots; the lots are kept on the line")
+    void takesFirstExpiryFirst() throws Exception {
+        ProductId insulin = catalog.addProduct("Insulin 100IU", "20.00", true, null);
+        catalog.addLot(insulin, "LATE", LocalDate.of(2027, 6, 30), 10);
+        catalog.addLot(insulin, "EARLY", LocalDate.of(2026, 12, 31), 3);
+        catalog.addLot(insulin, "MIDDLE", LocalDate.of(2027, 1, 31), 5);
 
-        StockReservationOutputDTO out = reserve(new Line(amoxicillin.value(), 4), new Line(expired.value(), 1));
+        assertEquals("RESERVED", reserve(new Line(insulin.value(), 6)).status());
 
-        assertEquals("REJECTED", out.status());
-        assertEquals("Product " + expired.value() + " is expired", out.reason());
-        assertEquals(10, catalog.stock(amoxicillin), "the first line's stock is back");
-        assertEquals(50, catalog.stock(expired));
-        assertEquals("RESERVED", reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
-                List.of(new Line(lastDay.value(), 1)))).status());
+        assertEquals(List.of(List.of("EARLYx3", "MIDDLEx3")), catalog.allocationsOf(order));
+        assertEquals(0, catalog.lotQuantity(insulin, "EARLY"));
+        assertEquals(2, catalog.lotQuantity(insulin, "MIDDLE"));
+        assertEquals(10, catalog.lotQuantity(insulin, "LATE"));
+    }
+
+    @Test
+    @DisplayName("expired and quarantined lots are skipped; an expiring lot is usable on its last day")
+    void skipsExpiredAndQuarantinedLots() throws Exception {
+        ProductId insulin = catalog.addProduct("Insulin 100IU", "20.00", true, null);
+        catalog.addLot(insulin, "EXPIRED", LocalDate.of(2026, 10, 7), 50);
+        catalog.addLot(insulin, "RECALLED", LocalDate.of(2026, 11, 30), 50);
+        catalog.addLot(insulin, "LASTDAY", LocalDate.of(2026, 10, 8), 2);
+        catalog.quarantine(insulin, "RECALLED");
+
+        assertEquals("RESERVED", reserve(new Line(insulin.value(), 2)).status());
+        assertEquals(List.of(List.of("LASTDAYx2")), catalog.allocationsOf(order));
+
+        StockReservationOutputDTO more = reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
+                List.of(new Line(insulin.value(), 1))));
+        assertEquals("REJECTED", more.status(), "100 units on hand, none deliverable");
+        assertEquals("Insufficient stock for product " + insulin.value(), more.reason());
+        assertEquals(100, catalog.stock(insulin));
+    }
+
+    @Test
+    @DisplayName("a lot short of the minimum remaining shelf life is not delivered")
+    void respectsMinimumRemainingShelfLife() throws Exception {
+        useShelfLife(new ShelfLifePolicy(30));
+        ProductId insulin = catalog.addProduct("Insulin 100IU", "20.00", true, null);
+        catalog.addLot(insulin, "SHORT", LocalDate.of(2026, 11, 6), 5);  // 29 days left on 2026-10-08
+        catalog.addLot(insulin, "ENOUGH", LocalDate.of(2026, 11, 7), 5); // 30 days left
+
+        assertEquals("RESERVED", reserve(new Line(insulin.value(), 5)).status());
+        assertEquals(List.of(List.of("ENOUGHx5")), catalog.allocationsOf(order));
+        assertEquals("REJECTED", reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
+                List.of(new Line(insulin.value(), 1)))).status());
+    }
+
+    @Test
+    @DisplayName("a rejected order gives back to the very lots it took from, and a release does too")
+    void givesBackToTheSameLots() throws Exception {
+        ProductId insulin = catalog.addProduct("Insulin 100IU", "20.00", true, null);
+        catalog.addLot(insulin, "EARLY", LocalDate.of(2026, 12, 31), 3);
+        catalog.addLot(insulin, "LATE", LocalDate.of(2027, 6, 30), 10);
+
+        StockReservationOutputDTO rejected = reserve.execute(new ReserveStockForOrderInputDTO(UUID.randomUUID().toString(),
+                List.of(new Line(insulin.value(), 5), new Line(ibuprofen.value(), 3))));
+        assertEquals("REJECTED", rejected.status());
+        assertEquals(3, catalog.lotQuantity(insulin, "EARLY"));
+        assertEquals(10, catalog.lotQuantity(insulin, "LATE"));
+
+        reserve(new Line(insulin.value(), 5));
+        release.execute(order);
+        assertEquals(3, catalog.lotQuantity(insulin, "EARLY"));
+        assertEquals(10, catalog.lotQuantity(insulin, "LATE"));
     }
 
     @Test

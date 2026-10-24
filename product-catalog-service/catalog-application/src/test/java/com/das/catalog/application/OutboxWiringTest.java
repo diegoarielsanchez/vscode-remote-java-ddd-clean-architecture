@@ -29,6 +29,7 @@ import com.das.infra.service.catalog.outbox.OutboxStockReservationEventPublisher
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.infra.service.catalog.ProductJpaRepository;
+import com.das.infra.service.catalog.lot.StockLotJpaRepository;
 import com.das.infra.service.catalog.outbox.ProductOutboxRelay;
 import com.das.infra.service.catalog.outbox.OutboxEventEntity;
 import com.das.infra.service.catalog.outbox.OutboxEventJpaRepository;
@@ -72,10 +73,12 @@ class OutboxWiringTest {
     @Autowired private OrderEventListener orderEventListener;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private ProductJpaRepository rows;
+    @Autowired private StockLotJpaRepository lotRows;
 
     @AfterEach
     void cleanUp() {
         outbox.deleteAll();
+        lotRows.deleteAll();
         rows.deleteAll();
     }
 
@@ -101,7 +104,7 @@ class OutboxWiringTest {
 
     @Test
     void createWritesOneOutboxEventCarryingTheAuthenticatedActor() throws Exception {
-        var body = new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new java.math.BigDecimal("12.50"), "BOX", 100);
+        var body = new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new java.math.BigDecimal("12.50"), "BOX", 0);
 
         mockMvc.perform(post("/api/v1/products/create")
                         .header("Authorization", "Bearer " + jwtFor("rep.manager"))
@@ -117,31 +120,65 @@ class OutboxWiringTest {
         assertEquals(rows.findAll().get(0).getId(), envelope.get("aggregateId").asText());
     }
 
-    @Test
-    void createTakesTheTraceabilityFieldsAndRecordsThemWithTheActor() throws Exception {
-        String body = """
-                {"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":50,
-                 "batchNumber":"L2026-07A","serialNumber":"SN-000123","expirationDate":"2027-03-31"}
-                """;
-
-        mockMvc.perform(post("/api/v1/products/create")
-                        .header("Authorization", "Bearer " + jwtFor("qa.admin"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.batchNumber").value("L2026-07A"))
-                .andExpect(jsonPath("$.serialNumber").value("SN-000123"))
-                .andExpect(jsonPath("$.expirationDate").value("2027-03-31"));
-
-        JsonNode envelope = objectMapper.readTree(outbox.findAll().get(0).getPayload());
-        assertEquals("qa.admin", envelope.get("actor").asText());
-        assertEquals("L2026-07A", envelope.at("/data/batchNumber").asText());
-        assertEquals("2027-03-31", envelope.at("/data/expirationDate").asText());
+    private static String jwtWith(String subject, String... authorities) {
+        SecretKeySpec key = new SecretKeySpec(JWT_SECRET.getBytes(), "HmacSHA256");
+        return Jwts.builder()
+                .subject(subject)
+                .claim("authorities", List.of(authorities))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000))
+                .signWith(key)
+                .compact();
     }
 
     @Test
-    void createRefusesAMalformedBatchNumberOrAnImpossibleDate() throws Exception {
-        for (String extra : List.of("\"batchNumber\":\"LOT 7\"", "\"expirationDate\":\"2027-02-30\"")) {
+    void aProductWithAGtinReceivesLotsByGs1CodeAndAQuarantineIsRecordedWithItsActor() throws Exception {
+        String admin = "Bearer " + jwtFor("qa.admin");
+        String agent = "Bearer " + jwtWith("ai.agent", "ROLE_USER", "ROLE_AGENT");
+        String created = mockMvc.perform(post("/api/v1/products/create")
+                        .header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":5,
+                                 "gtin":"9506000134352","batchNumber":"L2026-07A","expirationDate":"2075-03-31"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.gtin").value("09506000134352"))
+                .andExpect(jsonPath("$.stock").value(5))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(created).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/products/" + id + "/restock")
+                        .header("Authorization", agent)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":10,\"gs1\":\"(01)09506000134352(17)750331(10)L2026-07A(21)SN1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batchNumber").value("L2026-07A"))
+                .andExpect(jsonPath("$.quantity").value(15));
+
+        mockMvc.perform(post("/api/v1/products/" + id + "/lots/quarantine")
+                        .header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"batchNumber\":\"L2026-07A\",\"reason\":\"Recall R-2026-17\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("QUARANTINED"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/products/" + id + "/lots")
+                        .header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].allocatable").value(false));
+
+        JsonNode quarantined = outbox.findAll().stream()
+                .filter(e -> e.getEventType().equals("catalog.product.lot-quarantined"))
+                .map(e -> { try { return objectMapper.readTree(e.getPayload()); } catch (Exception x) { throw new IllegalStateException(x); } })
+                .findFirst().orElseThrow();
+        assertEquals("qa.admin", quarantined.get("actor").asText());
+        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asText());
+    }
+
+    @Test
+    void createRefusesStockWithoutALotAndAWrongGtinCheckDigit() throws Exception {
+        for (String extra : List.of("\"initialStock\":10", "\"gtin\":\"09506000134353\"")) {
             mockMvc.perform(post("/api/v1/products/create")
                             .header("Authorization", "Bearer " + jwtFor("qa.admin"))
                             .contentType(MediaType.APPLICATION_JSON)

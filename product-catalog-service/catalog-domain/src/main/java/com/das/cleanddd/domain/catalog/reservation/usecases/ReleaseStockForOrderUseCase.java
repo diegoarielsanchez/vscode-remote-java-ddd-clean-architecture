@@ -3,9 +3,10 @@ package com.das.cleanddd.domain.catalog.reservation.usecases;
 import java.time.Clock;
 import java.util.Optional;
 
-import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.events.ProductStockReleasedEvent;
+import com.das.cleanddd.domain.catalog.lot.IStockLotRepository;
+import com.das.cleanddd.domain.catalog.lot.StockAllocator;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.reservation.entities.ReservationLine;
@@ -22,18 +23,21 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  */
 public final class ReleaseStockForOrderUseCase implements UseCase<String, StockReservationOutputDTO> {
 
-    private final IProductRepository products;
+    private final IStockLotRepository lots;
+    private final StockAllocator allocator;
     private final IStockReservationRepository reservations;
     private final IProductEventPublisher productEvents;
     private final IStockReservationEventPublisher reservationEvents;
     private final UnitOfWork unitOfWork;
     private final Clock clock;
 
-    public ReleaseStockForOrderUseCase(IProductRepository products, IStockReservationRepository reservations,
+    public ReleaseStockForOrderUseCase(IStockLotRepository lots, StockAllocator allocator,
+                                       IStockReservationRepository reservations,
                                        IProductEventPublisher productEvents,
                                        IStockReservationEventPublisher reservationEvents,
                                        UnitOfWork unitOfWork, Clock clock) {
-        this.products = products;
+        this.lots = lots;
+        this.allocator = allocator;
         this.reservations = reservations;
         this.productEvents = productEvents;
         this.reservationEvents = reservationEvents;
@@ -56,10 +60,12 @@ public final class ReleaseStockForOrderUseCase implements UseCase<String, StockR
                 return ReserveStockForOrderUseCase.output(reservation);
             }
             for (ReservationLine line : reservation.lines()) {
+                // Reservations made before stock was held in lots have no allocations to give back to;
+                // their units are released by hand, per batch (release-stock).
+                if (line.allocations().isEmpty()) continue;
                 ProductId id = new ProductId(line.productId());
-                products.releaseStock(id, line.quantity());
-                int remaining = products.findById(id).map(p -> p.getStock().value()).orElse(0);
-                productEvents.publish(new ProductStockReleasedEvent(line.productId(), line.quantity(), remaining));
+                allocator.giveBack(id, line.allocations());
+                productEvents.publish(new ProductStockReleasedEvent(line.productId(), line.quantity(), lots.onHand(id)));
             }
             StockReservation released = reservation.release(clock.instant());
             reservations.save(released);
