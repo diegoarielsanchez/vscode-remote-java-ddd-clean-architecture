@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +31,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.das.cleanddd.domain.catalog.entities.Product;
+import com.das.cleanddd.domain.catalog.lot.BatchNumber;
+import com.das.cleanddd.domain.catalog.lot.ExpirationDate;
+import com.das.cleanddd.domain.catalog.lot.StockLot;
+import com.das.infra.service.catalog.lot.SQLStockLotRepository;
 import com.das.cleanddd.domain.catalog.entities.ProductDescription;
 import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
@@ -43,7 +49,8 @@ import com.das.cleanddd.domain.catalog.entities.ProductUnit;
  * happened): {@code isEmpty()} on the unwrapped product, and a non-serializable cached aggregate.
  */
 @DataJpaTest
-@Import({SQLProductRepository.class, ProductSnapshotLookup.class, SQLProductRepositoryCachingTest.CachingConfig.class})
+@Import({SQLProductRepository.class, ProductSnapshotLookup.class, SQLStockLotRepository.class,
+        SQLProductRepositoryCachingTest.CachingConfig.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
@@ -68,6 +75,7 @@ class SQLProductRepositoryCachingTest {
     }
 
     @Autowired private SQLProductRepository repository;
+    @Autowired private SQLStockLotRepository lots;
     @Autowired private CacheManager cacheManager;
     @MockitoSpyBean private ProductJpaRepository jpaRepository;
 
@@ -75,6 +83,8 @@ class SQLProductRepositoryCachingTest {
         Product product = Product.create(null, new ProductName("Amoxicillin 500mg"), new ProductDescription("Antibiotic"),
                 new ProductPrice(new BigDecimal("12.50")), new ProductUnit("BOX"), new ProductStock(10));
         repository.save(product);
+        lots.save(StockLot.receive(product.getId(), new BatchNumber("L1"), new ExpirationDate(LocalDate.of(2099, 12, 31)),
+                10, Instant.parse("2026-10-24T12:00:00Z")));
         return product;
     }
 
@@ -114,7 +124,8 @@ class SQLProductRepositoryCachingTest {
         Product product = savedProduct();
         repository.findById(product.getId());
 
-        assertTrue(repository.tryReserveStock(product.getId(), 4));
+        StockLot lot = lots.findByProductIdAndBatchNumber(product.getId(), new BatchNumber("L1")).orElseThrow();
+        assertTrue(lots.tryTake(lot, 4));
 
         assertNull(cached(product.getId().value()));
         assertEquals(6, repository.findById(product.getId()).orElseThrow().getStock().value());

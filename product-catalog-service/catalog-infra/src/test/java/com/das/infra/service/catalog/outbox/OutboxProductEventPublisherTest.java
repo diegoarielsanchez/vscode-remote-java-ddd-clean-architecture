@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.das.cleanddd.domain.catalog.events.ProductCreatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDeactivatedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductLotQuarantinedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductRestockedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -75,21 +77,28 @@ class OutboxProductEventPublisherTest {
     }
 
     @Test
-    void createdAndUpdatedEventsCarryTheTraceabilityFields() throws Exception {
+    void eventsCarryTheGtinTheLotAndTheQuarantineReason() throws Exception {
         publisher.publish(new ProductCreatedEvent(PRODUCT, "Insulin 100IU", null, new BigDecimal("20.00"), "VIAL", false,
-                "L2026-07A", "SN-000123", java.time.LocalDate.of(2027, 3, 31)));
-        publisher.publish(new ProductStockReservedEvent(PRODUCT, 1, 49));
+                "09506000134352"));
+        publisher.publish(new ProductRestockedEvent(PRODUCT, 50, 50, "L2026-07A", java.time.LocalDate.of(2027, 3, 31)));
+        publisher.publish(new ProductLotQuarantinedEvent(PRODUCT, "L2026-07A", "Recall R-2026-17"));
 
         List<OutboxEventEntity> rows = outbox.findAll().stream()
                 .sorted(Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
         JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
-        assertEquals("L2026-07A", created.at("/data/batchNumber").asText());
-        assertEquals("SN-000123", created.at("/data/serialNumber").asText());
-        assertEquals("2027-03-31", created.at("/data/expirationDate").asText(), "ISO date, not a timestamp");
+        assertEquals("09506000134352", created.at("/data/gtin").asText());
         assertEquals(1, created.at("/schemaVersion").asInt(), "additive optional fields keep schema version 1");
 
-        JsonNode reserved = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
-        assertTrue(reserved.at("/data/expirationDate").isNull(), "stock events do not carry it");
+        JsonNode restocked = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
+        assertEquals("catalog.product.restocked", rows.get(1).getEventType());
+        assertEquals("L2026-07A", restocked.at("/data/batchNumber").asText());
+        assertEquals("2027-03-31", restocked.at("/data/expirationDate").asText(), "ISO date, not a timestamp");
+        assertEquals(50, restocked.at("/data/stockDelta").asInt());
+
+        assertEquals("catalog.product.lot-quarantined", rows.get(2).getEventType());
+        JsonNode quarantined = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
+        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asText());
+        assertTrue(quarantined.at("/data/gtin").isNull());
     }
 
     @Test

@@ -1,8 +1,7 @@
 package com.das.infra.service.catalog;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -11,6 +10,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.catalog.entities.Gtin;
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
 import com.das.cleanddd.domain.catalog.entities.ProductActive;
@@ -19,10 +19,10 @@ import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
 import com.das.cleanddd.domain.catalog.entities.ProductPrice;
 import com.das.cleanddd.domain.catalog.entities.ProductStock;
-import com.das.cleanddd.domain.catalog.entities.ProductTraceability;
 import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.shared.criteria.Criteria;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
+import com.das.infra.service.catalog.lot.StockLotJpaRepository;
 
 /**
  * Not {@code final} — Spring Boot's default CGLIB-based AOP proxying (used
@@ -40,11 +40,12 @@ public class SQLProductRepository implements IProductRepository {
     @Autowired
     private ProductSnapshotLookup snapshotLookup;
 
+    @Autowired
+    private StockLotJpaRepository lots;
+
     @Override
     public List<Product> searchAll() {
-        return jpaRepository.findAll().stream()
-                .map(this::toDomain)
-                .collect(Collectors.toList());
+        return toDomain(jpaRepository.findAll());
     }
 
     /**
@@ -78,12 +79,11 @@ public class SQLProductRepository implements IProductRepository {
     @Override
     public List<Product> findByName(ProductName name, int page, int pageSize) {
         String nameValue = (name != null && !name.value().isBlank()) ? name.value() : "";
-        List<ProductEntity> entities = jpaRepository.findByNameStartingWith(nameValue);
-        return entities.stream()
-                .map(this::toDomain)
+        List<ProductEntity> pageOfEntities = jpaRepository.findByNameStartingWith(nameValue).stream()
                 .skip((long) (page - 1) * pageSize)
                 .limit(pageSize)
-                .collect(Collectors.toList());
+                .toList();
+        return toDomain(pageOfEntities);
     }
 
     /**
@@ -100,25 +100,24 @@ public class SQLProductRepository implements IProductRepository {
     }
 
     @Override
-    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
-    public boolean tryReserveStock(ProductId id, int quantity) {
-        return jpaRepository.reserveStock(id.value(), quantity) == 1;
-    }
-
-    @Override
-    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
-    public void releaseStock(ProductId id, int quantity) {
-        jpaRepository.addStock(id.value(), quantity);
-    }
-
-    @Override
-    @CacheEvict(cacheNames = ProductSnapshot.CACHE, key = "#id.value()")
-    public void restock(ProductId id, int quantity) {
-        jpaRepository.addStock(id.value(), quantity);
+    public Optional<Product> findByGtin(Gtin gtin) {
+        return jpaRepository.findByGtin(gtin.value()).map(this::toDomain);
     }
 
     private Product toDomain(ProductEntity entity) {
-        return toDomain(ProductSnapshot.from(entity));
+        return toDomain(ProductSnapshot.from(entity, lots.onHand(entity.getId())));
+    }
+
+    /** Several products, with their stock read in one query. */
+    private List<Product> toDomain(List<ProductEntity> entities) {
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Integer> stock = lots.onHandByProduct(entities.stream().map(ProductEntity::getId).toList()).stream()
+                .collect(Collectors.toMap(r -> (String) r[0], r -> ((Number) r[1]).intValue()));
+        return entities.stream()
+                .map(e -> toDomain(ProductSnapshot.from(e, stock.getOrDefault(e.getId(), 0))))
+                .toList();
     }
 
     private Product toDomain(ProductSnapshot snapshot) {
@@ -131,9 +130,8 @@ public class SQLProductRepository implements IProductRepository {
                     new ProductUnit(snapshot.unit()),
                     new ProductStock(snapshot.stock()),
                     new ProductActive(snapshot.active()),
-                    ProductTraceability.of(snapshot.batchNumber(), snapshot.serialNumber(),
-                            snapshot.expirationDate() == null ? null : LocalDate.parse(snapshot.expirationDate())));
-        } catch (BusinessValidationException | IllegalArgumentException | DateTimeParseException e) {
+                    snapshot.gtin() == null ? null : new Gtin(snapshot.gtin()));
+        } catch (BusinessValidationException | IllegalArgumentException e) {
             // A persisted row has already passed these invariants once; a violation here
             // means the stored data itself is corrupt, which is an infrastructure failure,
             // not a domain error the caller can recover from.
@@ -148,11 +146,8 @@ public class SQLProductRepository implements IProductRepository {
         entity.setDescription(domain.getDescription() == null ? null : domain.getDescription().value());
         entity.setPrice(domain.getPrice().value());
         entity.setUnit(domain.getUnit().value());
-        entity.setStock(domain.getStock().value());
         entity.setActive(domain.getActive().value());
-        entity.setBatchNumber(domain.getTraceability().batchNumberValue());
-        entity.setSerialNumber(domain.getTraceability().serialNumberValue());
-        entity.setExpirationDate(domain.getTraceability().expirationDateValue());
+        entity.setGtin(domain.gtinValue());
         return entity;
     }
 }

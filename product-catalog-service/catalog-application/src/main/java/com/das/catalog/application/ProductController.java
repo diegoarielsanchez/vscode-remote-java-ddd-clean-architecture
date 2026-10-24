@@ -1,5 +1,6 @@
 package com.das.catalog.application;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -17,10 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.das.cleanddd.domain.catalog.usecases.dtos.AvailabilityOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.LotInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.LotQuantityInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.LotRecipientOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductIDDto;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductNamesInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.ReceiveStockLotInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ReserveStockOutputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.StockLotOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.UpdateProductInputDTO;
@@ -34,6 +40,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @CrossOrigin(exposedHeaders = "errors, content-type")
@@ -50,8 +58,12 @@ public class ProductController {
     private final UseCase<ProductNamesInputDTO, List<ProductOutputDTO>> findProductsByNameUseCase;
     private final UseCase<StockQuantityInputDTO, AvailabilityOutputDTO> checkProductAvailabilityUseCase;
     private final UseCase<StockQuantityInputDTO, ReserveStockOutputDTO> reserveProductStockUseCase;
-    private final UseCase<StockQuantityInputDTO, StockQuantityOutputDTO> releaseProductStockUseCase;
-    private final UseCase<StockQuantityInputDTO, StockQuantityOutputDTO> restockProductUseCase;
+    private final UseCase<LotQuantityInputDTO, StockQuantityOutputDTO> releaseProductStockUseCase;
+    private final UseCase<ReceiveStockLotInputDTO, StockLotOutputDTO> receiveStockLotUseCase;
+    private final UseCase<ProductIDDto, List<StockLotOutputDTO>> listStockLotsUseCase;
+    private final UseCase<LotInputDTO, StockLotOutputDTO> quarantineLotUseCase;
+    private final UseCase<LotInputDTO, StockLotOutputDTO> liftLotQuarantineUseCase;
+    private final UseCase<LotInputDTO, List<LotRecipientOutputDTO>> findLotRecipientsUseCase;
 
     public ProductController(ProductUseCaseFactory factory) {
         this.createProductUseCase = factory.getCreateProductUseCase();
@@ -63,7 +75,11 @@ public class ProductController {
         this.checkProductAvailabilityUseCase = factory.getCheckProductAvailabilityUseCase();
         this.reserveProductStockUseCase = factory.getReserveProductStockUseCase();
         this.releaseProductStockUseCase = factory.getReleaseProductStockUseCase();
-        this.restockProductUseCase = factory.getRestockProductUseCase();
+        this.receiveStockLotUseCase = factory.getReceiveStockLotUseCase();
+        this.listStockLotsUseCase = factory.getListStockLotsUseCase();
+        this.quarantineLotUseCase = factory.getQuarantineLotUseCase();
+        this.liftLotQuarantineUseCase = factory.getLiftLotQuarantineUseCase();
+        this.findLotRecipientsUseCase = factory.getFindLotRecipientsUseCase();
     }
 
     @PostMapping("/create")
@@ -74,7 +90,7 @@ public class ProductController {
     }
 
     @PutMapping("/update")
-    @Operation(summary = "Update product (name/description/price/unit only — stock is never touched here)")
+    @Operation(summary = "Update product details and GTIN (stock is never touched here)")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Object> updateProduct(@Valid @RequestBody UpdateProductInputDTO inputDTO) throws DomainException {
         return ResponseEntity.ok(updateProductUseCase.execute(inputDTO));
@@ -122,7 +138,7 @@ public class ProductController {
      * The API Gateway is the external auth boundary.
      */
     @GetMapping("/{id}/availability")
-    @Operation(summary = "Check if a product is active and has at least the requested quantity on hand (internal use)")
+    @Operation(summary = "Check if a product is active and its deliverable lots hold at least the requested quantity (internal use)")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<AvailabilityOutputDTO> getAvailability(
         @PathVariable String id,
@@ -147,24 +163,76 @@ public class ProductController {
     }
 
     @PostMapping("/{id}/release-stock")
-    @Operation(summary = "Release previously-reserved stock for a product (internal use — mutating, requires a forwarded JWT)")
+    @Operation(summary = "Give manually reserved units back to the batch they came from (internal use)")
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<StockQuantityOutputDTO> releaseStock(
         @PathVariable String id,
-        @Valid @RequestBody QuantityRequest body
+        @Valid @RequestBody LotQuantityRequest body
     ) throws DomainException {
-        return ResponseEntity.ok(releaseProductStockUseCase.execute(new StockQuantityInputDTO(id, body.quantity())));
+        return ResponseEntity.ok(releaseProductStockUseCase.execute(
+                new LotQuantityInputDTO(id, body.batchNumber(), body.quantity())));
     }
 
+    /**
+     * Goods receipt of one batch. Give {@code batchNumber} and {@code expirationDate}, or the GS1 code scanned from
+     * the pack in {@code gs1} (e.g. {@code (01)09506000134352(17)270331(10)L2026-07A}), or both when they agree.
+     */
     @PostMapping("/{id}/restock")
-    @Operation(summary = "Add stock to a product (manual/admin inventory top-up)")
+    @Operation(summary = "Receive units of one batch into stock (goods receipt; GS1 code accepted)")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<StockQuantityOutputDTO> restock(
+    public ResponseEntity<StockLotOutputDTO> restock(
         @PathVariable String id,
-        @Valid @RequestBody QuantityRequest body
+        @Valid @RequestBody ReceiveLotRequest body
     ) throws DomainException {
-        return ResponseEntity.ok(restockProductUseCase.execute(new StockQuantityInputDTO(id, body.quantity())));
+        return ResponseEntity.ok(receiveStockLotUseCase.execute(new ReceiveStockLotInputDTO(
+                id, body.quantity(), body.batchNumber(), body.expirationDate(), body.gs1())));
+    }
+
+    @GetMapping("/{id}/lots")
+    @Operation(summary = "List the product's lots, first expiry first out")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<List<StockLotOutputDTO>> listLots(@PathVariable String id) throws DomainException {
+        return ResponseEntity.ok(listStockLotsUseCase.execute(new ProductIDDto(id)));
+    }
+
+    @PostMapping("/{id}/lots/quarantine")
+    @Operation(summary = "Block a lot (recall, quality investigation): its units are no longer delivered")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<StockLotOutputDTO> quarantineLot(
+        @PathVariable String id,
+        @Valid @RequestBody LotChangeRequest body
+    ) throws DomainException {
+        return ResponseEntity.ok(quarantineLotUseCase.execute(new LotInputDTO(id, body.batchNumber(), body.reason())));
+    }
+
+    @PostMapping("/{id}/lots/lift-quarantine")
+    @Operation(summary = "Lift a lot's quarantine: its units can be delivered again")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<StockLotOutputDTO> liftLotQuarantine(
+        @PathVariable String id,
+        @Valid @RequestBody LotChangeRequest body
+    ) throws DomainException {
+        return ResponseEntity.ok(liftLotQuarantineUseCase.execute(new LotInputDTO(id, body.batchNumber(), body.reason())));
+    }
+
+    /** Recall: which orders received units of the batch. The batch goes in the query string, URL-encoded. */
+    @GetMapping("/{id}/lots/recipients")
+    @Operation(summary = "List the orders that received units of a lot (recall)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<List<LotRecipientOutputDTO>> lotRecipients(
+        @PathVariable String id,
+        @RequestParam String batchNumber
+    ) throws DomainException {
+        return ResponseEntity.ok(findLotRecipientsUseCase.execute(new LotInputDTO(id, batchNumber, null)));
     }
 
     public record QuantityRequest(@Min(1) int quantity) {}
+
+    public record LotQuantityRequest(@Min(1) int quantity, @NotBlank String batchNumber) {}
+
+    /** {@code expirationDate} is ISO {@code yyyy-MM-dd}; {@code gs1} is the pack's GS1 element string. */
+    public record ReceiveLotRequest(@Min(1) int quantity, String batchNumber, LocalDate expirationDate,
+                                    @Size(max = 200) String gs1) {}
+
+    public record LotChangeRequest(@NotBlank String batchNumber, @NotBlank @Size(max = 500) String reason) {}
 }

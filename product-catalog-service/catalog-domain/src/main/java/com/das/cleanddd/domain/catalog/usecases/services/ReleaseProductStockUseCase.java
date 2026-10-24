@@ -1,30 +1,32 @@
 package com.das.cleanddd.domain.catalog.usecases.services;
 
-import java.util.Optional;
-
-import org.springframework.beans.factory.annotation.Autowired;
-
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
-import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.events.ProductStockReleasedEvent;
+import com.das.cleanddd.domain.catalog.lot.IStockLotRepository;
+import com.das.cleanddd.domain.catalog.lot.StockLot;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
-import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.LotQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
-/** Returns previously-reserved stock to the pool. Not guaranteed idempotent — see order-service's compensation notes. */
-public class ReleaseProductStockUseCase implements UseCase<StockQuantityInputDTO, StockQuantityOutputDTO> {
+/**
+ * Gives manually reserved units back to the batch they came from, so stock never moves between lots. Not
+ * idempotent — see order-service's compensation notes.
+ */
+public class ReleaseProductStockUseCase implements UseCase<LotQuantityInputDTO, StockQuantityOutputDTO> {
 
-    @Autowired
     private final IProductRepository repository;
+    private final IStockLotRepository lots;
     private final IProductEventPublisher publisher;
     private final UnitOfWork unitOfWork;
 
-    public ReleaseProductStockUseCase(IProductRepository repository, IProductEventPublisher publisher, UnitOfWork unitOfWork) {
+    public ReleaseProductStockUseCase(IProductRepository repository, IStockLotRepository lots,
+                                      IProductEventPublisher publisher, UnitOfWork unitOfWork) {
         this.repository = repository;
+        this.lots = lots;
         this.publisher = publisher;
         this.unitOfWork = unitOfWork;
     }
@@ -34,31 +36,25 @@ public class ReleaseProductStockUseCase implements UseCase<StockQuantityInputDTO
      * change and its outbox entries commit (or roll back) together.
      */
     @Override
-    public StockQuantityOutputDTO execute(StockQuantityInputDTO inputDTO) throws DomainException {
-        return unitOfWork.execute(() -> doExecute(inputDTO));
+    public StockQuantityOutputDTO execute(LotQuantityInputDTO inputDTO) throws DomainException {
+        return unitOfWork.execute(() -> {
+            try {
+                return doExecute(inputDTO);
+            } catch (IllegalArgumentException e) {
+                throw new DomainException(e.getMessage());
+            }
+        });
     }
 
-    private StockQuantityOutputDTO doExecute(StockQuantityInputDTO inputDTO) throws DomainException {
-        if (inputDTO.productId() == null) {
-            throw new DomainException("Product Id is required.");
-        }
+    private StockQuantityOutputDTO doExecute(LotQuantityInputDTO inputDTO) throws DomainException {
         if (inputDTO.quantity() <= 0) {
             throw new DomainException("Quantity must be greater than zero.");
         }
-        ProductId id = new ProductId(inputDTO.productId());
-        Optional<Product> existing = repository.findById(id);
-        if (!existing.isPresent()) {
-            throw new DomainException("Product not found.");
-        }
-
-        repository.releaseStock(id, inputDTO.quantity());
-
-        Optional<Product> updated = repository.findById(id);
-        if (!updated.isPresent()) {
-            throw new DomainException("Product not found.");
-        }
-        int remainingStock = updated.get().getStock().value();
-        publisher.publish(new ProductStockReleasedEvent(id.value(), inputDTO.quantity(), remainingStock));
-        return new StockQuantityOutputDTO(remainingStock);
+        Product product = ProductUseCaseSupport.requireProduct(repository, inputDTO.productId());
+        StockLot lot = ProductUseCaseSupport.requireLot(lots, product, inputDTO.batchNumber());
+        lots.give(product.getId(), lot.id(), inputDTO.quantity());
+        int remaining = lots.onHand(product.getId());
+        publisher.publish(new ProductStockReleasedEvent(product.getId().value(), inputDTO.quantity(), remaining));
+        return new StockQuantityOutputDTO(remaining);
     }
 }

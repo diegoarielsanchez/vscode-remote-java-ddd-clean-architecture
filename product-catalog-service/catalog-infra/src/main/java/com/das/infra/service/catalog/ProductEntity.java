@@ -1,7 +1,6 @@
 package com.das.infra.service.catalog;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,23 +18,15 @@ public class ProductEntity {
     private String description;
     private BigDecimal price;
     private String unit;
-    /**
-     * Written on insert only. Afterwards stock changes solely through the atomic queries in
-     * {@link ProductJpaRepository} (reserve/add). A product save (activate, deactivate, edit) is
-     * built from an earlier read, so writing its stock back would undo any reservation made in
-     * between — and {@code @Version} cannot catch that, because the bulk queries don't bump it.
-     */
-    @Column(updatable = false)
-    private Integer stock;
     private Boolean active;
-    /** Optional traceability (GS1 AI 10 / 21 / 17). */
-    @Column(length = 20)
-    private String batchNumber;
-    @Column(length = 20)
-    private String serialNumber;
-    private LocalDate expirationDate;
+    /**
+     * GS1 GTIN in its 14-digit form; unique (index in the upgrade script). Stock is not a column here: it lives in
+     * {@link StockLotEntity} rows, one per batch.
+     */
+    @Column(length = 14)
+    private String gtin;
 
-    /** Protects the non-stock update path (details and traceability) from concurrent clobbering. */
+    /** Protects the update path (details and GTIN) from concurrent clobbering. */
     @Version
     private Long version;
 
@@ -82,14 +73,6 @@ public class ProductEntity {
         this.unit = unit;
     }
 
-    public Integer getStock() {
-        return stock;
-    }
-
-    public void setStock(Integer stock) {
-        this.stock = stock;
-    }
-
     public Boolean getActive() {
         return active;
     }
@@ -98,28 +81,12 @@ public class ProductEntity {
         this.active = active;
     }
 
-    public String getBatchNumber() {
-        return batchNumber;
+    public String getGtin() {
+        return gtin;
     }
 
-    public void setBatchNumber(String batchNumber) {
-        this.batchNumber = batchNumber;
-    }
-
-    public String getSerialNumber() {
-        return serialNumber;
-    }
-
-    public void setSerialNumber(String serialNumber) {
-        this.serialNumber = serialNumber;
-    }
-
-    public LocalDate getExpirationDate() {
-        return expirationDate;
-    }
-
-    public void setExpirationDate(LocalDate expirationDate) {
-        this.expirationDate = expirationDate;
+    public void setGtin(String gtin) {
+        this.gtin = gtin;
     }
 
     public Long getVersion() {

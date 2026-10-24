@@ -1,15 +1,13 @@
 package com.das.cleanddd.domain.catalog.usecases.dtos;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Batch number, serial number and expiration date: {@code null} (or left out) keeps what is on file, so a client
- * that does not know these fields never erases them. An empty {@code batchNumber} / {@code serialNumber}
- * ({@code ""}) removes it. An expiration date can be corrected but not removed.
+ * {@code gtin}: {@code null} (or left out) keeps the stored one. A product without a GTIN can be given one;
+ * once set it cannot be changed or removed (GS1: a GTIN stays with its trade item).
  */
 public record UpdateProductInputDTO(
     @NotBlank String id,
@@ -17,13 +15,11 @@ public record UpdateProductInputDTO(
     String description,
     @NotNull BigDecimal price,
     @NotBlank String unit,
-    String batchNumber,
-    String serialNumber,
-    LocalDate expirationDate
+    String gtin
 ) {
 
-    /** Keeps batch number, serial number and expiration date as they are. */
+    /** Keeps the GTIN as it is. */
     public UpdateProductInputDTO(String id, String name, String description, BigDecimal price, String unit) {
-        this(id, name, description, price, unit, null, null, null);
+        this(id, name, description, price, unit, null);
     }
 }

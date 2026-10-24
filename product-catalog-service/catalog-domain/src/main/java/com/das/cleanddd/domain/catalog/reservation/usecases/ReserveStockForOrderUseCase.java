@@ -1,7 +1,6 @@
 package com.das.cleanddd.domain.catalog.reservation.usecases;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +9,9 @@ import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
 import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
+import com.das.cleanddd.domain.catalog.lot.IStockLotRepository;
+import com.das.cleanddd.domain.catalog.lot.LotAllocation;
+import com.das.cleanddd.domain.catalog.lot.StockAllocator;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.reservation.entities.ReservationLine;
@@ -22,8 +24,10 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 /**
  * Saga step: reserve every line of a new order, all or nothing, in one {@link UnitOfWork}.
  *
- * <p>Each line is taken with the repository's atomic conditional decrement. If a line cannot be
- * served (unknown, inactive or expired product, not enough stock), the lines already taken are given back in
+ * <p>Each line is taken from the product's lots first expiry first out ({@link StockAllocator}): quarantined lots
+ * and lots short of the minimum remaining shelf life are skipped, and a line may span several lots. The lots used
+ * are kept on the reservation line. If a line cannot be served (unknown or inactive product, not enough
+ * deliverable stock), the lines already taken are given back to their lots in
  * the same transaction and a REJECTED reservation is stored — a business outcome, not an error, so
  * order-service hears about it. Either way the answer ({@code catalog.reservation.confirmed} or
  * {@code .rejected}) commits with the stock change through the outbox.
@@ -33,17 +37,22 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 public final class ReserveStockForOrderUseCase implements UseCase<ReserveStockForOrderInputDTO, StockReservationOutputDTO> {
 
     private final IProductRepository products;
+    private final IStockLotRepository lots;
+    private final StockAllocator allocator;
     private final IStockReservationRepository reservations;
     private final IProductEventPublisher productEvents;
     private final IStockReservationEventPublisher reservationEvents;
     private final UnitOfWork unitOfWork;
     private final Clock clock;
 
-    public ReserveStockForOrderUseCase(IProductRepository products, IStockReservationRepository reservations,
+    public ReserveStockForOrderUseCase(IProductRepository products, IStockLotRepository lots, StockAllocator allocator,
+                                       IStockReservationRepository reservations,
                                        IProductEventPublisher productEvents,
                                        IStockReservationEventPublisher reservationEvents,
                                        UnitOfWork unitOfWork, Clock clock) {
         this.products = products;
+        this.lots = lots;
+        this.allocator = allocator;
         this.reservations = reservations;
         this.productEvents = productEvents;
         this.reservationEvents = reservationEvents;
@@ -77,8 +86,8 @@ public final class ReserveStockForOrderUseCase implements UseCase<ReserveStockFo
         for (ReserveStockForOrderInputDTO.Line line : input.lines()) {
             String shortfall = tryReserve(line, reserved, stockEvents);
             if (shortfall != null) {
-                // Give back what this order already took — same transaction, so nothing leaks.
-                reserved.forEach(r -> products.releaseStock(new ProductId(r.productId()), r.quantity()));
+                // Give back what this order already took, to the same lots — same transaction, so nothing leaks.
+                reserved.forEach(r -> allocator.giveBack(new ProductId(r.productId()), r.allocations()));
                 List<ReservationLine> requested = input.lines().stream()
                         .map(l -> ReservationLine.requested(l.productId(), l.quantity())).toList();
                 return StockReservation.rejected(input.orderId(), requested, shortfall, clock.instant());
@@ -107,16 +116,13 @@ public final class ReserveStockForOrderUseCase implements UseCase<ReserveStockFo
         if (!Boolean.TRUE.equals(product.get().isActive())) {
             return "Product " + line.productId() + " is not available";
         }
-        if (product.get().isExpiredOn(LocalDate.now(clock))) {
-            return "Product " + line.productId() + " is expired";
-        }
-        if (!products.tryReserveStock(id, line.quantity())) {
+        List<LotAllocation> taken = allocator.take(id, line.quantity());
+        if (taken.isEmpty()) {
             return "Insufficient stock for product " + line.productId();
         }
-        Product after = products.findById(id).orElse(product.get());
         reserved.add(new ReservationLine(line.productId(), line.quantity(),
-                after.getName().value(), after.getPrice().value()));
-        stockEvents.add(new ProductStockReservedEvent(line.productId(), line.quantity(), after.getStock().value()));
+                product.get().getName().value(), product.get().getPrice().value(), taken));
+        stockEvents.add(new ProductStockReservedEvent(line.productId(), line.quantity(), lots.onHand(id)));
         return null;
     }
 

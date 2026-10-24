@@ -3,6 +3,8 @@ package com.das.infra.service.catalog;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
+import com.das.infra.service.catalog.lot.StockLotJpaRepository;
+
 /**
  * Cached read behind {@link SQLProductRepository#findById}. A separate bean because Spring's cache
  * proxy does not intercept calls a class makes to itself.
@@ -11,9 +13,11 @@ import org.springframework.stereotype.Component;
 public class ProductSnapshotLookup {
 
     private final ProductJpaRepository jpaRepository;
+    private final StockLotJpaRepository lots;
 
-    public ProductSnapshotLookup(ProductJpaRepository jpaRepository) {
+    public ProductSnapshotLookup(ProductJpaRepository jpaRepository, StockLotJpaRepository lots) {
         this.jpaRepository = jpaRepository;
+        this.lots = lots;
     }
 
     /**
@@ -22,6 +26,6 @@ public class ProductSnapshotLookup {
      */
     @Cacheable(cacheNames = ProductSnapshot.CACHE, key = "#id", unless = "#result == null")
     public ProductSnapshot find(String id) {
-        return jpaRepository.findById(id).map(ProductSnapshot::from).orElse(null);
+        return jpaRepository.findById(id).map(e -> ProductSnapshot.from(e, lots.onHand(id))).orElse(null);
     }
 }

@@ -5,13 +5,13 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.catalog.entities.Gtin;
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
 import com.das.cleanddd.domain.catalog.entities.ProductDescription;
 import com.das.cleanddd.domain.catalog.entities.ProductId;
 import com.das.cleanddd.domain.catalog.entities.ProductName;
 import com.das.cleanddd.domain.catalog.entities.ProductPrice;
-import com.das.cleanddd.domain.catalog.entities.ProductTraceability;
 import com.das.cleanddd.domain.catalog.entities.ProductUnit;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
@@ -64,11 +64,13 @@ public final class UpdateProductUseCase implements UseCase<UpdateProductInputDTO
             if (!existing.isPresent()) {
                 throw new DomainException("Product not found.");
             }
-            ProductTraceability traceability = existing.get().getTraceability().updatedWith(
-                    inputDTO.batchNumber(), inputDTO.serialNumber(), inputDTO.expirationDate());
+            Gtin gtin = inputDTO.gtin() == null ? existing.get().getGtin() : new Gtin(inputDTO.gtin());
+            if (gtin != null && !gtin.equals(existing.get().getGtin())) {
+                ProductUseCaseSupport.requireUnusedGtin(repository, gtin, id);
+            }
             // Never touches stock — stock is only ever mutated via the atomic
             // reserve/release/restock repository operations.
-            product = existing.get().withUpdatedDetails(name, description, price, unit, traceability);
+            product = existing.get().withUpdatedDetails(name, description, price, unit, gtin);
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             return mapper.outputFromEntity(product);

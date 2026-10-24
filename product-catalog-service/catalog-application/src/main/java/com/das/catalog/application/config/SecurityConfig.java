@@ -55,6 +55,10 @@ public class SecurityConfig {
                 authz.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/products/create",
                         "/api/v1/products/*/activate", "/api/v1/products/*/deactivate").hasRole("ADMIN");
                 authz.requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/v1/products/update").hasRole("ADMIN");
+                // Quarantine decisions and recall lookups are for administrators (GDP: authorised people only).
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/products/*/lots/quarantine",
+                        "/api/v1/products/*/lots/lift-quarantine").hasRole("ADMIN");
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/*/lots/recipients").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

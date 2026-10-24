@@ -22,58 +22,34 @@ class ProductJpaRepositoryTest {
     @Autowired
     private ProductJpaRepository repository;
 
-    private ProductEntity aProduct(int stock) {
+    private ProductEntity aProduct() {
         ProductEntity entity = new ProductEntity();
         entity.setId(UUID.randomUUID().toString());
         entity.setName("Amoxicillin 500mg");
         entity.setDescription("Antibiotic, 500mg capsules");
         entity.setPrice(BigDecimal.valueOf(12.50));
         entity.setUnit("box");
-        entity.setStock(stock);
         entity.setActive(true);
         return entity;
     }
 
     @Test
     void savesAndReloadsAProduct() {
-        ProductEntity entity = aProduct(100);
+        ProductEntity entity = aProduct();
+        entity.setGtin("09506000134352");
 
         repository.save(entity);
 
         Optional<ProductEntity> found = repository.findById(entity.getId());
         assertThat(found).isPresent();
         assertThat(found.get().getName()).isEqualTo("Amoxicillin 500mg");
-        assertThat(found.get().getStock()).isEqualTo(100);
-    }
-
-    @Test
-    void reserveStock_succeedsAndDecrementsWhenEnoughIsOnHand() {
-        ProductEntity entity = aProduct(10);
-        repository.save(entity);
-
-        int rowsUpdated = repository.reserveStock(entity.getId(), 4);
-
-        assertThat(rowsUpdated).isEqualTo(1);
-        assertThat(repository.findById(entity.getId()).orElseThrow().getStock()).isEqualTo(6);
-    }
-
-    @Test
-    void reserveStock_failsAtomically_whenNotEnoughIsOnHand() {
-        ProductEntity entity = aProduct(2);
-        repository.save(entity);
-
-        int rowsUpdated = repository.reserveStock(entity.getId(), 5);
-
-        assertThat(rowsUpdated).isZero();
-        assertThat(repository.findById(entity.getId()).orElseThrow().getStock())
-                .as("stock must be untouched when the reservation is rejected")
-                .isEqualTo(2);
+        assertThat(repository.findByGtin("09506000134352")).map(ProductEntity::getId).contains(entity.getId());
     }
 
     @Test
     void findByNameStartingWith_matchesCaseInsensitivePrefix() {
-        repository.save(aProduct(10));
-        ProductEntity ibuprofen = aProduct(5);
+        repository.save(aProduct());
+        ProductEntity ibuprofen = aProduct();
         ibuprofen.setName("Ibuprofen 200mg");
         repository.save(ibuprofen);
 

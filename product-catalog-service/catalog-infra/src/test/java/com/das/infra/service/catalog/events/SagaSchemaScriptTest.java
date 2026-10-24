@@ -35,7 +35,8 @@ import jakarta.persistence.EntityManager;
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=classpath:db/outbox-postgresql.sql",
+        "spring.sql.init.schema-locations=classpath:db/outbox-postgresql.sql,classpath:db/products-before-lots.sql,"
+                + "classpath:db/stock-lots-postgresql.sql",
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
 })

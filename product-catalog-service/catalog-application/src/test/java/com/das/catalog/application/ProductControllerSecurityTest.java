@@ -109,6 +109,14 @@ class ProductControllerSecurityTest {
     }
 
     @Test
+    void regularUserCanListLots() throws Exception {
+        int status = mockMvc.perform(get("/api/v1/products/" + UUID.randomUUID() + "/lots")
+                        .header("Authorization", bearer("ROLE_USER")))
+                .andReturn().getResponse().getStatus();
+        assertNotEquals(403, status);
+    }
+
+    @Test
     void regularUserCanStillReadById() throws Exception {
         int status = mockMvc.perform(get("/api/v1/products/" + UUID.randomUUID())
                         .header("Authorization", bearer("ROLE_USER")))
@@ -116,17 +124,19 @@ class ProductControllerSecurityTest {
         assertNotEquals(403, status, "ROLE_AGENT must only gate the agent-only endpoints");
     }
 
-    // ── ROLE_ADMIN: managing the catalog itself (OWASP A01) ──
+    // ── ROLE_ADMIN: managing the catalog, lot quarantine and recall lookups (OWASP A01) ──
 
     @ParameterizedTest
-    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate"})
+    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate",
+            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1"})
     void regularUserCannotManageCatalog(String endpoint) throws Exception {
         mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER")))
                 .andExpect(status().isForbidden());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate"})
+    @ValueSource(strings = {"POST /create", "PUT /update", "POST /{id}/activate", "POST /{id}/deactivate",
+            "POST /{id}/lots/quarantine", "POST /{id}/lots/lift-quarantine", "GET /{id}/lots/recipients?batchNumber=L1"})
     void adminPassesAuthorizationOnCatalogManagement(String endpoint) throws Exception {
         int status = mockMvc.perform(adminEndpoint(endpoint).header("Authorization", bearer("ROLE_USER", "ROLE_ADMIN")))
                 .andReturn().getResponse().getStatus();
@@ -137,8 +147,10 @@ class ProductControllerSecurityTest {
     private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder adminEndpoint(String endpoint) {
         String[] parts = endpoint.split(" ");
         String uri = "/api/v1/products" + parts[1].replace("{id}", UUID.randomUUID().toString());
-        return (parts[0].equals("PUT") ? put(uri) : post(uri))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}");
+        return switch (parts[0]) {
+            case "GET" -> get(uri);
+            case "PUT" -> put(uri).contentType(MediaType.APPLICATION_JSON).content("{}");
+            default -> post(uri).contentType(MediaType.APPLICATION_JSON).content("{}");
+        };
     }
 }
