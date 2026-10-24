@@ -25,7 +25,8 @@ import jakarta.persistence.UniqueConstraint;
  * {@code producer} and {@code correlationId} attribute), what ({@code eventType} and the data), when
  * ({@code occurredAt}) and in which order ({@code aggregateVersion}, unique per aggregate, so a gap is
  * detectable). For an edit, {@code changes} lists each changed field with its previous and new value (JSON
- * {@code [{"field","from","to"}]}), including fields the published event leaves out; {@code null} for other events.
+ * {@code [{"field","from","to"}]}), including fields the published event leaves out, and {@code reason} why it was
+ * made; both {@code null} for other events.
  */
 @Entity
 @Immutable
@@ -72,6 +73,9 @@ public class AuditEventEntity {
     @Column(name = "changes", updatable = false, length = OutboxEventEntity.MAX_PAYLOAD_LENGTH)
     private String changes;
 
+    @Column(name = "reason", updatable = false, length = 500)
+    private String reason;
+
     protected AuditEventEntity() {
         // JPA
     }
@@ -80,8 +84,16 @@ public class AuditEventEntity {
         return of(aggregateType, envelope, payload, null);
     }
 
-    /** @param changes JSON list of the edit's field changes, or {@code null} */
     static AuditEventEntity of(String aggregateType, EventEnvelope<?> envelope, String payload, String changes) {
+        return of(aggregateType, envelope, payload, changes, null);
+    }
+
+    /**
+     * @param changes JSON list of the edit's field changes, or {@code null}
+     * @param reason  why the record was changed, or {@code null}
+     */
+    static AuditEventEntity of(String aggregateType, EventEnvelope<?> envelope, String payload, String changes,
+                               String reason) {
         if (changes != null && changes.length() > OutboxEventEntity.MAX_PAYLOAD_LENGTH) {
             throw new IllegalStateException("Audit changes exceed " + OutboxEventEntity.MAX_PAYLOAD_LENGTH + " characters");
         }
@@ -97,6 +109,7 @@ public class AuditEventEntity {
         e.occurredAt = envelope.occurredAt();
         e.payload = payload;
         e.changes = changes;
+        e.reason = reason;
         return e;
     }
 
@@ -111,4 +124,5 @@ public class AuditEventEntity {
     public Instant getOccurredAt() { return occurredAt; }
     public String getPayload() { return payload; }
     public String getChanges() { return changes; }
+    public String getReason() { return reason; }
 }

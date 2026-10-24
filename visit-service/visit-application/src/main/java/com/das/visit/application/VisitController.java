@@ -90,7 +90,7 @@ public class VisitController {
         String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visits");
         return ResponseEntity.ok(updateVisitUseCase.execute(new UpdateVisitInputDTO(
                 inputDTO.id(), inputDTO.visitDate(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
-                inputDTO.visitSiteId(), msrId, inputDTO.items())));
+                inputDTO.visitSiteId(), msrId, inputDTO.items(), inputDTO.reason())));
     }
 
     @GetMapping("/{id}")

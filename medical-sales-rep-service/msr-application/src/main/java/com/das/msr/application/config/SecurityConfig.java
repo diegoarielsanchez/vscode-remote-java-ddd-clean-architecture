@@ -48,6 +48,8 @@ public class SecurityConfig {
                 // Activating/deactivating is an admin decision (OWASP A01). Must precede /api/**.
                 authz.requestMatchers(org.springframework.http.HttpMethod.POST,
                         "/api/v1/medicalsalesrep/*/activate", "/api/v1/medicalsalesrep/*/deactivate").hasRole("ADMIN");
+                // Audit trail review (ALCOA+): admins only. Must precede the /api/** rule.
+                authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/medicalsalesrep/*/history").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");
                 authz.anyRequest().authenticated();
             })

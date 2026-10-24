@@ -180,6 +180,13 @@ export function VisitFormView() {
           <textarea {...props} rows={4} maxLength={2000} value={vm.form.visitComments} onChange={(e) => vm.setField("visitComments", e.target.value)} />
         )}
       </Field>
+      {vm.isEdit && (
+        <Field label="Reason for change" error={vm.errors.reason}>
+          {(props) => (
+            <textarea {...props} rows={2} maxLength={500} required placeholder="Kept in the audit trail" value={vm.form.reason} onChange={(e) => vm.setField("reason", e.target.value)} />
+          )}
+        </Field>
+      )}
     </FormPage>
   );
 }
@@ -274,6 +281,13 @@ export function VisitPlanFormView() {
           <textarea {...props} rows={4} maxLength={2000} value={vm.form.visitComments} onChange={(e) => vm.setField("visitComments", e.target.value)} />
         )}
       </Field>
+      {vm.isEdit && (
+        <Field label="Reason for change" error={vm.errors.reason}>
+          {(props) => (
+            <textarea {...props} rows={2} maxLength={500} required placeholder="Kept in the audit trail" value={vm.form.reason} onChange={(e) => vm.setField("reason", e.target.value)} />
+          )}
+        </Field>
+      )}
     </FormPage>
   );
 }

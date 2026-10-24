@@ -173,5 +173,9 @@ public class OrderController {
     public record CreateOrderRequest(
         String medicalSalesRepId,
         @NotEmpty @Size(max = 20) @Valid List<OrderLineInputDTO> lines
-    ) {}
+    ) {
+        public CreateOrderRequest {
+            lines = lines == null ? null : List.copyOf(lines);
+        }
+    }
 }

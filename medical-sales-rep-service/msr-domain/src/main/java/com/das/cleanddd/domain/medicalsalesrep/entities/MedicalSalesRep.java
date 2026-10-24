@@ -9,6 +9,7 @@ import com.das.cleanddd.domain.shared.AddressValueObject;
 import com.das.cleanddd.domain.shared.PersonJavaBean;
 import com.das.cleanddd.domain.shared.UtilsFactory;
 import com.das.cleanddd.domain.shared.ValidationUtils;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
@@ -119,7 +120,17 @@ public class MedicalSalesRep extends PersonJavaBean<MsrDomainEvent> {
         return withUpdatedDetails(name, surname, email, this._address);
     }
 
+    /** Keeps the address; {@code reason} is why the record is changed (audit trail). */
+    public MedicalSalesRep withUpdatedDetails(MedicalSalesRepName name, MedicalSalesRepName surname, MedicalSalesRepEmail email, ChangeReason reason) {
+        return withUpdatedDetails(name, surname, email, this._address, reason);
+    }
+
     public MedicalSalesRep withUpdatedDetails(MedicalSalesRepName name, MedicalSalesRepName surname, MedicalSalesRepEmail email, AddressValueObject address) {
+        return withUpdatedDetails(name, surname, email, address, null);
+    }
+
+    /** {@code reason}: why the record is changed, kept in the audit trail; {@code null} if none was given. */
+    public MedicalSalesRep withUpdatedDetails(MedicalSalesRepName name, MedicalSalesRepName surname, MedicalSalesRepEmail email, AddressValueObject address, ChangeReason reason) {
         MedicalSalesRep updated = new MedicalSalesRep(this._id, name, surname, email, this._active, address);
         updated.record(new MsrUpdatedEvent(
                 updated.getId().value(),
@@ -132,7 +143,8 @@ public class MedicalSalesRep extends PersonJavaBean<MsrDomainEvent> {
                         .compare("surname", getSurname().value(), updated.getSurname().value())
                         .compare("email", getEmail().value(), updated.getEmail().value())
                         .compare("address", getAddress(), updated.getAddress())
-                        .toList()));
+                        .toList(),
+                ChangeReason.valueOf(reason)));
         return updated;
     }
 

@@ -14,6 +14,7 @@ import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepMapp
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.MedicalSalesRepOutputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.usecases.dtos.UpdateMedicalSalesRepInputDTO;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -65,6 +66,7 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
             MedicalSalesRepName medicalSalesRepSurname = new MedicalSalesRepName(inputDTO.surname());
             MedicalSalesRepEmail medicalSalesRepEmail = new MedicalSalesRepEmail(inputDTO.email());
             MedicalSalesRepId id = new MedicalSalesRepId(inputDTO.id());
+            ChangeReason reason = new ChangeReason(inputDTO.reason());
         // fetch existing MedicalSalesRep from the repository
         Optional<MedicalSalesRep> existingMedicalSalesRep = repository.findById(id);
         if (!existingMedicalSalesRep.isPresent()) {
@@ -75,7 +77,8 @@ public final class UpdateMedicalSalesRepUseCase implements UseCase<UpdateMedical
         medicalSalesRep = existingMedicalSalesRep.get().withUpdatedDetails(
                 medicalSalesRepName,
                 medicalSalesRepSurname,
-                medicalSalesRepEmail);
+                medicalSalesRepEmail,
+                reason);
         // Update the existing MedicalSalesRep with the new values
         repository.save(medicalSalesRep);
         medicalSalesRep.pullDomainEvents().forEach(publisher::publish);

@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.Identifier;
 import com.das.cleanddd.domain.shared.TextValueObject;
 import com.das.cleanddd.domain.shared.UseCase;
@@ -63,6 +64,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
 
         try {
             VisitId visitId = new VisitId(inputDTO.id());
+            ChangeReason reason = new ChangeReason(inputDTO.reason());
             Optional<Visit> existingVisit = visitRepository.search(visitId);
             // Another MSR's visit answers exactly like a missing one, so visit ids cannot be probed
             // and a visit cannot be reassigned to a different MSR (OWASP A01).
@@ -100,7 +102,7 @@ public final class UpdateVisitUseCase implements UseCase<UpdateVisitInputDTO, Vi
                 updatedVisit.replaceItems(VisitItemDTO.toEntities(inputDTO.items()));
             }
 
-            updatedVisit.recordUpdatedFrom(before);
+            updatedVisit.recordUpdatedFrom(before, reason);
             visitRepository.save(updatedVisit);
             return mapper.outputFromEntity(updatedVisit);
         } catch (IllegalArgumentException e) {

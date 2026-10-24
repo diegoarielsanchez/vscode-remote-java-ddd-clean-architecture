@@ -37,6 +37,8 @@ data class VisitRequest(
     val visitComments: String?,
     val visitSiteId: String,
     val medicalSalesRepId: String,
+    /** Why an existing record is changed; required on update (audit trail), left out on create. */
+    val reason: String? = null,
 )
 
 @Serializable
@@ -62,6 +64,8 @@ data class VisitPlanRequest(
     val visitComments: String?,
     val visitSiteId: String,
     val medicalSalesRepId: String,
+    /** Why an existing record is changed; required on update (audit trail), left out on create. */
+    val reason: String? = null,
 )
 
 // ── Endpoints: gateway routes /api/v1/visit/** and /api/v1/visitplan/** ────────

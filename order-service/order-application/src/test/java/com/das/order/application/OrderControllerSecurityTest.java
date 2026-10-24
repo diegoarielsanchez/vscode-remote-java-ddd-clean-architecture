@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -126,6 +127,23 @@ class OrderControllerSecurityTest {
                         .header("Authorization", bearer("ROLE_USER")))
                 .andReturn().getResponse().getStatus();
         assertNotEquals(403, status, "ROLE_AGENT must only gate the agent-only endpoints");
+    }
+
+    // ── audit trail: admins only (ALCOA+ review) ──
+
+    @Test
+    void regularUserAndAgentCannotReadAnOrdersHistory() throws Exception {
+        mockMvc.perform(get("/api/v1/orders/" + UUID.randomUUID() + "/history")
+                        .header("Authorization", bearer("ROLE_USER", "ROLE_AGENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminReadsAnOrdersHistory() throws Exception {
+        mockMvc.perform(get("/api/v1/orders/" + UUID.randomUUID() + "/history")
+                        .header("Authorization", bearer("ROLE_USER", "ROLE_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
     }
 
     // ── confirm-delivery: the AI Agent Service or the order's own MSR (OWASP A01) ──

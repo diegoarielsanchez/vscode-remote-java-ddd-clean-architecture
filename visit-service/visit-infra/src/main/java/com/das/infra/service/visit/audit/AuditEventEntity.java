@@ -21,7 +21,7 @@ import jakarta.persistence.UniqueConstraint;
  * {@code actor}, the authenticated principal, {@code null} for steps the service takes on its own, such as
  * deactivating plans after an HCP or MSR event; what: {@code eventType} and the data; when: {@code occurredAt}).
  * {@code aggregateVersion} is unique per aggregate, so a gap is detectable. For an edit, {@code changes} lists each
- * changed field with its previous and new value.
+ * changed field with its previous and new value, and {@code reason} why it was made.
  */
 @Entity
 @Immutable
@@ -70,13 +70,16 @@ public class AuditEventEntity {
     @Column(name = "changes", updatable = false, length = MAX_PAYLOAD_LENGTH)
     private String changes;
 
+    @Column(name = "reason", updatable = false, length = 500)
+    private String reason;
+
     protected AuditEventEntity() {
         // JPA
     }
 
     static AuditEventEntity of(UUID eventId, String aggregateType, String aggregateId, long aggregateVersion,
                                String eventType, String producer, String actor, String correlationId,
-                               Instant occurredAt, String payload, String changes) {
+                               Instant occurredAt, String payload, String changes, String reason) {
         if (payload.length() > MAX_PAYLOAD_LENGTH || (changes != null && changes.length() > MAX_PAYLOAD_LENGTH)) {
             throw new IllegalStateException("Audit entry exceeds " + MAX_PAYLOAD_LENGTH + " characters");
         }
@@ -92,6 +95,7 @@ public class AuditEventEntity {
         e.occurredAt = occurredAt;
         e.payload = payload;
         e.changes = changes;
+        e.reason = reason;
         return e;
     }
 
@@ -106,4 +110,5 @@ public class AuditEventEntity {
     public Instant getOccurredAt() { return occurredAt; }
     public String getPayload() { return payload; }
     public String getChanges() { return changes; }
+    public String getReason() { return reason; }
 }

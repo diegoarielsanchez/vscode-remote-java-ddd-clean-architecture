@@ -36,6 +36,8 @@ data class VisitDraft(
     val medicalSalesRepId: String,
     val visitSiteId: String,
     val comments: String?,
+    /** Why an existing record is changed; required when [id] is set (audit trail). */
+    val reason: String? = null,
 )
 
 data class VisitPlan(
@@ -55,6 +57,8 @@ data class VisitPlanDraft(
     val medicalSalesRepId: String,
     val visitSiteId: String,
     val comments: String?,
+    /** Why an existing record is changed; required when [id] is set (audit trail). */
+    val reason: String? = null,
 )
 
 @Singleton
@@ -76,6 +80,7 @@ class VisitRepository @Inject constructor(
             visitComments = draft.comments?.ifBlank { null },
             visitSiteId = draft.visitSiteId,
             medicalSalesRepId = draft.medicalSalesRepId,
+            reason = draft.reason?.trim()?.ifBlank { null },
         )
         (if (draft.id == null) api.create(body) else api.update(body)).toDomain()
     }.onSuccess { changes.notify(DataChange.VISIT) }
@@ -104,6 +109,7 @@ class VisitPlanRepository @Inject constructor(
             visitComments = draft.comments?.ifBlank { null },
             visitSiteId = draft.visitSiteId,
             medicalSalesRepId = draft.medicalSalesRepId,
+            reason = draft.reason?.trim()?.ifBlank { null },
         )
         (if (draft.id == null) api.create(body) else api.update(body)).toDomain()
     }.onSuccess { changes.notify(DataChange.VISIT_PLAN) }

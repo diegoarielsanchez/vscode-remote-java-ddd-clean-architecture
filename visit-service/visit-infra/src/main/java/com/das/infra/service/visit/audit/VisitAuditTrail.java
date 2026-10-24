@@ -70,7 +70,8 @@ public class VisitAuditTrail {
                 event);
         audit.save(AuditEventEntity.of(envelope.eventId(), event.aggregateType(), event.aggregateId(), version,
                 event.eventType(), PRODUCER, envelope.actor(), envelope.correlationId(), envelope.occurredAt(),
-                toJson(envelope), event instanceof ChangeTracked tracked ? toJson(tracked.changes()) : null));
+                toJson(envelope), event instanceof ChangeTracked tracked ? toJson(tracked.changes()) : null,
+                event instanceof ChangeTracked tracked ? tracked.reason() : null));
     }
 
     private long nextVersion(String aggregateType, String aggregateId) {

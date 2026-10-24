@@ -2,7 +2,7 @@ import { useState } from "react";
 import { salesRepApi } from "../api";
 
 const initialCreate = { name: "", surname: "", email: "" };
-const initialUpdate = { id: "", name: "", surname: "", email: "" };
+const initialUpdate = { id: "", name: "", surname: "", email: "", reason: "" };
 const initialFilters = { firstName: "", lastName: "", page: 1, pageSize: 10 };
 
 function MedicalSalesRepPage({ token, isAuthed }) {
@@ -52,6 +52,7 @@ function MedicalSalesRepPage({ token, isAuthed }) {
     setLoading(true);
     try {
       await salesRepApi.update(token, updateForm);
+      setUpdateForm((prev) => ({ ...prev, reason: "" })); // a reason belongs to one change
       setSuccess("Medical Sales Representative updated");
       await onList();
     } catch (err) {
@@ -122,6 +123,7 @@ function MedicalSalesRepPage({ token, isAuthed }) {
           <input className="input" placeholder="name" value={updateForm.name} onChange={(e) => setUpdateForm((prev) => ({ ...prev, name: e.target.value }))} />
           <input className="input" placeholder="surname" value={updateForm.surname} onChange={(e) => setUpdateForm((prev) => ({ ...prev, surname: e.target.value }))} />
           <input className="input" type="email" placeholder="email" value={updateForm.email} onChange={(e) => setUpdateForm((prev) => ({ ...prev, email: e.target.value }))} />
+          <textarea className="input" required maxLength={500} rows={2} placeholder="reason for change (required, kept in the audit trail)" value={updateForm.reason} onChange={(e) => setUpdateForm((prev) => ({ ...prev, reason: e.target.value }))} />
           <button className="btn-primary w-full" disabled={!isAuthed || loading}>Update</button>
         </form>
       </div>

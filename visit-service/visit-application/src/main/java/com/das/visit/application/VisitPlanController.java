@@ -87,7 +87,7 @@ public class VisitPlanController {
         String msrId = CallerMsr.require(authentication, inputDTO.medicalSalesRepId(), "visit plans");
         return ResponseEntity.ok(updateVisitPlanUseCase.execute(new UpdateVisitPlanInputDTO(
                 inputDTO.id(), inputDTO.visitDateTime(), inputDTO.healthCareProfId(), inputDTO.visitComments(),
-                inputDTO.visitSiteId(), msrId, inputDTO.items())));
+                inputDTO.visitSiteId(), msrId, inputDTO.items(), inputDTO.reason())));
     }
 
     /**

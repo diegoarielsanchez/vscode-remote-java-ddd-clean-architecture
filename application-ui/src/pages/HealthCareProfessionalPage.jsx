@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { healthCareProfApi } from "../api";
 
 const initialCreate = { name: "", surname: "", email: "", specialties: [] };
-const initialUpdate = { id: "", name: "", surname: "", email: "", specialties: [] };
+const initialUpdate = { id: "", name: "", surname: "", email: "", specialties: [], reason: "" };
 const initialFilters = { firstName: "", lastName: "", page: 1, pageSize: 10 };
 
 function HealthCareProfessionalPage({ token, isAuthed }) {
@@ -84,6 +84,7 @@ function HealthCareProfessionalPage({ token, isAuthed }) {
     setLoading(true);
     try {
       await healthCareProfApi.update(token, updateForm);
+      setUpdateForm((prev) => ({ ...prev, reason: "" })); // a reason belongs to one change
       setSuccess("Health Care Professional updated");
       await onList();
     } catch (err) {
@@ -179,6 +180,7 @@ function HealthCareProfessionalPage({ token, isAuthed }) {
               ))}
             </div>
           </div>
+          <textarea className="input" required maxLength={500} rows={2} placeholder="reason for change (required, kept in the audit trail)" value={updateForm.reason} onChange={(e) => setUpdateForm((prev) => ({ ...prev, reason: e.target.value }))} />
           <button className="btn-primary w-full" disabled={!isAuthed || loading}>Update</button>
         </form>
       </div>

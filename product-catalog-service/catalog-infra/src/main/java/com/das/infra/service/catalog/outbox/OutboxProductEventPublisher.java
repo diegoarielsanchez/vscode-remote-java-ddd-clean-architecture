@@ -83,7 +83,8 @@ public class OutboxProductEventPublisher implements IProductEventPublisher {
         outbox.save(OutboxEventEntity.pending(envelope.eventId(), ProductIntegrationEvents.AGGREGATE_TYPE,
                 envelope.aggregateId(), version, envelope.eventType(), payload, envelope.occurredAt()));
         // Kept permanently, unlike the outbox row: the audit trail (ALCOA+).
-        audit.save(AuditEventEntity.of(ProductIntegrationEvents.AGGREGATE_TYPE, envelope, payload, changesOf(event)));
+        audit.save(AuditEventEntity.of(ProductIntegrationEvents.AGGREGATE_TYPE, envelope, payload, changesOf(event),
+                event instanceof ChangeTracked tracked ? tracked.reason() : null));
     }
 
     private long nextVersion(String aggregateId) {

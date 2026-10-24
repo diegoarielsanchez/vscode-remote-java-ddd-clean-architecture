@@ -106,7 +106,7 @@ class OutboxHcpEventPublisherTest {
     @Test
     void theAuditTrailKeepsAnEditsPreviousValuesWithoutPublishingThem() throws Exception {
         publisher.publish(new HcpUpdatedEvent("hcp-1", "Ana", "Gómez", "ana@new.example", true,
-                List.of(new FieldChange("email", "ana@old.example", "ana@new.example"))));
+                List.of(new FieldChange("email", "ana@old.example", "ana@new.example")), "Corrected at the HCP's request"));
 
         OutboxEventEntity row = outbox.findAll().get(0);
         AuditEventEntity audited = audit.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
@@ -114,6 +114,8 @@ class OutboxHcpEventPublisherTest {
         assertEquals("[{\"field\":\"email\",\"from\":\"ana@old.example\",\"to\":\"ana@new.example\"}]", audited.getChanges());
         assertFalse(row.getPayload().contains("ana@old.example"), "the previous value is not published");
         assertFalse(row.getPayload().contains("\"changes\""), "the changes are for the audit trail only");
+        assertEquals("Corrected at the HCP's request", audited.getReason());
+        assertFalse(row.getPayload().contains("Corrected at"), "the reason is for the audit trail only");
     }
 
     @Test
