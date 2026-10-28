@@ -1336,6 +1336,8 @@ Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create Visi
 
 ### Product Catalog Service — `/api/v1/products`
 
+Why each product rule exists (GS1, GxP/GDP, GAMP 5), with requirements traced to their tests: [PRODUCTS.md](PRODUCTS.md).
+
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, `lotTracked` (default `true`; `false` for promotional material), `storageCondition` (required when lot-tracked, see [Storage and transport conditions](#storage-and-transport-conditions)), and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
