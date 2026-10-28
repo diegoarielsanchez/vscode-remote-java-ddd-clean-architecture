@@ -23,11 +23,15 @@ import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.das.cleanddd.domain.shared.storage.ConditionReadings;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 import com.das.cleanddd.domain.shared.audit.FieldChange;
 import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductCreatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDeactivatedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductLotExcursionRecordedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantinedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductLotRejectedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductRestockedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
@@ -104,6 +108,36 @@ class OutboxProductEventPublisherTest {
         JsonNode quarantined = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
         assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asText());
         assertTrue(quarantined.at("/data/gtin").isNull());
+    }
+
+    @Test
+    void eventsCarryTheStorageConditionsTheExcursionAndTheRejection() throws Exception {
+        StorageCondition fridge = new StorageCondition(new BigDecimal("2"), new BigDecimal("8"), null, true);
+        publisher.publish(new ProductCreatedEvent(PRODUCT, "Insulin 100IU", null, new BigDecimal("20.00"), "VIAL", false,
+                null, true, fridge));
+        publisher.publish(new ProductLotExcursionRecordedEvent(PRODUCT, "L2026-07A", "Fridge 3 logger",
+                java.time.Instant.parse("2026-10-23T22:00:00Z"), java.time.Instant.parse("2026-10-24T06:00:00Z"),
+                new ConditionReadings(null, new BigDecimal("12.4"), null, null),
+                List.of("Highest temperature 12.4 °C is above 8.0 °C."), true, null));
+        publisher.publish(new ProductLotRejectedEvent(PRODUCT, "L2026-07A", 40, 0, "Stability data do not cover it"));
+
+        List<OutboxEventEntity> rows = outbox.findAll().stream()
+                .sorted(Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
+        JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
+        assertEquals("2.0", created.at("/data/storageCondition/minTemperatureC").asText());
+        assertEquals("8.0", created.at("/data/storageCondition/maxTemperatureC").asText());
+        assertTrue(created.at("/data/storageCondition/protectFromLight").asBoolean());
+        assertTrue(created.at("/data/storageCondition/coldChain").asBoolean());
+
+        assertEquals("catalog.product.lot-excursion-recorded", rows.get(1).getEventType());
+        JsonNode excursion = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
+        assertEquals("Fridge 3 logger 2026-10-23T22:00:00Z to 2026-10-24T06:00:00Z: ? to 12.4 °C. Highest temperature"
+                + " 12.4 °C is above 8.0 °C.", excursion.at("/data/reason").asText());
+
+        assertEquals("catalog.product.lot-rejected", rows.get(2).getEventType());
+        JsonNode rejected = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
+        assertEquals(40, rejected.at("/data/stockDelta").asInt());
+        assertEquals(0, rejected.at("/data/remainingStock").asInt());
     }
 
     @Test

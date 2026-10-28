@@ -7,5 +7,6 @@ public record OrderLineOutputDTO(
     String productName,
     Integer quantity,
     BigDecimal unitPrice,
-    BigDecimal lineTotal
+    BigDecimal lineTotal,
+    StorageConditionOutputDTO storageCondition
 ) {}

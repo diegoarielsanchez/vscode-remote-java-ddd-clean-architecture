@@ -60,6 +60,9 @@ class OrderEventTranslatorTest {
         assertInstanceOf(OrderSagaEvent.Rejected.class,
                 translate(envelope(EVENT_ID, "order.rejected", "{\"decidedBy\":\"admin\",\"reason\":\"budget\"}")).orElseThrow());
         assertInstanceOf(OrderSagaEvent.Delivered.class, translate(envelope(EVENT_ID, "order.delivered", "{}")).orElseThrow());
+        assertInstanceOf(OrderSagaEvent.Delivered.class, translate(envelope(EVENT_ID, "order.delivery-rejected",
+                "{\"decidedBy\":\"qa.admin\",\"reason\":\"Cold chain broken\"}")).orElseThrow(),
+                "the units left stock all the same: the reservation is fulfilled");
     }
 
     @Test

@@ -10,6 +10,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.das.cleanddd.domain.order.entities.DeliveryCheck;
+import com.das.cleanddd.domain.order.entities.DeliveryDecision;
+import com.das.cleanddd.domain.shared.storage.ConditionReadings;
 import com.das.cleanddd.domain.order.entities.IOrderRepository;
 import com.das.cleanddd.domain.order.entities.MedicalSalesRepId;
 import com.das.cleanddd.domain.order.entities.Order;
@@ -30,6 +33,9 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 @Primary
 @Service
 public class SQLOrderRepository implements IOrderRepository {
+
+    /** Breaches are sentences without line breaks, so they are stored one per line. */
+    private static final String BREACH_SEPARATOR = "\n";
 
     @Autowired
     private OrderJpaRepository jpaRepository;
@@ -90,13 +96,29 @@ public class SQLOrderRepository implements IOrderRepository {
                     entity.getCreatedAt(),
                     entity.getApprovedAt(),
                     entity.getRejectedAt(),
-                    entity.getDeliveredAt());
+                    entity.getDeliveredAt(),
+                    deliveryCheck(entity),
+                    entity.getDeliveryDecidedBy() == null ? null : new DeliveryDecision(entity.getDeliveryDecidedBy(),
+                            entity.getDeliveryDecisionReason(), entity.getDeliveryDecidedAt()));
         } catch (BusinessValidationException e) {
             // A persisted row has already passed these invariants once; a violation here
             // means the stored data itself is corrupt — an infrastructure failure, not a
             // domain error the caller can recover from.
             throw new IllegalStateException("Corrupt order record " + entity.getId() + ": " + e.getMessage(), e);
         }
+    }
+
+    private static DeliveryCheck deliveryCheck(OrderEntity e) {
+        if (e.getTransportConditionsMaintained() == null) {
+            return null;
+        }
+        boolean read = e.getTransportMinTemperatureC() != null || e.getTransportMaxTemperatureC() != null
+                || e.getTransportMaxHumidityPercent() != null || e.getTransportLightExposed() != null;
+        return new DeliveryCheck(e.getTransportConditionsMaintained(),
+                read ? new ConditionReadings(e.getTransportMinTemperatureC(), e.getTransportMaxTemperatureC(),
+                        e.getTransportMaxHumidityPercent(), e.getTransportLightExposed()) : null,
+                e.getTransportNote(),
+                e.getTransportBreaches() == null ? List.of() : List.of(e.getTransportBreaches().split(BREACH_SEPARATOR)));
     }
 
     private OrderLine lineToDomain(OrderLineEntity le) {
@@ -106,7 +128,8 @@ public class SQLOrderRepository implements IOrderRepository {
                     new ProductId(le.getProductId()),
                     le.getProductNameSnapshot(),
                     new OrderLineQuantity(le.getQuantity()),
-                    le.getUnitPrice() == null ? null : new OrderLineUnitPrice(le.getUnitPrice()));
+                    le.getUnitPrice() == null ? null : new OrderLineUnitPrice(le.getUnitPrice()),
+                    StorageConditionEmbeddable.toDomain(le.getStorageCondition()));
         } catch (BusinessValidationException e) {
             throw new IllegalStateException("Corrupt order line record " + le.getId() + ": " + e.getMessage(), e);
         }
@@ -124,6 +147,23 @@ public class SQLOrderRepository implements IOrderRepository {
         entity.setApprovedAt(domain.approvedAt());
         entity.setRejectedAt(domain.rejectedAt());
         entity.setDeliveredAt(domain.deliveredAt());
+        DeliveryCheck check = domain.deliveryCheck();
+        if (check != null) {
+            ConditionReadings r = check.readings();
+            entity.setTransportConditionsMaintained(check.conditionsMaintained());
+            entity.setTransportMinTemperatureC(r == null ? null : r.minTemperatureC());
+            entity.setTransportMaxTemperatureC(r == null ? null : r.maxTemperatureC());
+            entity.setTransportMaxHumidityPercent(r == null ? null : r.maxHumidityPercent());
+            entity.setTransportLightExposed(r == null ? null : r.lightExposed());
+            entity.setTransportNote(check.note());
+            entity.setTransportBreaches(check.breaches().isEmpty() ? null : String.join(BREACH_SEPARATOR, check.breaches()));
+        }
+        DeliveryDecision decision = domain.deliveryDecision();
+        if (decision != null) {
+            entity.setDeliveryDecidedBy(decision.decidedBy());
+            entity.setDeliveryDecisionReason(decision.reason());
+            entity.setDeliveryDecidedAt(decision.decidedAt());
+        }
 
         List<OrderLineEntity> lineEntities = domain.lines().stream()
                 .map(line -> lineToEntity(line, entity))
@@ -140,6 +180,7 @@ public class SQLOrderRepository implements IOrderRepository {
         le.setProductNameSnapshot(line.productNameSnapshot());
         le.setQuantity(line.quantity().value());
         le.setUnitPrice(line.unitPrice() == null ? null : line.unitPrice().value());
+        le.setStorageCondition(StorageConditionEmbeddable.of(line.storageCondition()));
         le.setOrder(parent);
         return le;
     }

@@ -3,6 +3,7 @@ package com.das.cleanddd.domain.catalog.usecases.dtos;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,9 @@ import jakarta.validation.constraints.NotNull;
  * <p>With an {@code initialStock} above zero, {@code batchNumber} and {@code expirationDate} (ISO
  * {@code yyyy-MM-dd}) describe the first lot: both are required for a lot-tracked product, both optional otherwise
  * (an expiration date then needs a batch number, e.g. the material's approval code).
+ *
+ * <p>{@code storageCondition} is required for a lot-tracked product (GDP: medicines are stored and transported as
+ * their label says) and optional otherwise.
  */
 public record CreateProductInputDTO(
   @NotBlank String name,
@@ -24,18 +28,25 @@ public record CreateProductInputDTO(
   String gtin,
   String batchNumber,
   LocalDate expirationDate,
-  Boolean lotTracked
+  Boolean lotTracked,
+  @Valid StorageConditionDTO storageCondition
 ) {
 
   /** Without a GTIN or a first lot, lot-tracked. */
   public CreateProductInputDTO(String name, String description, BigDecimal price, String unit, Integer initialStock) {
-    this(name, description, price, unit, initialStock, null, null, null, null);
+    this(name, description, price, unit, initialStock, null, null, null, null, null);
   }
 
   /** Lot-tracked. */
   public CreateProductInputDTO(String name, String description, BigDecimal price, String unit, Integer initialStock,
                                String gtin, String batchNumber, LocalDate expirationDate) {
-    this(name, description, price, unit, initialStock, gtin, batchNumber, expirationDate, null);
+    this(name, description, price, unit, initialStock, gtin, batchNumber, expirationDate, null, null);
+  }
+
+  /** Without storage conditions, which a lot-tracked product needs. */
+  public CreateProductInputDTO(String name, String description, BigDecimal price, String unit, Integer initialStock,
+                               String gtin, String batchNumber, LocalDate expirationDate, Boolean lotTracked) {
+    this(name, description, price, unit, initialStock, gtin, batchNumber, expirationDate, lotTracked, null);
   }
 
   public boolean isLotTracked() {

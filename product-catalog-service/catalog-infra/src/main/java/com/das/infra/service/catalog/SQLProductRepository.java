@@ -131,7 +131,8 @@ public class SQLProductRepository implements IProductRepository {
                     new ProductStock(snapshot.stock()),
                     new ProductActive(snapshot.active()),
                     snapshot.gtin() == null ? null : new Gtin(snapshot.gtin()),
-                    snapshot.isLotTracked());
+                    snapshot.isLotTracked(),
+                    snapshot.storageCondition());
         } catch (BusinessValidationException | IllegalArgumentException e) {
             // A persisted row has already passed these invariants once; a violation here
             // means the stored data itself is corrupt, which is an infrastructure failure,
@@ -150,6 +151,7 @@ public class SQLProductRepository implements IProductRepository {
         entity.setActive(domain.getActive().value());
         entity.setGtin(domain.gtinValue());
         entity.setLotTracked(domain.isLotTracked());
+        entity.setStorageCondition(StorageConditionEmbeddable.of(domain.getStorageCondition()));
         return entity;
     }
 }

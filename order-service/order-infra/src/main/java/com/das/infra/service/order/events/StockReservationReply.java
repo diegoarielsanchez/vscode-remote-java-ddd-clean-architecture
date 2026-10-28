@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
+
 /** A validated {@code catalog.reservation.*} answer to an order's {@code order.created}. */
 public sealed interface StockReservationReply {
 
@@ -25,6 +27,7 @@ public sealed interface StockReservationReply {
     record Rejected(UUID eventId, String eventType, String orderId, String reason) implements StockReservationReply {
     }
 
-    record PricedLine(String productId, String productName, BigDecimal unitPrice) {
+    /** {@code storageCondition}: what the units must travel under; {@code null} when the product has none. */
+    record PricedLine(String productId, String productName, BigDecimal unitPrice, StorageCondition storageCondition) {
     }
 }

@@ -11,6 +11,7 @@ import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderStockInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.DecideDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
@@ -36,6 +37,8 @@ public class OrderUseCaseFactory {
     private final GetOrderByIdUseCase getOrderByIdUseCase;
     private final GetOrderApprovalStatusUseCase getOrderApprovalStatusUseCase;
     private final ListOrdersUseCase listOrdersUseCase;
+    private final DecideDeliveryUseCase releaseDeliveryUseCase;
+    private final DecideDeliveryUseCase rejectDeliveryUseCase;
 
     public OrderUseCaseFactory(IOrderRepository orderRepository, IOrderEventPublisher eventPublisher,
                                 IMedicalSalesRepValidator medicalSalesRepValidator, UnitOfWork unitOfWork) {
@@ -50,6 +53,8 @@ public class OrderUseCaseFactory {
         this.getOrderByIdUseCase = new GetOrderByIdUseCase(this.orderRepository, this.orderMapper);
         this.getOrderApprovalStatusUseCase = new GetOrderApprovalStatusUseCase(this.orderRepository);
         this.listOrdersUseCase = new ListOrdersUseCase(this.orderRepository, this.orderMapper);
+        this.releaseDeliveryUseCase = new DecideDeliveryUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork, true);
+        this.rejectDeliveryUseCase = new DecideDeliveryUseCase(this.orderRepository, this.orderMapper, eventPublisher, unitOfWork, false);
     }
 
     public UseCase<CreateOrderInputDTO, OrderOutputDTO> getCreateOrderUseCase() {
@@ -78,5 +83,11 @@ public class OrderUseCaseFactory {
     }
     public UseCase<ListOrdersInputDTO, List<OrderOutputDTO>> getListOrdersUseCase() {
         return listOrdersUseCase;
+    }
+    public UseCase<DecideDeliveryInputDTO, OrderOutputDTO> getReleaseDeliveryUseCase() {
+        return releaseDeliveryUseCase;
+    }
+    public UseCase<DecideDeliveryInputDTO, OrderOutputDTO> getRejectDeliveryUseCase() {
+        return rejectDeliveryUseCase;
     }
 }

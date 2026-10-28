@@ -69,6 +69,11 @@ public final class StockLot {
         return new StockLot(id, productId, batchNumber, expirationDate, quantity, newStatus, receivedAt);
     }
 
+    /** Rejected by Quality: final, the units are no longer on hand. */
+    public boolean isRejected() {
+        return status == LotStatus.REJECTED;
+    }
+
     public boolean isExpiredOn(LocalDate today) {
         return expirationDate != null && expirationDate.isExpiredOn(today);
     }

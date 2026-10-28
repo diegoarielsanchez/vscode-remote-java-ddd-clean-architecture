@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 import com.das.cleanddd.domain.catalog.entities.Gtin;
 import com.das.cleanddd.domain.catalog.entities.IProductRepository;
 import com.das.cleanddd.domain.catalog.entities.Product;
@@ -63,6 +64,12 @@ public final class InMemoryCatalog implements IProductRepository, IStockLotRepos
         return id;
     }
 
+    public void setStorageCondition(ProductId id, StorageCondition condition) throws Exception {
+        Product p = products.get(id.value());
+        products.put(id.value(), new Product(p.getId(), p.getName(), p.getDescription(), p.getPrice(), p.getUnit(),
+                p.getStock(), p.getActive(), p.getGtin(), p.isLotTracked(), condition));
+    }
+
     /** Lots received later sort after earlier ones with the same expiry. */
     public void addLot(ProductId id, String batch, LocalDate expiry, int quantity) {
         String lotId = UUID.randomUUID().toString();
@@ -93,7 +100,7 @@ public final class InMemoryCatalog implements IProductRepository, IStockLotRepos
         if (p == null) return Optional.empty();
         try {
             return Optional.of(new Product(p.getId(), p.getName(), p.getDescription(), p.getPrice(), p.getUnit(),
-                    new ProductStock(onHand(id)), p.getActive(), p.getGtin(), p.isLotTracked()));
+                    new ProductStock(onHand(id)), p.getActive(), p.getGtin(), p.isLotTracked(), p.getStorageCondition()));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -143,7 +150,7 @@ public final class InMemoryCatalog implements IProductRepository, IStockLotRepos
 
     @Override
     public int onHand(ProductId productId) {
-        return findByProductId(productId).stream().mapToInt(StockLot::quantity).sum();
+        return findByProductId(productId).stream().filter(l -> !l.isRejected()).mapToInt(StockLot::quantity).sum();
     }
 
     private static StockLot withQuantity(StockLot l, int quantity) {

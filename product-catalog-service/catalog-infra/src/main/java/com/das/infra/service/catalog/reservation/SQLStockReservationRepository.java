@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Repository;
 
+import com.das.infra.service.catalog.StorageConditionEmbeddable;
 import com.das.cleanddd.domain.catalog.lot.LotAllocation;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.reservation.entities.LotRecipient;
@@ -41,7 +42,8 @@ public class SQLStockReservationRepository implements IStockReservationRepositor
         entity.getAllocations().clear();
         for (int lineNo = 0; lineNo < reservation.lines().size(); lineNo++) {
             ReservationLine l = reservation.lines().get(lineNo);
-            entity.getLines().add(new StockReservationLineEmbeddable(l.productId(), l.quantity(), l.productName(), l.unitPrice()));
+            entity.getLines().add(new StockReservationLineEmbeddable(l.productId(), l.quantity(), l.productName(), l.unitPrice(),
+                    StorageConditionEmbeddable.of(l.storageCondition())));
             for (LotAllocation a : l.allocations()) {
                 entity.getAllocations().add(new StockReservationAllocationEmbeddable(lineNo, a.lotId(), a.batchNumber(),
                         a.expirationDate(), a.quantity()));
@@ -66,7 +68,7 @@ public class SQLStockReservationRepository implements IStockReservationRepositor
         for (int lineNo = 0; lineNo < e.getLines().size(); lineNo++) {
             StockReservationLineEmbeddable l = e.getLines().get(lineNo);
             lines.add(new ReservationLine(l.getProductId(), l.getQuantity(), l.getProductName(), l.getUnitPrice(),
-                    byLine.getOrDefault(lineNo, List.of())));
+                    byLine.getOrDefault(lineNo, List.of()), StorageConditionEmbeddable.toDomain(l.getStorageCondition())));
         }
         return new StockReservation(e.getOrderId(), ReservationStatus.valueOf(e.getStatus()), lines,
                 e.getReason(), e.getCreatedAt(), e.getUpdatedAt());

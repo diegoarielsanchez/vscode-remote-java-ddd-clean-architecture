@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Anti-corruption layer for {@code order.events} (schema version 1). Only three events move the
+ * Anti-corruption layer for {@code order.events} (schema version 1). Only four events move the
  * stock saga; the queue receives every {@code order.*} event (so each one is routable and the order
  * outbox never stalls), and any other valid order event is skipped.
  */
@@ -19,6 +19,8 @@ public class OrderEventTranslator {
     static final String CREATED = "order.created";
     static final String REJECTED = "order.rejected";
     static final String DELIVERED = "order.delivered";
+    /** Quality rejected a delivery quarantined for a transport break: the units left stock for good all the same. */
+    static final String DELIVERY_REJECTED = "order.delivery-rejected";
     /** Same cap as order-service's {@code Order.MAX_LINES}. */
     static final int MAX_LINES = 20;
     static final int MAX_QUANTITY = 1_000_000;
@@ -29,7 +31,8 @@ public class OrderEventTranslator {
         return switch (e.eventType()) {
             case CREATED -> Optional.of(new OrderSagaEvent.Created(e.eventId(), e.eventType(), e.aggregateId(), lines(e)));
             case REJECTED -> Optional.of(new OrderSagaEvent.Rejected(e.eventId(), e.eventType(), e.aggregateId()));
-            case DELIVERED -> Optional.of(new OrderSagaEvent.Delivered(e.eventId(), e.eventType(), e.aggregateId()));
+            case DELIVERED, DELIVERY_REJECTED ->
+                    Optional.of(new OrderSagaEvent.Delivered(e.eventId(), e.eventType(), e.aggregateId()));
             default -> {
                 if (e.eventType().startsWith("order.")) yield Optional.empty();
                 throw e.invalid("unsupported eventType");

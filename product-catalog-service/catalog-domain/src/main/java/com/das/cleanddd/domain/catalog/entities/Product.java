@@ -13,6 +13,7 @@ import com.das.cleanddd.domain.shared.audit.FieldChanges;
 import com.das.cleanddd.domain.shared.exceptions.BusinessException;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
 import com.das.cleanddd.domain.shared.exceptions.RequiredFieldException;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 public class Product extends AggregateRoot<ProductDomainEvent> {
 
@@ -25,6 +26,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     private final ProductActive _active;
     private final Gtin _gtin;
     private final boolean _lotTracked;
+    private final StorageCondition _storageCondition;
     private final transient ValidationUtils _validationUtils;
 
     /** Description is optional: a product may have none on file yet. */
@@ -47,6 +49,17 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                     ProductUnit unit, ProductStock stock, ProductActive active, Gtin gtin, boolean lotTracked)
             throws BusinessValidationException {
+        this(id, name, description, price, unit, stock, active, gtin, lotTracked, null);
+    }
+
+    /**
+     * {@code storageCondition}: how the product must be stored and transported, from its label; {@code null} when
+     * none is on file (promotional material, or a product recorded before conditions were). Creating a lot-tracked
+     * product requires one (see the create use case).
+     */
+    public Product(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
+                    ProductUnit unit, ProductStock stock, ProductActive active, Gtin gtin, boolean lotTracked,
+                    StorageCondition storageCondition) throws BusinessValidationException {
         this._id = id == null ? ProductId.random() : id;
         this._name = name;
         this._description = description;
@@ -56,6 +69,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         this._active = active == null ? new ProductActive(false) : active;
         this._gtin = gtin;
         this._lotTracked = lotTracked;
+        this._storageCondition = storageCondition;
         this._validationUtils = (new UtilsFactory()).getValidationUtils();
     }
 
@@ -99,6 +113,10 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         return this._lotTracked;
     }
 
+    public StorageCondition getStorageCondition() {
+        return this._storageCondition;
+    }
+
     public Boolean isActive() {
         return this._active != null && Boolean.TRUE.equals(this._active.value()) ? Boolean.TRUE : Boolean.FALSE;
     }
@@ -111,8 +129,14 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
     public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
                                   ProductUnit unit, ProductStock stock, Gtin gtin, boolean lotTracked)
             throws BusinessValidationException {
+        return create(id, name, description, price, unit, stock, gtin, lotTracked, null);
+    }
+
+    public static Product create(ProductId id, ProductName name, ProductDescription description, ProductPrice price,
+                                  ProductUnit unit, ProductStock stock, Gtin gtin, boolean lotTracked,
+                                  StorageCondition storageCondition) throws BusinessValidationException {
         Product product = new Product(id, name, description, price, unit, stock, new ProductActive(false), gtin,
-                lotTracked);
+                lotTracked, storageCondition);
         product.record(new ProductCreatedEvent(
                 product.getId().value(),
                 product.getName().value(),
@@ -121,7 +145,8 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
                 product.getUnit().value(),
                 product.getActive().value(),
                 product.gtinValue(),
-                product.isLotTracked()));
+                product.isLotTracked(),
+                storageCondition));
         return product;
     }
 
@@ -144,7 +169,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product activated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(true), this._gtin, this._lotTracked);
+                this._stock, new ProductActive(true), this._gtin, this._lotTracked, this._storageCondition);
         activated.record(new ProductActivatedEvent(activated.getId().value(), activated.getActive().value()));
         return activated;
     }
@@ -154,7 +179,7 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
             return this;
         }
         Product deactivated = new Product(this._id, this._name, this._description, this._price, this._unit,
-                this._stock, new ProductActive(false), this._gtin, this._lotTracked);
+                this._stock, new ProductActive(false), this._gtin, this._lotTracked, this._storageCondition);
         deactivated.record(new ProductDeactivatedEvent(deactivated.getId().value(), deactivated.getActive().value()));
         return deactivated;
     }
@@ -171,16 +196,29 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
         return withUpdatedDetails(name, description, price, unit, gtin, null);
     }
 
-    /** {@code reason}: why the record is changed, kept in the audit trail; {@code null} if none was given. */
+    /** Keeps the storage condition as it is. */
     public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
                                        ProductUnit unit, Gtin gtin, ChangeReason reason)
             throws BusinessValidationException {
+        return withUpdatedDetails(name, description, price, unit, gtin, this._storageCondition, reason);
+    }
+
+    /**
+     * {@code reason}: why the record is changed, kept in the audit trail; {@code null} if none was given. A storage
+     * condition can be changed (e.g. a new label) but not removed from a lot-tracked product.
+     */
+    public Product withUpdatedDetails(ProductName name, ProductDescription description, ProductPrice price,
+                                       ProductUnit unit, Gtin gtin, StorageCondition storageCondition,
+                                       ChangeReason reason) throws BusinessValidationException {
+        if (this._lotTracked && this._storageCondition != null && storageCondition == null) {
+            throw new BusinessValidationException("A medicine's storage conditions cannot be removed.");
+        }
         if (this._gtin != null && !this._gtin.equals(gtin)) {
             // GS1 GTIN Management Standard: a GTIN stays with its trade item. A different item gets a new product.
             throw new BusinessValidationException("A product's GTIN cannot be changed or removed once set.");
         }
         Product updated = new Product(this._id, name, description, price, unit, this._stock, this._active, gtin,
-                this._lotTracked);
+                this._lotTracked, storageCondition);
         updated.record(new ProductUpdatedEvent(
                 updated.getId().value(),
                 updated.getName().value(),
@@ -189,15 +227,21 @@ public class Product extends AggregateRoot<ProductDomainEvent> {
                 updated.getUnit().value(),
                 updated.getActive().value(),
                 updated.gtinValue(),
+                storageCondition,
                 new FieldChanges()
                         .compare("name", getName().value(), updated.getName().value())
                         .compare("description", descriptionValue(), updated.descriptionValue())
                         .compare("price", getPrice().value(), updated.getPrice().value())
                         .compare("unit", getUnit().value(), updated.getUnit().value())
                         .compare("gtin", gtinValue(), updated.gtinValue())
+                        .compare("storageCondition", storageDescription(), updated.storageDescription())
                         .toList(),
                 ChangeReason.valueOf(reason)));
         return updated;
+    }
+
+    private String storageDescription() {
+        return this._storageCondition == null ? null : this._storageCondition.describe();
     }
 
     private String descriptionValue() {

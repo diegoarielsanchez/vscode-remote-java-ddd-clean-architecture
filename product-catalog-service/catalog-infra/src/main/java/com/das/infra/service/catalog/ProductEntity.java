@@ -3,6 +3,7 @@ package com.das.infra.service.catalog;
 import java.math.BigDecimal;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -28,6 +29,9 @@ public class ProductEntity {
     /** False for products held without batches (promotional material). Set at creation, never changed. */
     @Column(name = "lot_tracked", nullable = false)
     private Boolean lotTracked = Boolean.TRUE;
+    /** Storage and transport conditions from the label; all null when none is on file. */
+    @Embedded
+    private StorageConditionEmbeddable storageCondition;
 
     /** Protects the update path (details and GTIN) from concurrent clobbering. */
     @Version
@@ -98,6 +102,14 @@ public class ProductEntity {
 
     public void setLotTracked(Boolean lotTracked) {
         this.lotTracked = lotTracked;
+    }
+
+    public StorageConditionEmbeddable getStorageCondition() {
+        return storageCondition;
+    }
+
+    public void setStorageCondition(StorageConditionEmbeddable storageCondition) {
+        this.storageCondition = storageCondition;
     }
 
     public Long getVersion() {

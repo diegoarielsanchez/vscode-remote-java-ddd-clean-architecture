@@ -3,13 +3,16 @@ package com.das.cleanddd.domain.order.entities;
 import java.math.BigDecimal;
 import java.util.Objects;
 
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
+
 /**
  * Plain value holder — not its own aggregate root. Mirrors the
  * Settlement/Invoice child pattern (settlement-domain): lives only inside its
  * parent Order, is never fetched or saved independently.
  *
  * <p>A line starts unpriced (no name or unit price) while its order waits for stock; product-catalog
- * fills both in when it reserves the stock (see {@link #priced}).
+ * fills both in when it reserves the stock (see {@link #priced}), with the product's storage conditions, which the
+ * line's units must be transported under ({@code null} when the product has none).
  */
 public final class OrderLine {
 
@@ -18,14 +21,21 @@ public final class OrderLine {
     private final String _productNameSnapshot;
     private final OrderLineQuantity _quantity;
     private final OrderLineUnitPrice _unitPrice;
+    private final StorageCondition _storageCondition;
 
     public OrderLine(OrderLineId id, ProductId productId, String productNameSnapshot,
                       OrderLineQuantity quantity, OrderLineUnitPrice unitPrice) {
+        this(id, productId, productNameSnapshot, quantity, unitPrice, null);
+    }
+
+    public OrderLine(OrderLineId id, ProductId productId, String productNameSnapshot,
+                      OrderLineQuantity quantity, OrderLineUnitPrice unitPrice, StorageCondition storageCondition) {
         this._id = id == null ? OrderLineId.random() : id;
         this._productId = productId;
         this._productNameSnapshot = productNameSnapshot;
         this._quantity = quantity;
         this._unitPrice = unitPrice;
+        this._storageCondition = storageCondition;
     }
 
     public OrderLineId id() {
@@ -48,13 +58,21 @@ public final class OrderLine {
         return _unitPrice;
     }
 
+    public StorageCondition storageCondition() {
+        return _storageCondition;
+    }
+
     public static OrderLine unpriced(ProductId productId, OrderLineQuantity quantity) {
         return new OrderLine(null, productId, null, quantity, null);
     }
 
     /** A copy of this line (same id) carrying the catalog's name and price snapshot. */
     public OrderLine priced(String productName, OrderLineUnitPrice unitPrice) {
-        return new OrderLine(_id, _productId, productName, _quantity, unitPrice);
+        return priced(productName, unitPrice, null);
+    }
+
+    public OrderLine priced(String productName, OrderLineUnitPrice unitPrice, StorageCondition storageCondition) {
+        return new OrderLine(_id, _productId, productName, _quantity, unitPrice, storageCondition);
     }
 
     public boolean isPriced() {

@@ -8,6 +8,7 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 import com.das.cleanddd.domain.order.entities.Order;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -36,11 +37,43 @@ public class CatalogEventTranslator {
                 lines.add(new StockReservationReply.PricedLine(
                         e.uuidText(line, "productId"),
                         e.text(line, "productName", EnvelopeParser.MAX_NAME_LENGTH),
-                        e.nonNegativeDecimal(line, "unitPrice")));
+                        e.nonNegativeDecimal(line, "unitPrice"),
+                        storageCondition(e, line)));
             }
             return Optional.of(new StockReservationReply.Confirmed(e.eventId(), e.eventType(), e.aggregateId(), lines));
         }
         return Optional.of(new StockReservationReply.Rejected(e.eventId(), e.eventType(), e.aggregateId(),
                 e.text(e.data(), "reason", EnvelopeParser.MAX_REASON_LENGTH)));
+    }
+
+    /** Optional: left out (or null) when the product has none; otherwise it must be a valid condition. */
+    private static StorageCondition storageCondition(EnvelopeParser.Envelope e, JsonNode line) {
+        JsonNode node = line.get("storageCondition");
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isObject()) {
+            throw e.invalid("storageCondition must be an object");
+        }
+        JsonNode min = node.get("minTemperatureC");
+        JsonNode max = node.get("maxTemperatureC");
+        JsonNode humidity = node.get("maxHumidityPercent");
+        JsonNode light = node.get("protectFromLight");
+        if (min == null || !min.isNumber() || max == null || !max.isNumber()) {
+            throw e.invalid("storageCondition temperatures must be numbers");
+        }
+        if (humidity != null && !humidity.isNull() && !humidity.canConvertToInt()) {
+            throw e.invalid("storageCondition.maxHumidityPercent must be an integer");
+        }
+        if (light != null && !light.isNull() && !light.isBoolean()) {
+            throw e.invalid("storageCondition.protectFromLight must be a boolean");
+        }
+        try {
+            return new StorageCondition(min.decimalValue(), max.decimalValue(),
+                    humidity == null || humidity.isNull() ? null : humidity.intValue(),
+                    light != null && light.booleanValue());
+        } catch (IllegalArgumentException ex) {
+            throw e.invalid("storageCondition: " + ex.getMessage());
+        }
     }
 }

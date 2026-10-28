@@ -9,6 +9,7 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductMapper;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.StorageConditionDTO;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CreateProductUseCase")
 class CreateProductUseCaseTest {
+
+    private static final StorageConditionDTO ROOM = new StorageConditionDTO(new BigDecimal("15"), new BigDecimal("25"), null, false);
 
     @Mock private IProductRepository repository;
     @Mock private IProductEventPublisher publisher;
@@ -49,7 +52,7 @@ class CreateProductUseCaseTest {
         void shouldCreateAndPersist() throws DomainException {
             CreateProductInputDTO input =
                     new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new BigDecimal("12.50"), "BOX", 100,
-                            null, "L2026-07A", java.time.LocalDate.of(2099, 12, 31));
+                            null, "L2026-07A", java.time.LocalDate.of(2099, 12, 31), null, ROOM);
 
             ProductOutputDTO output = useCase.execute(input);
 
@@ -59,6 +62,8 @@ class CreateProductUseCaseTest {
             assertEquals("BOX", output.unit());
             assertEquals(100, output.stock());
             assertFalse(output.active()); // newly created → inactive
+            assertEquals("15.0 to 25.0 °C", output.storageCondition().description());
+            assertFalse(output.storageCondition().coldChain());
 
             verify(repository, times(1)).save(any(Product.class));
             verify(lots, times(1)).save(any(com.das.cleanddd.domain.catalog.lot.StockLot.class));
@@ -69,7 +74,8 @@ class CreateProductUseCaseTest {
         @DisplayName("should default initialStock to zero when null")
         void shouldDefaultStockToZeroWhenNull() throws DomainException {
             CreateProductInputDTO input =
-                    new CreateProductInputDTO("Ibuprofen 400mg", null, new BigDecimal("5.00"), "VIAL", null);
+                    new CreateProductInputDTO("Ibuprofen 400mg", null, new BigDecimal("5.00"), "VIAL", null, null, null,
+                            null, null, ROOM);
 
             ProductOutputDTO output = useCase.execute(input);
 
@@ -80,6 +86,18 @@ class CreateProductUseCaseTest {
     @Nested
     @DisplayName("Input validation")
     class InputValidation {
+
+        @Test
+        @DisplayName("a lot-tracked product needs its storage conditions; promotional material does not")
+        void storageConditionsAreRequiredForMedicines() throws DomainException {
+            DomainException e = assertThrows(DomainException.class, () -> useCase.execute(
+                    new CreateProductInputDTO("Ibuprofen 400mg", null, new BigDecimal("5.00"), "VIAL", null)));
+            assertTrue(e.getMessage().startsWith("A lot-tracked product needs its storage conditions"), e.getMessage());
+            verify(repository, never()).save(any());
+
+            assertNull(useCase.execute(new CreateProductInputDTO("Brochure", null, new BigDecimal("0.00"), "UNIT", null,
+                    null, null, null, false)).storageCondition());
+        }
 
         @Test
         @DisplayName("should throw DomainException when input is null")

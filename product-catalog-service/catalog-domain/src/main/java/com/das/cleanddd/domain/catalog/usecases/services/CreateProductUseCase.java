@@ -24,10 +24,13 @@ import com.das.cleanddd.domain.catalog.usecases.dtos.ProductOutputDTO;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 /**
  * Creates a product, inactive. An {@code initialStock} above zero becomes the product's first lot, under the same
  * rules as receiving stock: a lot-tracked product's stock is never held without a batch number and expiration date.
+ * A lot-tracked product (a medicine) also needs its storage conditions, so it is never stored or shipped without
+ * them (GDP).
  */
 public final class CreateProductUseCase implements UseCase<CreateProductInputDTO, ProductOutputDTO> {
 
@@ -70,6 +73,12 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
             ProductPrice price = new ProductPrice(inputDTO.price());
             ProductUnit unit = new ProductUnit(inputDTO.unit());
             Gtin gtin = inputDTO.gtin() == null ? null : new Gtin(inputDTO.gtin());
+            StorageCondition storageCondition = inputDTO.storageCondition() == null
+                    ? null : inputDTO.storageCondition().toDomain();
+            if (storageCondition == null && inputDTO.isLotTracked()) {
+                throw new DomainException("A lot-tracked product needs its storage conditions (storageCondition with"
+                        + " minTemperatureC and maxTemperatureC, as on the label).");
+            }
             int initialStock = inputDTO.initialStock() == null ? 0 : inputDTO.initialStock();
             if (initialStock < 0) {
                 throw new DomainException("Stock must be zero or positive.");
@@ -88,7 +97,7 @@ public final class CreateProductUseCase implements UseCase<CreateProductInputDTO
             // New products are created inactive — mirrors the MSR/HCP "create
             // inactive, explicit activate step" convention.
             Product product = Product.create(id, name, description, price, unit, new ProductStock(initialStock), gtin,
-                    inputDTO.isLotTracked());
+                    inputDTO.isLotTracked(), storageCondition);
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             if (firstLot != null) {

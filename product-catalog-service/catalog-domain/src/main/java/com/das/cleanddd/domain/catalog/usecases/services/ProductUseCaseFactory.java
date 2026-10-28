@@ -14,6 +14,8 @@ import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
 import com.das.cleanddd.domain.catalog.reservation.entities.IStockReservationRepository;
 import com.das.cleanddd.domain.catalog.usecases.dtos.AvailabilityOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.ExcursionInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.ExcursionOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotRecipientOutputDTO;
@@ -50,6 +52,8 @@ public class ProductUseCaseFactory {
     private final ChangeLotQuarantineUseCase quarantineLotUseCase;
     private final ChangeLotQuarantineUseCase liftLotQuarantineUseCase;
     private final FindLotRecipientsUseCase findLotRecipientsUseCase;
+    private final RecordExcursionUseCase recordExcursionUseCase;
+    private final RejectLotUseCase rejectLotUseCase;
 
     public ProductUseCaseFactory(IProductRepository productRepository, IStockLotRepository lots,
                                  IStockReservationRepository reservations, IProductEventPublisher eventPublisher,
@@ -73,6 +77,10 @@ public class ProductUseCaseFactory {
         this.liftLotQuarantineUseCase = new ChangeLotQuarantineUseCase(productRepository, lots, eventPublisher, unitOfWork,
                 shelfLifePolicy, clock, LotStatus.AVAILABLE);
         this.findLotRecipientsUseCase = new FindLotRecipientsUseCase(productRepository, lots, reservations);
+        this.recordExcursionUseCase = new RecordExcursionUseCase(productRepository, lots, eventPublisher, unitOfWork,
+                shelfLifePolicy, clock);
+        this.rejectLotUseCase = new RejectLotUseCase(productRepository, lots, eventPublisher, unitOfWork,
+                shelfLifePolicy, clock);
     }
 
     public UseCase<CreateProductInputDTO, ProductOutputDTO> getCreateProductUseCase() {
@@ -116,5 +124,11 @@ public class ProductUseCaseFactory {
     }
     public UseCase<LotInputDTO, List<LotRecipientOutputDTO>> getFindLotRecipientsUseCase() {
         return findLotRecipientsUseCase;
+    }
+    public UseCase<ExcursionInputDTO, ExcursionOutputDTO> getRecordExcursionUseCase() {
+        return recordExcursionUseCase;
+    }
+    public UseCase<LotInputDTO, StockLotOutputDTO> getRejectLotUseCase() {
+        return rejectLotUseCase;
     }
 }

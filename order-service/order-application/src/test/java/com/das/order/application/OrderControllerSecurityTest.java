@@ -168,6 +168,25 @@ class OrderControllerSecurityTest {
         }
     }
 
+    // ── quarantined deliveries: Quality (ROLE_ADMIN) decides, nobody else (GDP) ──
+
+    @ParameterizedTest
+    @ValueSource(strings = {"release", "reject"})
+    void onlyAnAdminDecidesOnAQuarantinedDelivery(String decision) throws Exception {
+        String uri = "/api/v1/orders/" + UUID.randomUUID() + "/delivery/" + decision;
+        for (String token : List.of(bearer("ROLE_USER"), bearer("ROLE_USER", "ROLE_AGENT"),
+                                    bearerForRep(UUID.randomUUID().toString(), "ROLE_USER"))) {
+            mockMvc.perform(post(uri).header("Authorization", token)
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"x\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        int status = mockMvc.perform(post(uri).header("Authorization", bearer("ROLE_USER", "ROLE_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"x\"}"))
+                .andReturn().getResponse().getStatus();
+        assertNotEquals(401, status);
+        assertNotEquals(403, status);
+    }
+
     // ── create: always for the caller's own MSR (token msr_id), never a body value (OWASP A01) ──
 
     private static String orderBody(String msrId) {

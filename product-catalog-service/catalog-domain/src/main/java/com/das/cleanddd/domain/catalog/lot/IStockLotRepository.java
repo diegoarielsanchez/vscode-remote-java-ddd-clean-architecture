@@ -25,6 +25,6 @@ public interface IStockLotRepository {
     /** Atomically adds {@code quantity} units to the lot (receipt of more of the batch, or units given back). */
     void give(ProductId productId, String lotId, int quantity);
 
-    /** Units on hand across all of the product's lots, quarantined ones included. */
+    /** Units on hand across all of the product's lots, quarantined ones included and rejected ones left out. */
     int onHand(ProductId productId);
 }

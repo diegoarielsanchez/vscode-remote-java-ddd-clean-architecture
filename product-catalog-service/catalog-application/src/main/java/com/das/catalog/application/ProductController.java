@@ -1,5 +1,7 @@
 package com.das.catalog.application;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.das.cleanddd.domain.catalog.usecases.dtos.AvailabilityOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.CreateProductInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.ExcursionInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.ExcursionOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotQuantityInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.LotRecipientOutputDTO;
@@ -41,6 +45,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @RestController
@@ -64,6 +69,8 @@ public class ProductController {
     private final UseCase<LotInputDTO, StockLotOutputDTO> quarantineLotUseCase;
     private final UseCase<LotInputDTO, StockLotOutputDTO> liftLotQuarantineUseCase;
     private final UseCase<LotInputDTO, List<LotRecipientOutputDTO>> findLotRecipientsUseCase;
+    private final UseCase<ExcursionInputDTO, ExcursionOutputDTO> recordExcursionUseCase;
+    private final UseCase<LotInputDTO, StockLotOutputDTO> rejectLotUseCase;
 
     public ProductController(ProductUseCaseFactory factory) {
         this.createProductUseCase = factory.getCreateProductUseCase();
@@ -80,6 +87,8 @@ public class ProductController {
         this.quarantineLotUseCase = factory.getQuarantineLotUseCase();
         this.liftLotQuarantineUseCase = factory.getLiftLotQuarantineUseCase();
         this.findLotRecipientsUseCase = factory.getFindLotRecipientsUseCase();
+        this.recordExcursionUseCase = factory.getRecordExcursionUseCase();
+        this.rejectLotUseCase = factory.getRejectLotUseCase();
     }
 
     @PostMapping("/create")
@@ -219,6 +228,33 @@ public class ProductController {
     }
 
     /**
+     * Readings from a data logger or monitoring system for one lot. A reading outside the product's storage
+     * conditions puts an available lot in quarantine until Quality lifts it or rejects the lot.
+     */
+    @PostMapping("/{id}/lots/excursions")
+    @Operation(summary = "Record logger readings for a lot; a breach of the storage conditions quarantines it")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<ExcursionOutputDTO> recordExcursion(
+        @PathVariable String id,
+        @Valid @RequestBody ExcursionRequest body
+    ) throws DomainException {
+        return ResponseEntity.ok(recordExcursionUseCase.execute(new ExcursionInputDTO(id, body.batchNumber(),
+                body.source(), body.observedFrom(), body.observedTo(), body.minTemperatureC(), body.maxTemperatureC(),
+                body.maxHumidityPercent(), body.lightExposed(), body.note())));
+    }
+
+    /** Quality's final decision on a quarantined lot: its units leave the stock on hand and await destruction. */
+    @PostMapping("/{id}/lots/reject")
+    @Operation(summary = "Reject a quarantined lot: its units can no longer be used")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<StockLotOutputDTO> rejectLot(
+        @PathVariable String id,
+        @Valid @RequestBody LotChangeRequest body
+    ) throws DomainException {
+        return ResponseEntity.ok(rejectLotUseCase.execute(new LotInputDTO(id, body.batchNumber(), body.reason())));
+    }
+
+    /**
      * Recall: which orders received units of the batch. The batch goes in the query string, URL-encoded; leave it
      * out for the UNBATCHED lot of a product that is not lot-tracked.
      */
@@ -243,4 +279,13 @@ public class ProductController {
 
     /** {@code batchNumber} is required for a lot-tracked product; the use case checks it. */
     public record LotChangeRequest(String batchNumber, @NotBlank @Size(max = 500) String reason) {}
+
+    /**
+     * {@code batchNumber} is required for a lot-tracked product; {@code source} names the logger, fridge or shipment.
+     * Temperatures in °C; give at least one reading.
+     */
+    public record ExcursionRequest(String batchNumber, @NotBlank @Size(max = 100) String source,
+                                   @NotNull Instant observedFrom, @NotNull Instant observedTo,
+                                   BigDecimal minTemperatureC, BigDecimal maxTemperatureC, Integer maxHumidityPercent,
+                                   Boolean lightExposed, @Size(max = 500) String note) {}
 }

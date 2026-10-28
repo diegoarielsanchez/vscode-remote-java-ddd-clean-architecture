@@ -19,7 +19,8 @@ public class ProductMapper {
             product.getStock().value(),
             product.getActive().value(),
             product.gtinValue(),
-            product.isLotTracked()
+            product.isLotTracked(),
+            StorageConditionDTO.from(product.getStorageCondition())
         );
     }
 

@@ -50,6 +50,9 @@ public class SecurityConfig {
                 // precede the /api/** rule, which would otherwise let any USER through.
                 authz.requestMatchers(org.springframework.http.HttpMethod.POST,
                         "/api/v1/orders/*/approve", "/api/v1/orders/*/reject").hasRole("AGENT");
+                // Deciding on a delivery quarantined for a transport break is Quality's (GDP: authorised people).
+                authz.requestMatchers(org.springframework.http.HttpMethod.POST,
+                        "/api/v1/orders/*/delivery/release", "/api/v1/orders/*/delivery/reject").hasRole("ADMIN");
                 // Audit trail review (ALCOA+): admins only. Must precede the /api/** rule.
                 authz.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/orders/*/history").hasRole("ADMIN");
                 authz.requestMatchers("/api/**").hasRole("USER");

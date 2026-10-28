@@ -3,6 +3,7 @@ package com.das.catalog.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,7 +105,9 @@ class OutboxWiringTest {
 
     @Test
     void createWritesOneOutboxEventCarryingTheAuthenticatedActor() throws Exception {
-        var body = new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new java.math.BigDecimal("12.50"), "BOX", 0);
+        var body = new CreateProductInputDTO("Amoxicillin 500mg", "Antibiotic", new java.math.BigDecimal("12.50"), "BOX", 0,
+                null, null, null, null, new com.das.cleanddd.domain.catalog.usecases.dtos.StorageConditionDTO(
+                        new java.math.BigDecimal("15"), new java.math.BigDecimal("25"), null, false));
 
         mockMvc.perform(post("/api/v1/products/create")
                         .header("Authorization", "Bearer " + jwtFor("rep.manager"))
@@ -140,11 +143,14 @@ class OutboxWiringTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":5,
-                                 "gtin":"9506000134352","batchNumber":"L2026-07A","expirationDate":"2075-03-31"}
+                                 "gtin":"9506000134352","batchNumber":"L2026-07A","expirationDate":"2075-03-31",
+                                 "storageCondition":{"minTemperatureC":2,"maxTemperatureC":8,"protectFromLight":true}}
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.gtin").value("09506000134352"))
                 .andExpect(jsonPath("$.stock").value(5))
+                .andExpect(jsonPath("$.storageCondition.coldChain").value(true))
+                .andExpect(jsonPath("$.storageCondition.description").value("2.0 to 8.0 °C, protect from light"))
                 .andReturn().getResponse().getContentAsString();
         String id = objectMapper.readTree(created).get("id").asText();
 
@@ -178,14 +184,61 @@ class OutboxWiringTest {
 
     @Test
     void createRefusesStockWithoutALotAndAWrongGtinCheckDigit() throws Exception {
-        for (String extra : List.of("\"initialStock\":10", "\"gtin\":\"09506000134353\"")) {
+        for (String extra : List.of("\"initialStock\":10", "\"gtin\":\"09506000134353\"",
+                "\"lotTracked\":true,\"storageCondition\":{\"minTemperatureC\":8,\"maxTemperatureC\":2}")) {
             mockMvc.perform(post("/api/v1/products/create")
                             .header("Authorization", "Bearer " + jwtFor("qa.admin"))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"name\":\"Insulin\",\"price\":20.00,\"unit\":\"VIAL\"," + extra + "}"))
+                            .content("{\"name\":\"Insulin\",\"price\":20.00,\"unit\":\"VIAL\","
+                                    + "\"storageCondition\":{\"minTemperatureC\":2,\"maxTemperatureC\":8}," + extra + "}"))
                     .andExpect(status().isBadRequest());
         }
         assertEquals(0, rows.count(), "nothing stored");
         assertEquals(0, outbox.count(), "no event recorded");
+    }
+
+    @Test
+    void aBreachOfTheStorageConditionsQuarantinesTheLotAndQualityRejectsIt() throws Exception {
+        String admin = "Bearer " + jwtFor("qa.admin");
+        String agent = "Bearer " + jwtWith("monitoring", "ROLE_USER", "ROLE_AGENT");
+        String created = mockMvc.perform(post("/api/v1/products/create")
+                        .header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":5,
+                                 "batchNumber":"L2026-07A","expirationDate":"2075-03-31",
+                                 "storageCondition":{"minTemperatureC":2,"maxTemperatureC":8}}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(created).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/products/" + id + "/lots/excursions")
+                        .header("Authorization", agent)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"batchNumber":"L2026-07A","source":"Fridge 3 logger",
+                                 "observedFrom":"2026-10-23T22:00:00Z","observedTo":"2026-10-24T06:00:00Z",
+                                 "minTemperatureC":3.1,"maxTemperatureC":12.4}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.withinConditions").value(false))
+                .andExpect(jsonPath("$.quarantined").value(true))
+                .andExpect(jsonPath("$.breaches[0]").value("Highest temperature 12.4 °C is above 8.0 °C."))
+                .andExpect(jsonPath("$.lot.status").value("QUARANTINED"));
+
+        mockMvc.perform(post("/api/v1/products/" + id + "/lots/reject")
+                        .header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"batchNumber\":\"L2026-07A\",\"reason\":\"Stability data do not cover 12.4 °C\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/products/" + id)
+                        .header("Authorization", admin))
+                .andExpect(jsonPath("$.stock").value(0));
+        List<String> types = outbox.findAll().stream().map(OutboxEventEntity::getEventType).toList();
+        assertTrue(types.containsAll(List.of("catalog.product.lot-excursion-recorded", "catalog.product.lot-quarantined",
+                "catalog.product.lot-rejected")), types.toString());
     }
 }

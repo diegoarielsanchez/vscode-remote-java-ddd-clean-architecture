@@ -35,10 +35,10 @@ public interface StockLotJpaRepository extends JpaRepository<StockLotEntity, Str
     @Query("UPDATE StockLotEntity l SET l.quantity = l.quantity + :qty WHERE l.id = :id")
     int give(@Param("id") String id, @Param("qty") int qty);
 
-    @Query("SELECT COALESCE(SUM(l.quantity), 0) FROM StockLotEntity l WHERE l.productId = :productId")
+    @Query("SELECT COALESCE(SUM(l.quantity), 0) FROM StockLotEntity l WHERE l.productId = :productId AND l.status <> 'REJECTED'")
     int onHand(@Param("productId") String productId);
 
     /** Units on hand per product, for listing several products in one query. */
-    @Query("SELECT l.productId, SUM(l.quantity) FROM StockLotEntity l WHERE l.productId IN :productIds GROUP BY l.productId")
+    @Query("SELECT l.productId, SUM(l.quantity) FROM StockLotEntity l WHERE l.productId IN :productIds AND l.status <> 'REJECTED' GROUP BY l.productId")
     List<Object[]> onHandByProduct(@Param("productIds") Collection<String> productIds);
 }

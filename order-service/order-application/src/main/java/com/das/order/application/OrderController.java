@@ -1,5 +1,6 @@
 package com.das.order.application;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.das.cleanddd.domain.order.usecases.dtos.ApproveOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ConfirmOrderDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
+import com.das.cleanddd.domain.order.usecases.dtos.DecideDeliveryInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.ListOrdersInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderApprovalStatusOutputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderIDDto;
@@ -35,7 +37,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @RestController
@@ -52,6 +56,8 @@ public class OrderController {
     private final UseCase<OrderIDDto, OrderOutputDTO> getOrderByIdUseCase;
     private final UseCase<OrderIDDto, OrderApprovalStatusOutputDTO> getOrderApprovalStatusUseCase;
     private final UseCase<ListOrdersInputDTO, List<OrderOutputDTO>> listOrdersUseCase;
+    private final UseCase<DecideDeliveryInputDTO, OrderOutputDTO> releaseDeliveryUseCase;
+    private final UseCase<DecideDeliveryInputDTO, OrderOutputDTO> rejectDeliveryUseCase;
 
     public OrderController(OrderUseCaseFactory factory) {
         this.createOrderUseCase = factory.getCreateOrderUseCase();
@@ -61,6 +67,8 @@ public class OrderController {
         this.getOrderByIdUseCase = factory.getGetOrderByIdUseCase();
         this.getOrderApprovalStatusUseCase = factory.getGetOrderApprovalStatusUseCase();
         this.listOrdersUseCase = factory.getListOrdersUseCase();
+        this.releaseDeliveryUseCase = factory.getReleaseDeliveryUseCase();
+        this.rejectDeliveryUseCase = factory.getRejectDeliveryUseCase();
     }
 
     /**
@@ -112,11 +120,17 @@ public class OrderController {
     /**
      * Allowed for the AI Agent Service, or for the Medical Sales Rep the order was placed for —
      * identified by the token's {@code msr_id} claim, never by the request (OWASP A01).
+     *
+     * <p>The body is the transport report: required when the order has products with storage conditions
+     * ({@code transportCheckRequired} on the order), optional otherwise. A break quarantines the delivery
+     * (DELIVERY_QUARANTINED) until Quality releases or rejects it.
      */
     @PostMapping("/{id}/confirm-delivery")
-    @Operation(summary = "Idempotent APPROVED->DELIVERED confirmation — manual/ops fallback for delivery-service's async event")
+    @Operation(summary = "Idempotent delivery confirmation with the transport report; a broken cold chain quarantines it")
     @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<Object> confirmDelivery(@PathVariable String id, Authentication authentication) throws DomainException {
+    public ResponseEntity<Object> confirmDelivery(@PathVariable String id,
+                                                  @Valid @RequestBody(required = false) TransportReportRequest body,
+                                                  Authentication authentication) throws DomainException {
         boolean isAgent = authentication.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_AGENT".equals(authority.getAuthority()));
         String callerMsrId = callerMsrId(authentication);
@@ -124,7 +138,30 @@ public class OrderController {
             throw new AccessDeniedException("Only the AI Agent Service or the order's Medical Sales Rep may confirm delivery");
         }
         return ResponseEntity.ok(confirmOrderDeliveryUseCase.execute(
-                new ConfirmOrderDeliveryInputDTO(id, isAgent ? null : callerMsrId)));
+                new ConfirmOrderDeliveryInputDTO(id, isAgent ? null : callerMsrId, body == null ? null
+                        : new ConfirmOrderDeliveryInputDTO.TransportInputDTO(body.conditionsMaintained(),
+                                body.minTemperatureC(), body.maxTemperatureC(), body.maxHumidityPercent(),
+                                body.lightExposed(), body.note()))));
+    }
+
+    /** Quality: the quarantined goods may be used. The decision maker is the token's principal, never the body. */
+    @PostMapping("/{id}/delivery/release")
+    @Operation(summary = "Release a delivery quarantined for a transport break (Quality)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<Object> releaseDelivery(@PathVariable String id, @Valid @RequestBody DecisionRequest body,
+                                                  Authentication authentication) throws DomainException {
+        return ResponseEntity.ok(releaseDeliveryUseCase.execute(
+                new DecideDeliveryInputDTO(id, authentication.getName(), body.reason())));
+    }
+
+    /** Quality: the quarantined goods cannot be used and await destruction. */
+    @PostMapping("/{id}/delivery/reject")
+    @Operation(summary = "Reject a delivery quarantined for a transport break (Quality)")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<Object> rejectDelivery(@PathVariable String id, @Valid @RequestBody DecisionRequest body,
+                                                 Authentication authentication) throws DomainException {
+        return ResponseEntity.ok(rejectDeliveryUseCase.execute(
+                new DecideDeliveryInputDTO(id, authentication.getName(), body.reason())));
     }
 
     @GetMapping("/{id}")
@@ -165,6 +202,16 @@ public class OrderController {
     }
 
     public record RejectOrderRequest(String reason) {}
+
+    /**
+     * Whether transport kept the products' storage conditions, with the shipment logger's readings when there is
+     * one: lowest and highest °C, highest % RH, and light exposure.
+     */
+    public record TransportReportRequest(@NotNull Boolean conditionsMaintained, BigDecimal minTemperatureC,
+                                         BigDecimal maxTemperatureC, Integer maxHumidityPercent, Boolean lightExposed,
+                                         @Size(max = 500) String note) {}
+
+    public record DecisionRequest(@NotBlank @Size(max = 500) String reason) {}
 
     /**
      * @param medicalSalesRepId optional; when sent it must equal the caller's own MSR — the order is

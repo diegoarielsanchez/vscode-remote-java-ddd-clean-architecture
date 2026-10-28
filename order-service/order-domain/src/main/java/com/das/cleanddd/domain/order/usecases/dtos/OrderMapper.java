@@ -26,7 +26,9 @@ public class OrderMapper {
             order.createdAt() == null ? null : order.createdAt().toString(),
             order.approvedAt() == null ? null : order.approvedAt().toString(),
             order.rejectedAt() == null ? null : order.rejectedAt().toString(),
-            order.deliveredAt() == null ? null : order.deliveredAt().toString()
+            order.deliveredAt() == null ? null : order.deliveredAt().toString(),
+            order.requiresTransportCheck(),
+            DeliveryCheckOutputDTO.from(order.deliveryCheck(), order.deliveryDecision())
         );
     }
 
@@ -36,7 +38,8 @@ public class OrderMapper {
             line.productNameSnapshot(),
             line.quantity().value(),
             line.unitPrice() == null ? null : line.unitPrice().value(),
-            line.lineTotal()
+            line.lineTotal(),
+            StorageConditionOutputDTO.from(line.storageCondition())
         );
     }
 

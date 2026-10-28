@@ -20,7 +20,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
 /**
  * Puts a lot in quarantine (recall, quality investigation) or lifts it. A reason is required, and it is recorded in
- * the event with who did it. Units already allocated to orders are not affected: use the lot's recipients to reach
+ * the event with who did it. A rejected lot can do neither. Units already allocated to orders are not affected: use the lot's recipients to reach
  * them.
  */
 public final class ChangeLotQuarantineUseCase implements UseCase<LotInputDTO, StockLotOutputDTO> {
@@ -60,14 +60,10 @@ public final class ChangeLotQuarantineUseCase implements UseCase<LotInputDTO, St
         if (input == null) {
             throw new DomainException("Input DTO cannot be null");
         }
-        if (input.reason() == null || input.reason().isBlank()) {
-            throw new DomainException("A reason is required.");
-        }
-        if (input.reason().length() > 500) {
-            throw new DomainException("The reason must be at most 500 characters.");
-        }
+        ProductUseCaseSupport.requireLotReason(input.reason());
         Product product = ProductUseCaseSupport.requireProduct(products, input.productId());
         StockLot lot = ProductUseCaseSupport.requireLot(lots, product, input.batchNumber());
+        ProductUseCaseSupport.requireNotRejected(lot);
         if (lot.status() != target) {
             lot = lot.withStatus(target);
             lots.save(lot);

@@ -17,10 +17,14 @@ stateDiagram-v2
     AWAITING_STOCK --> STOCK_REJECTED: catalog.reservation.rejected
     PENDING_APPROVAL --> APPROVED: POST /{id}/approve (AGENT)
     PENDING_APPROVAL --> REJECTED: POST /{id}/reject (AGENT)
-    APPROVED --> DELIVERED: POST /{id}/confirm-delivery
+    APPROVED --> DELIVERED: POST /{id}/confirm-delivery (conditions kept)
+    APPROVED --> DELIVERY_QUARANTINED: POST /{id}/confirm-delivery (transport break)
+    DELIVERY_QUARANTINED --> DELIVERED: POST /{id}/delivery/release (ADMIN)
+    DELIVERY_QUARANTINED --> DELIVERY_REJECTED: POST /{id}/delivery/reject (ADMIN)
     STOCK_REJECTED --> [*]
     REJECTED --> [*]
     DELIVERED --> [*]
+    DELIVERY_REJECTED --> [*]
 ```
 
 ## Sequence
@@ -67,7 +71,7 @@ sequenceDiagram
     CH->>CUC: ReserveStockForOrderUseCase(order lines)
     CUC->>CDB: take every line from deliverable lots (FEFO, all or nothing)
     alt every line covered
-        CUC->>CDB: reservation RESERVED with its lot allocations<br/>+ outbox stock-reserved, catalog.reservation.confirmed (names, unit prices)
+        CUC->>CDB: reservation RESERVED with its lot allocations<br/>+ outbox stock-reserved, catalog.reservation.confirmed (names, unit prices, storage conditions)
     else a line is short, or a product is inactive
         CUC->>CDB: give back what was taken, reservation REJECTED<br/>+ outbox catalog.reservation.rejected (reason)
     end
@@ -77,7 +81,7 @@ sequenceDiagram
     OH->>ODB: BEGIN, eventId already processed?
     alt confirmed
         OH->>OUC: ConfirmOrderStockUseCase(prices)
-        OUC->>ODB: order PENDING_APPROVAL with priced lines + outbox order.submitted-for-approval
+        OUC->>ODB: order PENDING_APPROVAL with priced lines and their storage conditions<br/>+ outbox order.submitted-for-approval
     else rejected
         OH->>OUC: RejectOrderForStockUseCase(reason)
         OUC->>ODB: order STOCK_REJECTED + outbox order.stock-rejected
@@ -111,13 +115,18 @@ sequenceDiagram
 
     rect rgba(127, 127, 127, 0.08)
     Note over MSR,OH: 4. Deliver (after 3a)
-    MSR->>OC: POST /api/v1/orders/{id}/confirm-delivery (own order, or ROLE_AGENT)
+    MSR->>OC: POST /api/v1/orders/{id}/confirm-delivery {transport report} (own order, or ROLE_AGENT)
     OC->>OUC: ConfirmOrderDeliveryUseCase (idempotent)
-    OUC->>ODB: order DELIVERED + outbox order.delivered
+    alt conditions kept (or none to keep)
+        OUC->>ODB: order DELIVERED + outbox order.delivered
+    else transport break
+        OUC->>ODB: order DELIVERY_QUARANTINED with the breaches + outbox order.delivery-quarantined
+        Note over MSR,OH: Quality: POST /{id}/delivery/release → DELIVERED + order.delivered,<br/>or /delivery/reject → DELIVERY_REJECTED + order.delivery-rejected
+    end
     OC-->>MSR: 200
     ORelay->>MQ: order.delivered
     MQ->>CH: catalog-service.order.queue
-    CH->>CUC: FulfilStockReservationUseCase
+    CH->>CUC: FulfilStockReservationUseCase (also on order.delivery-rejected)
     CUC->>CDB: reservation FULFILLED (units leave stock for good)
     end
 ```
@@ -143,6 +152,9 @@ sequenceDiagram
 - **Who may do what.** Only a Medical Sales Rep (token `msr_id`) places orders, always for themselves. Only the AI
   Agent Service (`ROLE_AGENT`) approves or rejects, and the approver is the token's principal, never the body.
   Delivery is confirmed by the order's own MSR or the agent.
+- **Transport conditions (GDP).** Each confirmed line carries the product's storage conditions. Confirming delivery
+  of an order with such lines needs the receiver's transport report; a break quarantines the delivery until Quality
+  releases or rejects it. A rejected delivery still fulfils the reservation: the units left stock either way.
 - **Timing.** The MSR sees `AWAITING_STOCK` in the `202` response and polls `GET /api/v1/orders/{id}` until the
   catalog's answer arrives, usually within a couple of relay intervals.
 

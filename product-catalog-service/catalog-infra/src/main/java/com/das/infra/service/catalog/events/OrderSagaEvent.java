@@ -23,7 +23,7 @@ public sealed interface OrderSagaEvent {
     record Rejected(UUID eventId, String eventType, String orderId) implements OrderSagaEvent {
     }
 
-    /** {@code order.delivered}: the reservation is fulfilled. */
+    /** {@code order.delivered} or {@code order.delivery-rejected}: the units left stock; the reservation is fulfilled. */
     record Delivered(UUID eventId, String eventType, String orderId) implements OrderSagaEvent {
     }
 

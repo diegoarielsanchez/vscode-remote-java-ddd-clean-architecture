@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,12 +14,16 @@ import java.util.stream.Collectors;
 import com.das.cleanddd.domain.order.events.OrderApprovedEvent;
 import com.das.cleanddd.domain.order.events.OrderCreatedEvent;
 import com.das.cleanddd.domain.order.events.OrderDeliveredEvent;
+import com.das.cleanddd.domain.order.events.OrderDeliveryQuarantinedEvent;
+import com.das.cleanddd.domain.order.events.OrderDeliveryRejectedEvent;
+import com.das.cleanddd.domain.order.events.OrderDeliveryReleasedEvent;
 import com.das.cleanddd.domain.order.events.OrderDomainEvent;
 import com.das.cleanddd.domain.order.events.OrderRejectedEvent;
 import com.das.cleanddd.domain.order.events.OrderStockRejectedEvent;
 import com.das.cleanddd.domain.order.events.OrderSubmittedForApprovalEvent;
 import com.das.cleanddd.domain.shared.AggregateRoot;
 import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 /**
  * Full workflow: AWAITING_STOCK -&gt; PENDING_APPROVAL (or STOCK_REJECTED) -&gt; APPROVED/REJECTED -&gt; DELIVERED.
@@ -26,6 +31,10 @@ import com.das.cleanddd.domain.shared.exceptions.BusinessValidationException;
  * {@code OrderCreatedEvent}, the catalog reserves the stock and answers, and the answer lands in
  * {@link #confirmStock} or {@link #rejectForStock}. Each transition returns a new immutable instance
  * (matches Invoice/Settlement's style).
+ *
+ * <p>Delivery (GDP): when any line has storage conditions, the receiver must report whether transport kept them
+ * ({@link #markDelivered(Instant, DeliveryCheck)}). A break quarantines the delivery (DELIVERY_QUARANTINED) until
+ * Quality releases it ({@link #releaseDelivery}) or rejects it ({@link #rejectDelivery}).
  */
 public final class Order extends AggregateRoot<OrderDomainEvent> {
 
@@ -43,10 +52,25 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
     private final Instant _approvedAt;
     private final Instant _rejectedAt;
     private final Instant _deliveredAt;
+    private final DeliveryCheck _deliveryCheck;
+    private final DeliveryDecision _deliveryDecision;
 
     public Order(OrderId id, MedicalSalesRepId medicalSalesRepId, List<OrderLine> lines, OrderStatus status,
                  String approvedBy, String rejectedBy, String rejectionReason,
                  Instant createdAt, Instant approvedAt, Instant rejectedAt, Instant deliveredAt)
+            throws BusinessValidationException {
+        this(id, medicalSalesRepId, lines, status, approvedBy, rejectedBy, rejectionReason, createdAt, approvedAt,
+                rejectedAt, deliveredAt, null, null);
+    }
+
+    /**
+     * {@code deliveryCheck}: what the receiver reported about transport, {@code null} until delivery or when not
+     * reported; {@code deliveryDecision}: Quality's decision on a quarantined delivery, {@code null} otherwise.
+     */
+    public Order(OrderId id, MedicalSalesRepId medicalSalesRepId, List<OrderLine> lines, OrderStatus status,
+                 String approvedBy, String rejectedBy, String rejectionReason,
+                 Instant createdAt, Instant approvedAt, Instant rejectedAt, Instant deliveredAt,
+                 DeliveryCheck deliveryCheck, DeliveryDecision deliveryDecision)
             throws BusinessValidationException {
         if (medicalSalesRepId == null) {
             throw new BusinessValidationException("Medical Sales Representative is required.");
@@ -68,6 +92,8 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         this._approvedAt = approvedAt;
         this._rejectedAt = rejectedAt;
         this._deliveredAt = deliveredAt;
+        this._deliveryCheck = deliveryCheck;
+        this._deliveryDecision = deliveryDecision;
     }
 
     /** A new order, waiting for product-catalog-service to reserve its stock. */
@@ -100,7 +126,7 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
             if (price == null || price.unitPrice() == null) {
                 throw new BusinessValidationException("No reserved price for product " + line.productId().value() + ".");
             }
-            priced.add(line.priced(price.productName(), price.unitPrice()));
+            priced.add(line.priced(price.productName(), price.unitPrice(), price.storageCondition()));
         }
         Order updated = new Order(this._id, this._medicalSalesRepId, priced, OrderStatus.PENDING_APPROVAL,
                 this._approvedBy, this._rejectedBy, this._rejectionReason,
@@ -147,20 +173,105 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
         return updated;
     }
 
-    /** Idempotent: calling this again on an already-DELIVERED order is a no-op (no event, same instance semantics). */
+    /** Without a transport report: only for orders whose lines have no storage conditions. */
     public Order markDelivered(Instant deliveredAt) throws BusinessValidationException {
-        if (this._status == OrderStatus.DELIVERED) {
+        return markDelivered(deliveredAt, null);
+    }
+
+    /**
+     * The goods arrived. When any line has storage conditions, {@code check} must say whether transport kept them;
+     * its readings are compared with every line's conditions. Kept: DELIVERED. Not kept: DELIVERY_QUARANTINED, and
+     * the goods wait for Quality's decision.
+     *
+     * <p>Idempotent: an order whose delivery was already confirmed is returned unchanged (no event).
+     */
+    public Order markDelivered(Instant deliveredAt, DeliveryCheck check) throws BusinessValidationException {
+        if (this._status == OrderStatus.DELIVERED || this._status == OrderStatus.DELIVERY_QUARANTINED
+                || this._status == OrderStatus.DELIVERY_REJECTED) {
             return this;
         }
         if (this._status != OrderStatus.APPROVED) {
             throw new BusinessValidationException("Only APPROVED orders can be marked as delivered.");
         }
-        Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, OrderStatus.DELIVERED,
+        if (check == null && requiresTransportCheck()) {
+            throw new BusinessValidationException("This order has products with storage conditions ("
+                    + String.join("; ", conditionsToKeep()) + "): say whether transport kept them"
+                    + " (transport.conditionsMaintained).");
+        }
+        DeliveryCheck assessed = check == null ? null : check.withBreaches(breachesOf(check));
+        boolean kept = assessed == null || assessed.kept();
+        Order updated = new Order(this._id, this._medicalSalesRepId, this._lines,
+                kept ? OrderStatus.DELIVERED : OrderStatus.DELIVERY_QUARANTINED,
                 this._approvedBy, this._rejectedBy, this._rejectionReason,
-                this._createdAt, this._approvedAt, this._rejectedAt, deliveredAt == null ? Instant.now() : deliveredAt);
+                this._createdAt, this._approvedAt, this._rejectedAt, deliveredAt == null ? Instant.now() : deliveredAt,
+                assessed, null);
         updated.carryOverEventsFrom(this);
+        updated.record(kept ? new OrderDeliveredEvent(updated.id().value())
+                : new OrderDeliveryQuarantinedEvent(updated.id().value(), assessed.breaches(), assessed.note()));
+        return updated;
+    }
+
+    /** Quality: the quarantined goods may be used after all. {@code reason} is required. */
+    public Order releaseDelivery(String decidedBy, String reason, Instant decidedAt) throws BusinessValidationException {
+        Order updated = decide(OrderStatus.DELIVERED, decidedBy, reason, decidedAt);
+        updated.record(new OrderDeliveryReleasedEvent(updated.id().value(), decidedBy, reason));
         updated.record(new OrderDeliveredEvent(updated.id().value()));
         return updated;
+    }
+
+    /** Quality: the quarantined goods cannot be used and await destruction. {@code reason} is required. */
+    public Order rejectDelivery(String decidedBy, String reason, Instant decidedAt) throws BusinessValidationException {
+        Order updated = decide(OrderStatus.DELIVERY_REJECTED, decidedBy, reason, decidedAt);
+        updated.record(new OrderDeliveryRejectedEvent(updated.id().value(), decidedBy, reason));
+        return updated;
+    }
+
+    private Order decide(OrderStatus outcome, String decidedBy, String reason, Instant decidedAt)
+            throws BusinessValidationException {
+        if (this._status != OrderStatus.DELIVERY_QUARANTINED) {
+            throw new BusinessValidationException("Only a DELIVERY_QUARANTINED order awaits Quality's decision.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessValidationException("A reason for the decision is required.");
+        }
+        if (reason.length() > DeliveryCheck.MAX_NOTE) {
+            throw new BusinessValidationException("The reason must be at most " + DeliveryCheck.MAX_NOTE + " characters.");
+        }
+        Order updated = new Order(this._id, this._medicalSalesRepId, this._lines, outcome,
+                this._approvedBy, this._rejectedBy, this._rejectionReason,
+                this._createdAt, this._approvedAt, this._rejectedAt, this._deliveredAt, this._deliveryCheck,
+                new DeliveryDecision(decidedBy, reason.strip(), decidedAt == null ? Instant.now() : decidedAt));
+        updated.carryOverEventsFrom(this);
+        return updated;
+    }
+
+    /** Any line whose product must travel under storage conditions. */
+    public boolean requiresTransportCheck() {
+        return _lines.stream().anyMatch(l -> l.storageCondition() != null);
+    }
+
+    private List<String> conditionsToKeep() {
+        return _lines.stream().filter(l -> l.storageCondition() != null)
+                .map(l -> label(l) + " " + l.storageCondition().describe()).distinct().toList();
+    }
+
+    /** Each line's breaches, named by product; a breach shared by several lines is listed once per product. */
+    private List<String> breachesOf(DeliveryCheck check) {
+        if (check.readings() == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> found = new LinkedHashSet<>();
+        for (OrderLine line : _lines) {
+            StorageCondition condition = line.storageCondition();
+            if (condition != null) {
+                condition.breachesOf(check.readings()).forEach(b -> found.add(label(line) + ": " + b));
+            }
+        }
+        return List.copyOf(found);
+    }
+
+    private static String label(OrderLine line) {
+        return line.productNameSnapshot() == null ? line.productId().value() : line.productNameSnapshot();
     }
 
     /** {@code null} until the stock is confirmed and every line is priced. */
@@ -191,6 +302,8 @@ public final class Order extends AggregateRoot<OrderDomainEvent> {
     public Instant approvedAt() { return _approvedAt; }
     public Instant rejectedAt() { return _rejectedAt; }
     public Instant deliveredAt() { return _deliveredAt; }
+    public DeliveryCheck deliveryCheck() { return _deliveryCheck; }
+    public DeliveryDecision deliveryDecision() { return _deliveryDecision; }
 
     @Override
     public boolean equals(Object o) {

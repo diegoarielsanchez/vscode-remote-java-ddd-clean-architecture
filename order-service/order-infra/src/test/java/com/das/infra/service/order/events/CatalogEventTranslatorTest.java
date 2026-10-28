@@ -58,6 +58,25 @@ class CatalogEventTranslatorTest {
     }
 
     @Test
+    void readsTheConditionsALineMustTravelUnder() {
+        String cold = "{\"productId\":\"" + PRODUCT_ID + "\",\"productName\":\"Insulin\",\"quantity\":2,\"unitPrice\":20.00,"
+                + "\"storageCondition\":{\"minTemperatureC\":2.0,\"maxTemperatureC\":8.0,\"protectFromLight\":true,"
+                + "\"coldChain\":true}}";
+        var reply = assertInstanceOf(StockReservationReply.Confirmed.class, translate(envelope(EVENT_ID,
+                "catalog.reservation.confirmed", confirmedData(cold))));
+
+        assertEquals(new com.das.cleanddd.domain.shared.storage.StorageCondition(new BigDecimal("2"), new BigDecimal("8"),
+                null, true), reply.lines().get(0).storageCondition());
+        var plain = assertInstanceOf(StockReservationReply.Confirmed.class, translate(envelope(EVENT_ID,
+                "catalog.reservation.confirmed", confirmedData(line(PRODUCT_ID, "Amoxicillin 500mg", "12.50")))));
+        assertEquals(null, plain.lines().get(0).storageCondition(), "left out: the product has none");
+        String inverted = cold.replace("\"minTemperatureC\":2.0,\"maxTemperatureC\":8.0", "\"minTemperatureC\":8,\"maxTemperatureC\":2");
+        assertRejected(envelope(EVENT_ID, "catalog.reservation.confirmed", confirmedData(inverted)), "storageCondition");
+        assertRejected(envelope(EVENT_ID, "catalog.reservation.confirmed",
+                confirmedData(cold.replace("\"maxTemperatureC\":8.0", "\"maxTemperatureC\":\"8\""))), "storageCondition");
+    }
+
+    @Test
     void readsARejectedReservation() {
         var reply = assertInstanceOf(StockReservationReply.Rejected.class, translate(envelope(EVENT_ID,
                 "catalog.reservation.rejected", "{\"orderId\":\"" + ORDER_ID + "\",\"reason\":\"Insufficient stock\"}")));
