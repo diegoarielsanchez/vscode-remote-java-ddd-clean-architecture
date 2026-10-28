@@ -2253,13 +2253,17 @@ docker compose start redis
 
 ## CI with Jenkins
 
-Each microservice has a `Jenkinsfile` at its service root. The four DDD services (domain/infra/application split) define a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls; the single-module infrastructure services (API Gateway, Eureka Server) use a shorter 8-stage variant without the per-layer test split.
+To run Jenkins itself in Docker, see [jenkins/README.md](jenkins/README.md) (it serves on http://localhost:9696).
+
+Each microservice has a `Jenkinsfile` at its service root. The DDD services (domain/infra/application split) define a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls; the single-module infrastructure services (API Gateway, Eureka Server) use a shorter 8-stage variant without the per-layer test split.
 
 | Service | Jenkinsfile path |
 |---|---|
 | Medical Sales Rep | `medical-sales-rep-service/Jenkinsfile` |
 | Healthcare Prof | `healthcare-prof-service/Jenkinsfile` |
 | Visit | `visit-service/Jenkinsfile` |
+| Product Catalog | `product-catalog-service/Jenkinsfile` |
+| Order | `order-service/Jenkinsfile` |
 | Settlement | `settlement-service/Jenkinsfile` |
 | Identity | `identity-service/Jenkinsfile` |
 | API Gateway | `api-gateway/Jenkinsfile` |
@@ -2277,6 +2281,7 @@ In Jenkins: **Manage Jenkins → Plugins → Available plugins**
 | **Warnings Next Generation** | `recordIssues` — publishes SpotBugs SAST reports |
 | **OWASP Dependency-Check** | `dependencyCheckPublisher` — publishes CVE scan reports |
 | **Docker Pipeline** | Docker build/push steps |
+| **GitHub** | `githubPush()` trigger declared in every Jenkinsfile (the pipeline fails to start without it) |
 
 ### 2. Configure tools
 
@@ -2286,8 +2291,8 @@ Add entries with these exact names (they match the `tools {}` block in each Jenk
 
 | Tool type | Name | Version |
 |---|---|---|
-| JDK | `JDK-25` | Java 25 |
-| Maven | `Maven-3.9` | 3.9.x |
+| JDK | `JDK-25` | Java 25 — with the `jenkins/` image, untick *Install automatically* and set JAVA_HOME to `/opt/java/openjdk` |
+| Maven | `Maven-3.9` | 3.9.x — tick *Install automatically* (from Apache) |
 
 > If Java 25 and Maven 3.9 are already on the agent's `PATH`, you can remove the `tools {}` block from a Jenkinsfile and they will be used automatically.
 
@@ -2303,6 +2308,10 @@ Repeat these steps for each service:
    - Branch: `*/main` (or your target branch)
    - Script Path: see table above
 3. **Save** → **Build Now**
+
+Jenkins builds what is on GitHub, so push first. The `githubPush()` trigger needs a Jenkins URL GitHub can reach; on `localhost` use **Build Now**, or set **Build Triggers → Poll SCM** to `H/5 * * * *`.
+
+Without an `nvd-api-key` credential (Secret text, free key at https://nvd.nist.gov/developers/request-an-api-key) the OWASP Dependency-Check stage is rate-limited, and the first build can spend 30 minutes or more downloading the CVE database.
 
 ### 4. Pipeline stages
 
