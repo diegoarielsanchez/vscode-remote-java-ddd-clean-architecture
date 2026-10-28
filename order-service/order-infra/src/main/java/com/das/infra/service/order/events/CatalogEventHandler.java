@@ -57,7 +57,8 @@ public class CatalogEventHandler {
             order = switch (reply) {
                 case StockReservationReply.Confirmed c -> useCases.getConfirmOrderStockUseCase().execute(
                         new ConfirmOrderStockInputDTO(c.orderId(), c.lines().stream()
-                                .map(l -> new ConfirmOrderStockInputDTO.ReservedLine(l.productId(), l.productName(), l.unitPrice()))
+                                .map(l -> new ConfirmOrderStockInputDTO.ReservedLine(l.productId(), l.productName(), l.unitPrice(),
+                                        l.storageCondition()))
                                 .toList()));
                 case StockReservationReply.Rejected r -> useCases.getRejectOrderForStockUseCase().execute(
                         new RejectOrderForStockInputDTO(r.orderId(), r.reason()));

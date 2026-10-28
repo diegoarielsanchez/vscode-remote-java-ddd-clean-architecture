@@ -22,7 +22,10 @@ public final class StockReservationIntegrationEvents {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ReservationEventData(String orderId, List<Line> lines, String reason) {}
 
-    public record Line(String productId, int quantity, String productName, BigDecimal unitPrice) {}
+    /** {@code storageCondition}: what the units must travel under; left out when the product has none. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Line(String productId, int quantity, String productName, BigDecimal unitPrice,
+                       ProductIntegrationEvents.StorageConditionData storageCondition) {}
 
     public record Mapped(String eventType, String aggregateId, ReservationEventData data) {}
 
@@ -32,7 +35,8 @@ public final class StockReservationIntegrationEvents {
         return switch (event) {
             case StockReservationConfirmedEvent e -> new Mapped("catalog.reservation.confirmed", e.orderId(),
                     new ReservationEventData(e.orderId(), e.lines().stream()
-                            .map(l -> new Line(l.productId(), l.quantity(), l.productName(), l.unitPrice()))
+                            .map(l -> new Line(l.productId(), l.quantity(), l.productName(), l.unitPrice(),
+                                    ProductIntegrationEvents.StorageConditionData.of(l.storageCondition())))
                             .toList(), null));
             case StockReservationRejectedEvent e -> new Mapped("catalog.reservation.rejected", e.orderId(),
                     new ReservationEventData(e.orderId(), null, e.reason()));

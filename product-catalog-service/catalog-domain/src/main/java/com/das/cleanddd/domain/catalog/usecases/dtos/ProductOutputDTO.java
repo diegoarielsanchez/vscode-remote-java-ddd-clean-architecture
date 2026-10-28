@@ -3,7 +3,8 @@ package com.das.cleanddd.domain.catalog.usecases.dtos;
 import java.math.BigDecimal;
 
 /** {@code stock} is the units on hand across all lots; {@code gtin} (14 digits) is {@code null} when not on file;
- * {@code lotTracked} is false for products held without batches (promotional material). */
+ * {@code lotTracked} is false for products held without batches (promotional material); {@code storageCondition} is
+ * {@code null} when none is on file. */
 public record ProductOutputDTO(
   String id,
   String name,
@@ -13,5 +14,6 @@ public record ProductOutputDTO(
   Integer stock,
   Boolean active,
   String gtin,
-  boolean lotTracked
+  boolean lotTracked,
+  StorageConditionDTO storageCondition
 ) {}

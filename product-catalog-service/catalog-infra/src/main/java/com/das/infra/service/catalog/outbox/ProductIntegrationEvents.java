@@ -7,18 +7,22 @@ import com.das.cleanddd.domain.catalog.events.ProductActivatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductCreatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDeactivatedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductDomainEvent;
+import com.das.cleanddd.domain.catalog.events.ProductLotExcursionRecordedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantineLiftedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductLotQuarantinedEvent;
+import com.das.cleanddd.domain.catalog.events.ProductLotRejectedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductRestockedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReleasedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductUpdatedEvent;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 /**
  * Maps private domain events to the public {@code catalog.events} contract (schema version 1).
  * Routing keys are unchanged from the previous publisher, so existing bindings keep working.
- * {@code gtin}, {@code lotTracked}, {@code batchNumber}, {@code expirationDate} and {@code reason} were added later as optional fields,
- * which existing consumers ignore, so the schema version stays 1.
+ * {@code gtin}, {@code lotTracked}, {@code batchNumber}, {@code expirationDate}, {@code reason} and
+ * {@code storageCondition} were added later as optional fields, which existing consumers ignore, so the schema version
+ * stays 1.
  */
 public final class ProductIntegrationEvents {
 
@@ -29,30 +33,45 @@ public final class ProductIntegrationEvents {
      * Event payload ({@code data}); null fields do not apply to the event type. Stock events carry
      * the change ({@code stockDelta}: reserved, released or added quantity) and the stock left after it.
      * Created and updated events carry the GTIN, and the created event whether the product is lot-tracked; a restock (goods receipt) and the lot quarantine events carry the
-     * batch, and the quarantine events the {@code reason} given.
+     * batch, and the quarantine events the {@code reason} given. Created and updated events also carry the
+     * {@code storageCondition}. A lot rejection carries the units written off as {@code stockDelta}; an excursion
+     * record, as {@code reason}, what was read and how it breached the conditions (or that it did not).
      */
     public record ProductEventData(String name, String description, BigDecimal price, String unit, Boolean active,
                                    Integer stockDelta, Integer remainingStock, String gtin, String batchNumber,
-                                   LocalDate expirationDate, String reason, Boolean lotTracked) {
+                                   LocalDate expirationDate, String reason, Boolean lotTracked,
+                                   StorageConditionData storageCondition) {
 
         static ProductEventData details(String name, String description, BigDecimal price, String unit, Boolean active,
-                                        String gtin, Boolean lotTracked) {
+                                        String gtin, Boolean lotTracked, StorageCondition storageCondition) {
             return new ProductEventData(name, description, price, unit, active, null, null, gtin, null, null, null,
-                    lotTracked);
+                    lotTracked, StorageConditionData.of(storageCondition));
         }
 
         static ProductEventData active(boolean active) {
-            return new ProductEventData(null, null, null, null, active, null, null, null, null, null, null, null);
+            return new ProductEventData(null, null, null, null, active, null, null, null, null, null, null, null, null);
         }
 
         static ProductEventData stock(Integer delta, Integer remaining) {
-            return new ProductEventData(null, null, null, null, null, delta, remaining, null, null, null, null, null);
+            return new ProductEventData(null, null, null, null, null, delta, remaining, null, null, null, null, null,
+                    null);
         }
 
         static ProductEventData lot(String batchNumber, LocalDate expirationDate, Integer delta, Integer remaining,
                                     String reason) {
             return new ProductEventData(null, null, null, null, null, delta, remaining, null, batchNumber, expirationDate,
-                    reason, null);
+                    reason, null, null);
+        }
+    }
+
+    /** A product's storage and transport conditions: °C, % RH ({@code null}: no limit), protect from light. */
+    public record StorageConditionData(BigDecimal minTemperatureC, BigDecimal maxTemperatureC,
+                                       Integer maxHumidityPercent, boolean protectFromLight, boolean coldChain) {
+
+        public static StorageConditionData of(StorageCondition condition) {
+            return condition == null ? null : new StorageConditionData(condition.minTemperatureC(),
+                    condition.maxTemperatureC(), condition.maxHumidityPercent(), condition.protectFromLight(),
+                    condition.coldChain());
         }
     }
 
@@ -64,9 +83,10 @@ public final class ProductIntegrationEvents {
         return switch (event) {
             case ProductCreatedEvent e -> new Mapped("catalog.product.created", e.id(),
                     ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin(),
-                            e.lotTracked()));
+                            e.lotTracked(), e.storageCondition()));
             case ProductUpdatedEvent e -> new Mapped("catalog.product.updated", e.id(),
-                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin(), null));
+                    ProductEventData.details(e.name(), e.description(), e.price(), e.unit(), e.active(), e.gtin(), null,
+                            e.storageCondition()));
             case ProductActivatedEvent e -> new Mapped("catalog.product.activated", e.id(), ProductEventData.active(true));
             case ProductDeactivatedEvent e -> new Mapped("catalog.product.deactivated", e.id(), ProductEventData.active(false));
             case ProductStockReservedEvent e -> new Mapped("catalog.product.stock-reserved", e.id(),
@@ -79,6 +99,16 @@ public final class ProductIntegrationEvents {
                     ProductEventData.lot(e.batchNumber(), null, null, null, e.reason()));
             case ProductLotQuarantineLiftedEvent e -> new Mapped("catalog.product.lot-quarantine-lifted", e.id(),
                     ProductEventData.lot(e.batchNumber(), null, null, null, e.reason()));
+            case ProductLotExcursionRecordedEvent e -> new Mapped("catalog.product.lot-excursion-recorded", e.id(),
+                    ProductEventData.lot(e.batchNumber(), null, null, null, excursionSummary(e)));
+            case ProductLotRejectedEvent e -> new Mapped("catalog.product.lot-rejected", e.id(),
+                    ProductEventData.lot(e.batchNumber(), null, e.quantity(), e.remainingStock(), e.reason()));
         };
+    }
+
+    private static String excursionSummary(ProductLotExcursionRecordedEvent e) {
+        String summary = e.source() + " " + e.observedFrom() + " to " + e.observedTo() + ": " + e.readings().describe()
+                + (e.breaches().isEmpty() ? ". Within the storage conditions." : ". " + String.join(" ", e.breaches()));
+        return summary.length() <= 500 ? summary : summary.substring(0, 499) + "…";
     }
 }

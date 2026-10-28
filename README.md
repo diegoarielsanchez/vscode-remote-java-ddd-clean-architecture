@@ -1338,8 +1338,8 @@ Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create Visi
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, `lotTracked` (default `true`; `false` for promotional material), and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
-| `PUT` | `/api/v1/products/update` | Update name, description, price, unit, and set the GTIN once (never stock). Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/create` | Create a product (`name`, `description`, `price`, `unit`, optional `gtin`, `lotTracked` (default `true`; `false` for promotional material), `storageCondition` (required when lot-tracked, see [Storage and transport conditions](#storage-and-transport-conditions)), and `initialStock` with the first lot's `batchNumber` and `expirationDate`). New products are **inactive** — `ROLE_ADMIN` only |
+| `PUT` | `/api/v1/products/update` | Update name, description, price, unit, `storageCondition` (left out: kept; a medicine's cannot be removed), and set the GTIN once (never stock). Requires `reason` (why the record is changed, at most 500 characters; kept in the audit trail), otherwise `400`. — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}/history` | The product's audit trail (details, lots, stock), oldest first — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/reservations/{orderId}/history` | An order's stock reservation audit trail — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/activate` | Activate a product (only active products can be ordered) — `ROLE_ADMIN` only |
@@ -1352,6 +1352,8 @@ Sequence diagrams: [Create Visit](docs/diagrams/create-visit.md) · [Create Visi
 | `POST` | `/api/v1/products/{id}/lots/quarantine` | Block a lot (`batchNumber`, `reason`): its units are no longer delivered — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/lots/lift-quarantine` | Release a lot from quarantine (`batchNumber`, `reason`) — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/products/{id}/lots/recipients?batchNumber=<b>` | Recall: the orders that received units of the lot — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/products/{id}/lots/excursions` | Record a data logger's readings for a lot (`batchNumber`, `source`, `observedFrom`, `observedTo`, `minTemperatureC`, `maxTemperatureC`, `maxHumidityPercent`, `lightExposed`, `note`); a breach of the product's storage conditions quarantines the lot — `ROLE_ADMIN` or `ROLE_AGENT` |
+| `POST` | `/api/v1/products/{id}/lots/reject` | Quality rejects a quarantined lot (`batchNumber`, `reason`): its units leave the stock on hand for good — `ROLE_ADMIN` only |
 | `POST` | `/api/v1/products/{id}/reserve-stock` | Reserve stock manually, first expiry first out; the answer lists the lots — `ROLE_AGENT` only (orders reserve through the saga) |
 | `POST` | `/api/v1/products/{id}/release-stock` | Give manually reserved units back to a batch (`quantity`, `batchNumber`) — `ROLE_AGENT` only |
 
@@ -1373,7 +1375,8 @@ Sales Reps and Healthcare Professionals can be traced and recalled.
 curl -X POST http://localhost:8091/api/v1/products/create \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d '{"name":"Insulin 100IU","price":20.00,"unit":"VIAL","gtin":"9506000134352",
-       "initialStock":50,"batchNumber":"L2026-07A","expirationDate":"2027-03-31"}'
+       "initialStock":50,"batchNumber":"L2026-07A","expirationDate":"2027-03-31",
+       "storageCondition":{"minTemperatureC":2,"maxTemperatureC":8}}'
 
 # Receive another batch by scanning the pack (AI Agent Service)
 curl -X POST http://localhost:8091/api/v1/products/<id>/restock \
@@ -1445,9 +1448,64 @@ curl "http://localhost:8091/api/v1/products/<id>/lots/recipients?batchNumber=L20
   their envelope:
   - `catalog.product.created` / `.updated` (with `gtin`);
   - `.restocked` (with `batchNumber`, `expirationDate`, `stockDelta`);
-  - `.lot-quarantined` / `.lot-quarantine-lifted` (with `batchNumber`, `reason`).
+  - `.lot-quarantined` / `.lot-quarantine-lifted` (with `batchNumber`, `reason`);
+  - `.lot-excursion-recorded` (with `batchNumber`, and in `reason` what was read and how it breached the conditions);
+  - `.lot-rejected` (with `batchNumber`, the units written off as `stockDelta`, `remainingStock`, `reason`).
 
   The fields are additive, so the event schema version stays `1`.
+
+#### Storage and transport conditions
+
+Good Distribution Practice requires medicines to be stored and transported as their label says (EU GDP Guidelines
+2013/C 343/01 chapters 3 and 9; 21 CFR 211.142; for drug samples 21 CFR 203.32), excursions to be recorded and
+investigated, and affected stock to be kept from use until Quality decides. GS1 GDSN carries the same range as the
+trade item's minimum and maximum storage and handling temperature.
+
+| Field of `storageCondition` | Rule |
+|---|---|
+| `minTemperatureC`, `maxTemperatureC` | Required; °C with at most one decimal, −90 to 60; minimum not above maximum |
+| `maxHumidityPercent` | Optional relative humidity limit, 1–100 |
+| `protectFromLight` | Optional, default `false` |
+| `coldChain`, `description` | Returned only: `coldChain` is true when the product must stay at or below 8 °C |
+
+- **Required for medicines.** Creating a lot-tracked product without `storageCondition` is refused with `400`.
+  Promotional material may have none. Products created before this version have none until an update adds them;
+  readings cannot be recorded for them until then. A change of conditions is in the audit trail like any other edit.
+- **Excursions.** A data logger or monitoring system (with the agent's service token) or Quality sends the readings
+  for a lot over a period. Every record is kept, whether within the conditions or not. A breach puts an available lot
+  in quarantine at once, giving what was read and the conditions as the reason. Building the monitoring itself
+  (sensors, mapping, alarms) is out of scope; it belongs in a validated monitoring system that calls this endpoint.
+- **Quality's decision.** Lift the quarantine (`lots/lift-quarantine`) to release the lot, or reject it
+  (`lots/reject`). Only a quarantined lot can be rejected, and rejection is final: the lot can no longer be
+  delivered, released or received into, and its units no longer count as `stock` (they are kept on the lot for
+  reconciliation with the destruction record). Units given back to a rejected lot by a cancelled order stay rejected.
+- **On the way to the MSR.** Each reservation line records the product's conditions, and `catalog.reservation.confirmed`
+  carries them to order-service, which keeps them on the order line. See the order service's delivery rules.
+
+```bash
+# Conditions on a new medicine (admin)
+curl -X POST http://localhost:8091/api/v1/products/create \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Insulin 100IU","price":20.00,"unit":"VIAL","initialStock":50,"batchNumber":"L2026-07A",
+       "expirationDate":"2027-03-31","storageCondition":{"minTemperatureC":2,"maxTemperatureC":8,"protectFromLight":true}}'
+
+# A fridge logger read 12.4 °C overnight: the lot is quarantined
+curl -X POST http://localhost:8091/api/v1/products/<id>/lots/excursions \
+  -H "Authorization: Bearer $AGENT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"batchNumber":"L2026-07A","source":"Fridge 3 logger","observedFrom":"2026-10-23T22:00:00Z",
+       "observedTo":"2026-10-24T06:00:00Z","minTemperatureC":3.1,"maxTemperatureC":12.4}'
+# {"lot":{"status":"QUARANTINED",…},"withinConditions":false,"quarantined":true,
+#  "breaches":["Highest temperature 12.4 °C is above 8.0 °C."],…}
+
+# Quality rejects it (or lifts the quarantine)
+curl -X POST http://localhost:8091/api/v1/products/<id>/lots/reject \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"batchNumber":"L2026-07A","reason":"Stability data do not cover 12.4 °C"}'
+```
+
+Upgrading an existing database: run `product-catalog-service/catalog-infra/src/main/resources/db/storage-conditions-postgresql.sql`
+after `stock-lots-postgresql.sql`, and `order-service/order-infra/src/main/resources/db/transport-conditions-postgresql.sql`.
+Both are idempotent; dev databases get the columns from `ddl-auto=update`.
 
 ---
 
@@ -1463,10 +1521,39 @@ Sequence diagram: [Order stock saga](docs/diagrams/order-saga.md) — create, re
 | `POST` | `/api/v1/orders/list` | List orders, optionally for one rep |
 | `POST` | `/api/v1/orders/{id}/approve` | Approve a `PENDING_APPROVAL` order — `ROLE_AGENT` only (approver = JWT subject) |
 | `POST` | `/api/v1/orders/{id}/reject` | Reject a `PENDING_APPROVAL` order, body `{"reason": "..."}`; the catalog releases its stock — `ROLE_AGENT` only |
-| `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` — the AI Agent Service, or the MSR the order was placed for (token `msr_id`) |
+| `POST` | `/api/v1/orders/{id}/confirm-delivery` | Idempotent `APPROVED` → `DELIVERED` — the AI Agent Service, or the MSR the order was placed for (token `msr_id`). Body: the transport report, required when `transportCheckRequired` is true; a break gives `DELIVERY_QUARANTINED` instead |
+| `POST` | `/api/v1/orders/{id}/delivery/release` | Quality releases a quarantined delivery, body `{"reason": "..."}` → `DELIVERED` — `ROLE_ADMIN` only |
+| `POST` | `/api/v1/orders/{id}/delivery/reject` | Quality rejects a quarantined delivery, body `{"reason": "..."}` → `DELIVERY_REJECTED` (goods await destruction) — `ROLE_ADMIN` only |
 | `GET` | `/api/v1/orders/{id}/approval-status` | Is the order approved? (internal, unauthenticated) |
 
-Statuses: `AWAITING_STOCK` → `PENDING_APPROVAL` (stock reserved, priced) or `STOCK_REJECTED` → `APPROVED` / `REJECTED` → `DELIVERED`. An order has 1–20 lines; prices come from the catalog when the stock is reserved.
+Statuses: `AWAITING_STOCK` → `PENDING_APPROVAL` (stock reserved, priced) or `STOCK_REJECTED` → `APPROVED` / `REJECTED` → `DELIVERED`, or `DELIVERY_QUARANTINED` → `DELIVERED` / `DELIVERY_REJECTED`. An order has 1–20 lines; prices come from the catalog when the stock is reserved.
+
+**Transport (GDP).** Each line carries its product's `storageCondition` from the catalog, and the order shows
+`transportCheckRequired` when any line has one. Confirming delivery of such an order needs the receiver's report:
+
+| Field | Rule |
+|---|---|
+| `conditionsMaintained` | Required: did transport keep the conditions? |
+| `minTemperatureC`, `maxTemperatureC`, `maxHumidityPercent`, `lightExposed` | Optional: the shipment logger's readings, compared with every line's conditions |
+| `note` | Optional, at most 500 characters |
+
+- `conditionsMaintained: false`, or any reading outside a line's conditions (even with `true`), quarantines the
+  delivery: `DELIVERY_QUARANTINED`, with each breach in `deliveryCheck.breaches`. The goods arrived but must not be
+  used.
+- Quality then releases it (`DELIVERED`, and the catalog fulfils the reservation) or rejects it (`DELIVERY_REJECTED`;
+  the reservation is fulfilled too, since the units left stock). Both need a reason; who decided and why are kept in
+  `deliveryCheck` and in the audit trail.
+- Events: `order.delivery-quarantined` (with `breaches`, `reason` = the note), `order.delivery-released` followed by
+  `order.delivered`, and `order.delivery-rejected`.
+
+```bash
+# The rep confirms delivery; the cool box logger read 11 °C
+curl -X POST http://localhost:8080/api/v1/orders/<order uuid>/confirm-delivery \
+  -H "Authorization: Bearer <rep token>" -H "Content-Type: application/json" \
+  -d '{"conditionsMaintained":true,"minTemperatureC":3.0,"maxTemperatureC":11.0}'
+# {"status":"DELIVERY_QUARANTINED","transportCheckRequired":true,
+#  "deliveryCheck":{"breaches":["Insulin 100IU: Highest temperature 11.0 °C is above 8.0 °C."],…},…}
+```
 
 ```bash
 # Place an order (the rep must exist and be active; products must be active)
@@ -2160,6 +2247,7 @@ These local snapshots remove the synchronous HTTP dependency on MSR/HCP services
    - Order (PostgreSQL): `order-service/order-infra/src/main/resources/db/outbox-postgresql.sql` (adds `processed_event` for the saga)
    - Product Catalog (PostgreSQL): `product-catalog-service/catalog-infra/src/main/resources/db/outbox-postgresql.sql` (adds `stock_reservation`, `stock_reservation_line`, `processed_event`)
      and then `stock-lots-postgresql.sql` next to it. It adds `products.gtin`, `products.lot_tracked` (existing products are lot-tracked), the `stock_lot` and `stock_reservation_allocation` tables, and moves each product's existing stock into one lot. That lot takes the product's batch and expiry if the previous release recorded them; otherwise its batch is `LEGACY` and its expiry unknown. Review those lots and quarantine any that can't be identified. Run it before receiving stock with this version; it is idempotent, so if you ran it before `lot_tracked` existed, run it again. It also replaces the previous release's `product-traceability-postgresql.sql`.
+   - **Storage and transport conditions** (Product Catalog, Order): `storage-conditions-postgresql.sql` after `stock-lots-postgresql.sql`, and `order-service/order-infra/src/main/resources/db/transport-conditions-postgresql.sql`. Then add the storage conditions of every existing medicine with `PUT /api/v1/products/update`. See [Storage and transport conditions](#storage-and-transport-conditions).
    - **Audit trail** (HCP, MSR, Order, Product Catalog): the `outbox-postgresql.sql` scripts above now also create `audit_event` and its `changes` and `reason` columns, so run them again. Then run `audit-postgresql.sql` next to each one. It copies the events still in the outbox into the trail and makes the table append-only. Finally, create each service's own database user with `app-user-postgresql.sql` and switch the service to it. See [Audit trail (ALCOA+)](#audit-trail-alcoa) and [Least-privilege database users](#least-privilege-database-users).
    - Visit (SQL Server): `visit-service/visit-infra/src/main/resources/db/inbox-sqlserver.sql`, and `visit-items-sqlserver.sql` next to it (`visit_item`, `visit_plan_item`), then `audit-sqlserver.sql` (audit trail and its guard; run it again after upgrading, it adds the `reason` column; run it on dev databases too, since `ddl-auto=update` doesn't create the guard) and `app-user-sqlserver.sql` (see [Least-privilege database users](#least-privilege-database-users))
    - Settlement (MySQL): `settlement-service/settlement-infra/src/main/resources/db/msr-snapshot-mysql.sql`

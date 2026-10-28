@@ -16,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 import com.das.cleanddd.domain.catalog.reservation.entities.ReservationLine;
 import com.das.cleanddd.domain.catalog.reservation.entities.ReservationStatus;
 import com.das.cleanddd.domain.catalog.reservation.entities.StockReservation;
@@ -36,7 +37,7 @@ import jakarta.persistence.EntityManager;
         "spring.datasource.password=",
         "spring.sql.init.mode=always",
         "spring.sql.init.schema-locations=classpath:db/outbox-postgresql.sql,classpath:db/products-before-lots.sql,"
-                + "classpath:db/stock-lots-postgresql.sql",
+                + "classpath:db/stock-lots-postgresql.sql,classpath:db/storage-conditions-postgresql.sql",
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
 })
@@ -52,7 +53,8 @@ class SagaSchemaScriptTest {
     void reservationsAndProcessedEventsWorkOnTheScriptedSchema() {
         String order = UUID.randomUUID().toString();
         StockReservation reserved = StockReservation.reserved(order, List.of(
-                new ReservationLine(UUID.randomUUID().toString(), 4, "Amoxicillin 500mg", new BigDecimal("12.50")),
+                new ReservationLine(UUID.randomUUID().toString(), 4, "Amoxicillin 500mg", new BigDecimal("12.50"),
+                        List.of(), new StorageCondition(new BigDecimal("2"), new BigDecimal("8"), null, true)),
                 new ReservationLine(UUID.randomUUID().toString(), 1, "Ibuprofen 400mg", new BigDecimal("3.00"))),
                 CLOCK.instant());
         reservations.save(reserved);

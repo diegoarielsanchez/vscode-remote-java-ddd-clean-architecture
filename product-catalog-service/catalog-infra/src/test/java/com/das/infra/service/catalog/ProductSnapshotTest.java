@@ -19,19 +19,22 @@ class ProductSnapshotTest {
     @Test
     void roundTripsExactlyThroughTheRedisSerializer() {
         ProductSnapshot snapshot = new ProductSnapshot("7c3e2a1b-9d8f-4e6a-b5c4-3d2e1f0a9b87", "Amoxicillin 500mg",
-                null, new BigDecimal("12.50"), "BOX", 10, true, "09506000134352", false);
+                null, new BigDecimal("12.50"), "BOX", 10, true, "09506000134352", false,
+                new BigDecimal("2.0"), new BigDecimal("8.0"), 60, true);
 
         ProductSnapshot back = Objects.requireNonNull(serializer.deserialize(serializer.serialize(snapshot)),
                 "deserialized snapshot");
 
         assertEquals(snapshot, back);
         assertEquals("12.50", back.price().toPlainString());
+        assertEquals("2.0 to 8.0 °C, at most 60 % RH, protect from light", back.storageCondition().describe());
     }
 
     @Test
     void storesPlainJsonWithoutTypeMetadata() {
         String json = new String(serializer.serialize(
-                new ProductSnapshot("id-1", "Ibuprofen", "Analgesic", new BigDecimal("3.20"), "BOX", 5, false, null, true)),
+                new ProductSnapshot("id-1", "Ibuprofen", "Analgesic", new BigDecimal("3.20"), "BOX", 5, false, null, true,
+                        null, null, null, null)),
                 StandardCharsets.UTF_8);
 
         assertFalse(json.contains("@class") || json.contains("com.das") || json.contains("java."),
@@ -50,5 +53,6 @@ class ProductSnapshotTest {
         assertEquals(5, back.stock());
         assertNull(back.gtin());
         assertTrue(back.isLotTracked());
+        assertNull(back.storageCondition());
     }
 }

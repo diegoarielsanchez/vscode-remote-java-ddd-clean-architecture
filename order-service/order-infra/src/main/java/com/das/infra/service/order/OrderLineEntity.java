@@ -2,6 +2,7 @@ package com.das.infra.service.order;
 
 import java.math.BigDecimal;
 
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -19,6 +20,10 @@ public class OrderLineEntity {
     private String productNameSnapshot;
     private Integer quantity;
     private BigDecimal unitPrice;
+
+    /** The conditions the line's units must travel under, from the catalog; null when the product has none. */
+    @Embedded
+    private StorageConditionEmbeddable storageCondition;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
@@ -40,6 +45,9 @@ public class OrderLineEntity {
 
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+
+    public StorageConditionEmbeddable getStorageCondition() { return storageCondition; }
+    public void setStorageCondition(StorageConditionEmbeddable storageCondition) { this.storageCondition = storageCondition; }
 
     public OrderEntity getOrder() { return order; }
     public void setOrder(OrderEntity order) { this.order = order; }

@@ -121,7 +121,8 @@ public final class ReserveStockForOrderUseCase implements UseCase<ReserveStockFo
             return "Insufficient stock for product " + line.productId();
         }
         reserved.add(new ReservationLine(line.productId(), line.quantity(),
-                product.get().getName().value(), product.get().getPrice().value(), taken));
+                product.get().getName().value(), product.get().getPrice().value(), taken,
+                product.get().getStorageCondition()));
         stockEvents.add(new ProductStockReservedEvent(line.productId(), line.quantity(), lots.onHand(id)));
         return null;
     }

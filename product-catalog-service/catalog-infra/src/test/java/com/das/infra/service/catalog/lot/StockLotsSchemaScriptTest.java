@@ -47,7 +47,8 @@ class StockLotsSchemaScriptTest {
             "spring.datasource.password=",
             "spring.sql.init.mode=always",
             "spring.sql.init.schema-locations=classpath:db/outbox-postgresql.sql,classpath:db/products-before-lots.sql,"
-                    + "classpath:db/stock-lots-postgresql.sql,classpath:db/stock-lots-postgresql.sql",
+                    + "classpath:db/stock-lots-postgresql.sql,classpath:db/stock-lots-postgresql.sql,"
+                    + "classpath:db/storage-conditions-postgresql.sql,classpath:db/storage-conditions-postgresql.sql",
             "spring.jpa.hibernate.ddl-auto=validate",
             "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
     })
@@ -98,7 +99,7 @@ class StockLotsSchemaScriptTest {
             "spring.sql.init.mode=always",
             "spring.sql.init.schema-locations=classpath:db/outbox-postgresql.sql,classpath:db/products-before-lots.sql,"
                     + "classpath:db/products-with-traceability.sql,classpath:db/stock-lots-postgresql.sql,"
-                    + "classpath:db/stock-lots-postgresql.sql",
+                    + "classpath:db/stock-lots-postgresql.sql,classpath:db/storage-conditions-postgresql.sql",
             "spring.jpa.hibernate.ddl-auto=validate",
             "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
     })

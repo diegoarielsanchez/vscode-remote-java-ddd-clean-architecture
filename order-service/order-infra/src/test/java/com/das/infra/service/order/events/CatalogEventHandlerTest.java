@@ -83,7 +83,7 @@ class CatalogEventHandlerTest {
     private StockReservationReply.Confirmed confirmed(Order order) {
         return new StockReservationReply.Confirmed(UUID.randomUUID(), CatalogEventTranslator.CONFIRMED,
                 order.id().value(), List.of(new StockReservationReply.PricedLine(product.value(), "Amoxicillin 500mg",
-                        new BigDecimal("2.50"))));
+                        new BigDecimal("2.50"), null)));
     }
 
     /** Reads happen in a transaction in the service (unit of work / open session); same here. */

@@ -57,7 +57,7 @@ public final class ConfirmOrderStockUseCase implements UseCase<ConfirmOrderStock
                 List<ReservedLinePrice> prices = new ArrayList<>();
                 for (ConfirmOrderStockInputDTO.ReservedLine line : inputDTO.lines()) {
                     prices.add(new ReservedLinePrice(new ProductId(line.productId()), line.productName(),
-                            new OrderLineUnitPrice(line.unitPrice())));
+                            new OrderLineUnitPrice(line.unitPrice()), line.storageCondition()));
                 }
                 Order confirmed = order.confirmStock(prices);
                 repository.save(confirmed);

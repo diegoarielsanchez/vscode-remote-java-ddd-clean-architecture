@@ -26,7 +26,16 @@ import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.das.cleanddd.domain.order.entities.IOrderRepository;
+import com.das.cleanddd.domain.order.entities.MedicalSalesRepId;
+import com.das.cleanddd.domain.order.entities.Order;
+import com.das.cleanddd.domain.order.entities.OrderLine;
+import com.das.cleanddd.domain.order.entities.OrderLineQuantity;
+import com.das.cleanddd.domain.order.entities.OrderLineUnitPrice;
+import com.das.cleanddd.domain.order.entities.ProductId;
+import com.das.cleanddd.domain.order.entities.ReservedLinePrice;
 import com.das.cleanddd.domain.order.ports.IMedicalSalesRepValidator;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
 import com.das.cleanddd.domain.order.usecases.dtos.CreateOrderInputDTO;
 import com.das.cleanddd.domain.order.usecases.dtos.OrderLineInputDTO;
@@ -74,6 +83,7 @@ class OutboxWiringTest {
     @Autowired private OrderOutboxRelay relay;
     @Autowired private OutboxEventJpaRepository outbox;
     @Autowired private OrderJpaRepository rows;
+    @Autowired private IOrderRepository orders;
 
     @AfterEach
     void cleanUp() {
@@ -126,4 +136,56 @@ class OutboxWiringTest {
         assertEquals(rows.findAll().get(0).getId(), created.get("aggregateId").asText());
     }
 
+    private static String adminJwt() {
+        SecretKeySpec key = new SecretKeySpec(JWT_SECRET.getBytes(), "HmacSHA256");
+        return Jwts.builder()
+                .subject("qa.admin")
+                .claim("authorities", List.of("ROLE_USER", "ROLE_ADMIN"))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000))
+                .signWith(key)
+                .compact();
+    }
+
+    @Test
+    void aWarmColdChainDeliveryIsQuarantinedUntilQualityReleasesIt() throws Exception {
+        String msr = java.util.UUID.randomUUID().toString();
+        ProductId insulin = new ProductId(java.util.UUID.randomUUID().toString());
+        Order approved = Order.create(new MedicalSalesRepId(msr), List.of(OrderLine.unpriced(insulin, new OrderLineQuantity(2))))
+                .confirmStock(List.of(new ReservedLinePrice(insulin, "Insulin 100IU",
+                        new OrderLineUnitPrice(new java.math.BigDecimal("20.00")),
+                        new StorageCondition(new java.math.BigDecimal("2"), new java.math.BigDecimal("8"), null, false))))
+                .approve("agent");
+        orders.save(approved);
+        String id = approved.id().value();
+
+        mockMvc.perform(post("/api/v1/orders/" + id + "/confirm-delivery")
+                        .header("Authorization", "Bearer " + jwtFor("rep", msr)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/orders/" + id + "/confirm-delivery")
+                        .header("Authorization", "Bearer " + jwtFor("rep", msr))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"conditionsMaintained\":true,\"minTemperatureC\":3.0,\"maxTemperatureC\":11.0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELIVERY_QUARANTINED"))
+                .andExpect(jsonPath("$.transportCheckRequired").value(true))
+                .andExpect(jsonPath("$.lines[0].storageCondition.coldChain").value(true))
+                .andExpect(jsonPath("$.deliveryCheck.breaches[0]")
+                        .value("Insulin 100IU: Highest temperature 11.0 °C is above 8.0 °C."));
+
+        mockMvc.perform(post("/api/v1/orders/" + id + "/delivery/release")
+                        .header("Authorization", "Bearer " + adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Within the stability budget for 2 h at 11 °C\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELIVERED"))
+                .andExpect(jsonPath("$.deliveryCheck.decidedBy").value("qa.admin"));
+
+        List<String> types = outbox.findAll().stream()
+                .sorted(java.util.Comparator.comparingLong(OutboxEventEntity::getAggregateVersion))
+                .map(OutboxEventEntity::getEventType).toList();
+        assertEquals(List.of("order.delivery-quarantined", "order.delivery-released", "order.delivered"),
+                types.subList(types.size() - 3, types.size()));
+    }
 }

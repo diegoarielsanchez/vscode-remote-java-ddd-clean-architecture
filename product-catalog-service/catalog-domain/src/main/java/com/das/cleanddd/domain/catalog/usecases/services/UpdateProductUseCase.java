@@ -21,6 +21,7 @@ import com.das.cleanddd.domain.shared.audit.ChangeReason;
 import com.das.cleanddd.domain.shared.UseCase;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 @Service
 public final class UpdateProductUseCase implements UseCase<UpdateProductInputDTO, ProductOutputDTO> {
@@ -70,9 +71,11 @@ public final class UpdateProductUseCase implements UseCase<UpdateProductInputDTO
             if (gtin != null && !gtin.equals(existing.get().getGtin())) {
                 ProductUseCaseSupport.requireUnusedGtin(repository, gtin, id);
             }
+            StorageCondition storageCondition = inputDTO.storageCondition() == null
+                    ? existing.get().getStorageCondition() : inputDTO.storageCondition().toDomain();
             // Never touches stock — stock is only ever mutated via the atomic
             // reserve/release/restock repository operations.
-            product = existing.get().withUpdatedDetails(name, description, price, unit, gtin, reason);
+            product = existing.get().withUpdatedDetails(name, description, price, unit, gtin, storageCondition, reason);
             repository.save(product);
             product.pullDomainEvents().forEach(publisher::publish);
             return mapper.outputFromEntity(product);

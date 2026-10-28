@@ -45,6 +45,7 @@ import com.das.cleanddd.domain.catalog.usecases.dtos.ReceiveStockLotInputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.ReserveStockOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockLotOutputDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.StockQuantityInputDTO;
+import com.das.cleanddd.domain.catalog.usecases.dtos.StorageConditionDTO;
 import com.das.cleanddd.domain.catalog.usecases.dtos.UpdateProductInputDTO;
 import com.das.cleanddd.domain.shared.UnitOfWork;
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
@@ -57,6 +58,7 @@ class StockLotUseCasesTest {
     private static final String GTIN = "09506000134352"; // GS1's example GTIN-14
     private static final LocalDate EXPIRES = LocalDate.of(2027, 3, 31);
     private static final char GS = Gs1ElementString.GS;
+    private static final StorageConditionDTO ROOM = new StorageConditionDTO(new BigDecimal("15"), new BigDecimal("25"), null, false);
 
     private final List<ProductDomainEvent> events = new ArrayList<>();
     private final ProductMapper mapper = new ProductMapper();
@@ -281,10 +283,10 @@ class StockLotUseCasesTest {
         @DisplayName("creating with initial stock needs its batch and expiry, and makes the first lot")
         void initialStockIsAFirstLot() throws DomainException {
             assertThrows(DomainException.class, () -> create.execute(new CreateProductInputDTO("Aspirin", null,
-                    new BigDecimal("1.00"), "BOX", 10)));
+                    new BigDecimal("1.00"), "BOX", 10, null, null, null, null, ROOM)));
 
             ProductOutputDTO out = create.execute(new CreateProductInputDTO("Aspirin", null, new BigDecimal("1.00"), "BOX",
-                    10, "4006381333931", "A-1", EXPIRES));
+                    10, "4006381333931", "A-1", EXPIRES, null, ROOM));
 
             assertEquals(10, out.stock());
             assertEquals("04006381333931", out.gtin(), "stored as GTIN-14");
@@ -295,7 +297,7 @@ class StockLotUseCasesTest {
         @DisplayName("a GTIN identifies one product only")
         void gtinIsUnique() {
             DomainException e = assertThrows(DomainException.class, () -> create.execute(new CreateProductInputDTO(
-                    "Copy", null, new BigDecimal("1.00"), "BOX", 0, GTIN, null, null)));
+                    "Copy", null, new BigDecimal("1.00"), "BOX", 0, GTIN, null, null, null, ROOM)));
             assertTrue(e.getMessage().contains("already identifies product"), e.getMessage());
         }
 
@@ -303,7 +305,7 @@ class StockLotUseCasesTest {
         @DisplayName("a GTIN with a wrong check digit is refused")
         void checkDigit() {
             assertThrows(DomainException.class, () -> create.execute(new CreateProductInputDTO(
-                    "Bad", null, new BigDecimal("1.00"), "BOX", 0, "09506000134353", null, null)));
+                    "Bad", null, new BigDecimal("1.00"), "BOX", 0, "09506000134353", null, null, null, ROOM)));
         }
 
         @Test

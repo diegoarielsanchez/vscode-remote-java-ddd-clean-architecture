@@ -79,6 +79,24 @@ final class ProductUseCaseSupport {
         return batchNumber == null ? StockLot.UNBATCHED : batchNumber;
     }
 
+    /** The reason recorded with a lot's status change: required, at most 500 characters. */
+    static void requireLotReason(String reason) throws DomainException {
+        if (reason == null || reason.isBlank()) {
+            throw new DomainException("A reason is required.");
+        }
+        if (reason.length() > 500) {
+            throw new DomainException("The reason must be at most 500 characters.");
+        }
+    }
+
+    /** A rejected lot is final: no units go into it and its status does not change again. */
+    static void requireNotRejected(StockLot lot) throws DomainException {
+        if (lot.isRejected()) {
+            throw new DomainException("Batch " + lot.batchNumber().value() + " was rejected; it cannot be received"
+                    + " into, quarantined or released again.");
+        }
+    }
+
     static StockLotOutputDTO output(StockLot lot, LocalDate today, ShelfLifePolicy policy) {
         return new StockLotOutputDTO(lot.batchNumber().value(), lot.expirationDateValue(), lot.quantity(),
                 lot.status().name(), lot.receivedAt(), lot.isExpiredOn(today), lot.isAllocatable(today, policy));

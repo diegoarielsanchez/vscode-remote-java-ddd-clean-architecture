@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.das.cleanddd.domain.shared.audit.ChangeTracked;
 import com.das.cleanddd.domain.shared.audit.FieldChange;
+import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
 /**
  * {@code changes} lists the fields the edit changed with their previous values, and {@code reason} why, for the
@@ -18,6 +19,7 @@ public record ProductUpdatedEvent(
         String unit,
         Boolean active,
         String gtin,
+        StorageCondition storageCondition,
         List<FieldChange> changes,
         String reason) implements ProductDomainEvent, ChangeTracked {
 
@@ -33,6 +35,12 @@ public record ProductUpdatedEvent(
     /** Without the changes. */
     public ProductUpdatedEvent(String id, String name, String description, BigDecimal price, String unit, Boolean active,
                                String gtin) {
-        this(id, name, description, price, unit, active, gtin, List.of(), null);
+        this(id, name, description, price, unit, active, gtin, null, List.of(), null);
+    }
+
+    /** Without storage conditions. */
+    public ProductUpdatedEvent(String id, String name, String description, BigDecimal price, String unit, Boolean active,
+                               String gtin, List<FieldChange> changes, String reason) {
+        this(id, name, description, price, unit, active, gtin, null, changes, reason);
     }
 }

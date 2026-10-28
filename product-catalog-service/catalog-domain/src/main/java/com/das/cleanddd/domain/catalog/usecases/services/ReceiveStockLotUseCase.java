@@ -32,7 +32,7 @@ import com.das.cleanddd.domain.shared.exceptions.DomainException;
  *   <li>A GS1 code's GTIN must be the product's GTIN, so the wrong item cannot be booked in.</li>
  *   <li>Expired goods are refused.</li>
  *   <li>A batch already on file gets the units added, provided the expiration date is the same: one batch has
- *       one expiration date. A new batch becomes a new lot.</li>
+ *       one expiration date. A new batch becomes a new lot. A rejected batch takes no more units.</li>
  *   <li>A GS1 serial number (AI 21) is accepted in the code but not stored: stock is tracked per lot.</li>
  * </ul>
  */
@@ -97,6 +97,7 @@ public final class ReceiveStockLotUseCase implements UseCase<ReceiveStockLotInpu
         Optional<StockLot> existing = lots.findByProductIdAndBatchNumber(product.getId(), batchNumber);
         if (existing.isPresent()) {
             StockLot lot = existing.get();
+            ProductUseCaseSupport.requireNotRejected(lot);
             if (!Objects.equals(expirationDate, lot.expirationDate())) {
                 throw new DomainException("Batch " + batchNumber.value() + " is on file with expiration date "
                         + lot.expirationDateValue() + "; one batch has one expiration date.");
