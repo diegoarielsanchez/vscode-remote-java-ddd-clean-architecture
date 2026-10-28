@@ -75,3 +75,68 @@ should execute instead of being skipped.
 
 Day to day, `docker stop jenkins` / `docker start jenkins`; everything is kept
 in the `jenkins-data` volume.
+
+## Start pipelines from a GitHub push (webhook)
+
+Every `Jenkinsfile` declares `triggers { githubPush() }`, so a push can start
+the pipelines without any change to them. GitHub cannot reach
+`localhost:9696`, though, so a relay is needed in between. These steps use
+[smee.io](https://smee.io), GitHub's relay for development: the `smee`
+container connects out to smee.io and forwards only the webhook messages to
+Jenkins, so Jenkins itself is never reachable from the internet.
+
+1. Open https://smee.io, click **Start a new channel** and copy its address
+   (e.g. `https://smee.io/AbC123xyz`). Treat it like a password: anyone who
+   has it can watch the messages (commit messages, authors, file paths).
+
+2. Run the relay next to Jenkins, on the same network so it can reach the
+   `jenkins` container by name:
+   ```bash
+   docker run -d --name smee \
+     --network ddd-clean-net \
+     --restart unless-stopped \
+     node:22-alpine \
+     npx --yes smee-client \
+       --url https://smee.io/AbC123xyz \
+       --target http://jenkins:9696/github-webhook/
+
+   docker logs smee   # should show "Connected"
+   ```
+
+3. In the GitHub repository, **Settings → Webhooks → Add webhook**:
+   - **Payload URL:** the smee address
+   - **Content type:** `application/json`
+   - **Secret:** a long random string, e.g. from `openssl rand -hex 32`
+   - **Events:** Just the push event
+
+4. Give Jenkins the same secret, so nobody else who learns the smee address
+   can start builds:
+   - **Manage Jenkins → Credentials → System → Global → Add credentials**:
+     **Secret text**, ID `github-webhook-secret`, the string from step 3.
+   - **Manage Jenkins → System → GitHub → Advanced → Shared secrets**: add
+     that credential.
+
+5. Run each job once with **Build Now**. Jenkins only registers the
+   `githubPush()` trigger after a pipeline has run; afterwards the job's
+   configuration shows **GitHub hook trigger for GITScm polling** ticked.
+
+6. Push a commit to `main` and check each job's **GitHub Hook Log** and build
+   list. GitHub's **Recent Deliveries** shows 200 as soon as smee receives
+   the message, even if Jenkins rejected it or never got it, so the Jenkins
+   side is the one to trust.
+
+Good to know:
+
+- Every push builds all the jobs, even if only one service changed: the
+  pipelines have no path filter.
+- Pushes made while the `smee` container is stopped are not replayed.
+  Redeliver them from **Recent Deliveries**, or use **Build Now**.
+- smee.io is a free community service with no uptime promise; keep it for
+  local development.
+- **Why not ngrok?** ngrok (or Cloudflare Tunnel) publishes the whole Jenkins
+  — login page, script console, CLI — not just the webhook. It does show
+  Jenkins' real reply in Recent Deliveries and lets you open Jenkins from
+  other devices, but then lock it down: strong passwords, sign-up off, and a
+  tunnel policy that only allows `/github-webhook/` or adds basic auth or an
+  IP allow-list. The target is the same: `http://localhost:9696/github-webhook/`
+  from the host, with the trailing slash.
