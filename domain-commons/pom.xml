@@ -14,13 +14,13 @@
         <java.version>25</java.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
-        <log4j2.version>2.26.0</log4j2.version>
+        <log4j2.version>2.26.1</log4j2.version>
     </properties>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.15</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
