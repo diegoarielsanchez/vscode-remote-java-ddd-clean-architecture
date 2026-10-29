@@ -2,7 +2,7 @@ package com.das.infra.service.healthcareprof.outbox;
 
 import java.time.Instant;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * One audit trail entry as a reviewer reads it: the record's change number, what happened, when, who, why

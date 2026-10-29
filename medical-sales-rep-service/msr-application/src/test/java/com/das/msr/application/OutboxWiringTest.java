@@ -14,7 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,8 +29,8 @@ import com.das.infra.service.medicalsalesrep.outbox.MsrOutboxRelay;
 import com.das.infra.service.medicalsalesrep.outbox.OutboxEventEntity;
 import com.das.infra.service.medicalsalesrep.outbox.OutboxEventJpaRepository;
 import com.das.infra.service.medicalsalesrep.outbox.OutboxMsrEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import io.jsonwebtoken.Jwts;
 
@@ -102,9 +102,9 @@ class OutboxWiringTest {
         List<OutboxEventEntity> rows = outbox.findAll();
         assertEquals(1, rows.size());
         JsonNode envelope = objectMapper.readTree(rows.get(0).getPayload());
-        assertEquals("msr.created", envelope.get("eventType").asText());
-        assertEquals("rep.manager", envelope.get("actor").asText());
-        assertEquals(msrRows.findAll().get(0).getId(), envelope.get("aggregateId").asText());
+        assertEquals("msr.created", envelope.get("eventType").asString());
+        assertEquals("rep.manager", envelope.get("actor").asString());
+        assertEquals(msrRows.findAll().get(0).getId(), envelope.get("aggregateId").asString());
     }
 
 }

@@ -14,11 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.das.cleanddd.domain.order.events.OrderDomainEvent;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
 import com.das.cleanddd.domain.shared.bus.event.EventEnvelope;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link IOrderEventPublisher} adapter implementing the transactional outbox: instead of talking to
@@ -35,8 +34,7 @@ public class OutboxOrderEventPublisher implements IOrderEventPublisher {
 
     /** Fixed serialization for the wire contract, independent of the application's ObjectMapper. */
     static final ObjectMapper CONTRACT_JSON = JsonMapper.builder()
-            .addModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .build();
 
     private final OutboxEventJpaRepository outbox;
@@ -95,7 +93,7 @@ public class OutboxOrderEventPublisher implements IOrderEventPublisher {
     private static String toJson(EventEnvelope<?> envelope) {
         try {
             return CONTRACT_JSON.writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize integration event " + envelope.eventType(), e);
         }
     }

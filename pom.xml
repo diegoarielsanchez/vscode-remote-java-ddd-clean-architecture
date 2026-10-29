@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.16</version>
+        <version>4.0.9</version>
     </parent>
   
     <groupId>org.springframework.cleanddd</groupId>
@@ -44,8 +44,6 @@
         <maven.compiler.target>25</maven.compiler.target>
         <start-class>com.das.cleanddd.application.DemoApplication</start-class>
         <log4j2.version>2.26.1</log4j2.version>
-        <!-- CVE override (OWASP Dependency-Check): the version Spring Boot 3.5.16 manages is vulnerable -->
-        <jackson-bom.version>2.21.8</jackson-bom.version>
     </properties>
 
     <dependencies>

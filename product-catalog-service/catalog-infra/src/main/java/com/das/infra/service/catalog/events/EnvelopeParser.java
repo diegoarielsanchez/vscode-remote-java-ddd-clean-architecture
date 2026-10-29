@@ -5,11 +5,12 @@ import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
 
-import com.fasterxml.jackson.core.StreamReadFeature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Validates the integration-event envelope shared by all upstream contexts (schema version 1)
@@ -101,7 +102,7 @@ final class EnvelopeParser {
         JsonNode root;
         try {
             root = JSON.readTree(body);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw invalid(contract, "malformed JSON");
         }
         if (root == null || !root.isObject()) throw invalid(contract, "message is not a JSON object");
@@ -130,8 +131,8 @@ final class EnvelopeParser {
 
     private static String requiredText(String contract, JsonNode node, String field) {
         JsonNode value = node.get(field);
-        if (value == null || !value.isTextual() || value.asText().isBlank()) throw invalid(contract, field + " is missing");
-        return value.asText();
+        if (value == null || !value.isString() || value.asString().isBlank()) throw invalid(contract, field + " is missing");
+        return value.asString();
     }
 
     private static UUID uuid(String contract, String value, String field) {

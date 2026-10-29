@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import com.das.cleanddd.domain.catalog.reservation.entities.ReservationLine;
 import com.das.cleanddd.domain.catalog.reservation.events.StockReservationConfirmedEvent;
 import com.das.cleanddd.domain.shared.storage.StorageCondition;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 class StockReservationIntegrationEventsTest {
 
@@ -27,8 +27,8 @@ class StockReservationIntegrationEventsTest {
                 .writeValueAsString(StockReservationIntegrationEvents.map(confirmed).data()));
 
         JsonNode cold = data.at("/lines/0/storageCondition");
-        assertEquals("2.0", cold.get("minTemperatureC").asText());
-        assertEquals("8.0", cold.get("maxTemperatureC").asText());
+        assertEquals("2.0", cold.get("minTemperatureC").asString());
+        assertEquals("8.0", cold.get("maxTemperatureC").asString());
         assertTrue(cold.get("coldChain").asBoolean());
         assertTrue(cold.get("protectFromLight").asBoolean());
         assertFalse(data.at("/lines/1").has("storageCondition"), "left out when the product has none");

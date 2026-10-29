@@ -12,11 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.das.cleanddd.domain.shared.audit.ChangeTracked;
 import com.das.cleanddd.domain.shared.bus.event.EventEnvelope;
 import com.das.cleanddd.domain.visit.events.VisitDomainEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Writes visit and visit plan changes to the audit trail, inside the caller's transaction ({@code MANDATORY}:
@@ -31,8 +30,7 @@ public class VisitAuditTrail {
 
     /** Fixed serialization for the audit record, independent of the application's ObjectMapper. */
     static final ObjectMapper AUDIT_JSON = JsonMapper.builder()
-            .addModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .build();
 
     private final AuditEventJpaRepository audit;
@@ -84,7 +82,7 @@ public class VisitAuditTrail {
     private static String toJson(Object value) {
         try {
             return AUDIT_JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize audit entry " + value.getClass().getSimpleName(), e);
         }
     }

@@ -12,8 +12,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
 import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.retry.RetryContext;
-import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.core.retry.RetryPolicy;
 
 import com.das.infra.service.visit.events.InvalidIntegrationEventException;
 
@@ -39,7 +38,7 @@ class VisitRabbitMqConfigTest {
 
     @Test
     void retriesTransientFailuresButNeverInvalidMessages() {
-        SimpleRetryPolicy policy = VisitRabbitMqConfig.retryPolicy(3);
+        RetryPolicy policy = VisitRabbitMqConfig.retryPolicy(3);
 
         assertTrue(canRetryAfter(policy, wrap(new DataAccessResourceFailureException("database down"))));
         assertFalse(canRetryAfter(policy, wrap(new AmqpRejectAndDontRequeueException("invalid",
@@ -51,9 +50,7 @@ class VisitRabbitMqConfigTest {
         return new ListenerExecutionFailedException("listener failed", cause);
     }
 
-    private static boolean canRetryAfter(SimpleRetryPolicy policy, Throwable failure) {
-        RetryContext context = policy.open(null);
-        policy.registerThrowable(context, failure);
-        return policy.canRetry(context);
+    private static boolean canRetryAfter(RetryPolicy policy, Throwable failure) {
+        return policy.shouldRetry(failure);
     }
 }

@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -25,7 +25,7 @@ import com.das.cleanddd.domain.order.events.OrderCreatedEvent;
 import com.das.cleanddd.domain.order.events.OrderRejectedEvent;
 import com.das.cleanddd.domain.order.events.OrderSubmittedForApprovalEvent;
 import com.das.cleanddd.domain.order.ports.IOrderEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 @DataJpaTest
 @Import(OutboxOrderEventPublisher.class)
@@ -71,11 +71,11 @@ class OutboxOrderEventPublisherTest {
         assertEquals(List.of(1L, 2L, 3L), rows.stream().map(OutboxEventEntity::getAggregateVersion).toList());
 
         JsonNode created = OutboxOrderEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
-        assertEquals("order-service", created.get("producer").asText());
-        assertEquals("rep.manager", created.get("actor").asText());
-        assertEquals(MSR, created.at("/data/medicalSalesRepId").asText());
+        assertEquals("order-service", created.get("producer").asString());
+        assertEquals("rep.manager", created.get("actor").asString());
+        assertEquals(MSR, created.at("/data/medicalSalesRepId").asString());
         assertEquals(2, created.at("/data/lineCount").asInt());
-        assertEquals(PRODUCT_A, created.at("/data/lines/0/productId").asText());
+        assertEquals(PRODUCT_A, created.at("/data/lines/0/productId").asString());
         assertEquals(3, created.at("/data/lines/0/quantity").asInt());
         assertEquals(1, created.at("/data/lines/1/quantity").asInt());
         assertTrue(created.at("/data/totalAmount").isMissingNode(), "not priced yet: left out");
@@ -84,8 +84,8 @@ class OutboxOrderEventPublisherTest {
         assertEquals(0, new BigDecimal("125.50").compareTo(submitted.at("/data/totalAmount").decimalValue()));
 
         JsonNode rejected = OutboxOrderEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
-        assertEquals("approver", rejected.at("/data/decidedBy").asText());
-        assertEquals("Out of budget", rejected.at("/data/reason").asText());
+        assertEquals("approver", rejected.at("/data/decidedBy").asString());
+        assertEquals("Out of budget", rejected.at("/data/reason").asString());
         assertTrue(rejected.at("/data/totalAmount").isMissingNode());
         assertTrue(rejected.at("/data/lines").isMissingNode());
 

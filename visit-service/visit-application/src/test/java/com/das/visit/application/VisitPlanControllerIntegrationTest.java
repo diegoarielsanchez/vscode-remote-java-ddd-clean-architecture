@@ -8,13 +8,13 @@ import com.das.cleanddd.domain.visit.usecases.dtos.CreateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.UpdateVisitPlanInputDTO;
 import com.das.cleanddd.domain.visit.usecases.dtos.VisitItemDTO;
 import com.das.infra.service.visit.VisitPlanJpaRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -163,7 +163,7 @@ class VisitPlanControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(response).get("id").asText();
+        return objectMapper.readTree(response).get("id").asString();
     }
 
     private void update(String id, List<VisitItemDTO> items) throws Exception {
@@ -500,6 +500,6 @@ class VisitPlanControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        return objectMapper.readTree(response).get("id").asText();
+        return objectMapper.readTree(response).get("id").asString();
     }
 }

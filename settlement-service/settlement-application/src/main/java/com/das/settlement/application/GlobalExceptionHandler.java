@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.InvalidFormatException;
 
 import com.das.cleanddd.domain.shared.exceptions.DomainException;
 
@@ -128,7 +128,7 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         Throwable cause = ex.getCause();
         if (cause instanceof InvalidFormatException ife && !ife.getPath().isEmpty()) {
-            String fieldName = ife.getPath().get(0).getFieldName();
+            String fieldName = ife.getPath().get(0).getPropertyName();
             String targetType = ife.getTargetType() != null ? ife.getTargetType().getSimpleName() : "unknown";
             errors.put(fieldName, "Invalid value '" + ife.getValue() + "' for field '" + fieldName
                     + "'. Expected type: " + targetType + ".");

@@ -1,6 +1,6 @@
 package com.das.infra.service.settlement;
 
-import java.util.Map;
+import java.time.Duration;
 
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Binding;
@@ -16,7 +16,7 @@ import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.core.retry.RetryPolicy;
 
 import com.das.infra.service.settlement.events.InvalidIntegrationEventException;
 
@@ -87,15 +87,32 @@ public class SettlementRabbitMqConfig {
         factory.setContainerCustomizer(container -> container.setPossibleAuthenticationFailureFatal(false));
         factory.setAdviceChain(RetryInterceptorBuilder.stateless()
                 .retryPolicy(retryPolicy(maxAttempts))
-                .backOffOptions(500, 2.0, 5_000)
                 .recoverer(new RejectAndDontRequeueRecoverer())
                 .build());
         return factory;
     }
 
-    static SimpleRetryPolicy retryPolicy(int maxAttempts) {
-        return new SimpleRetryPolicy(maxAttempts, Map.of(
-                AmqpRejectAndDontRequeueException.class, false,
-                InvalidIntegrationEventException.class, false), true, true);
+    /**
+     * At most {@code maxAttempts} deliveries in all, backing off from 500 ms to 5 s, unless the failure was caused by
+     * an invalid message: retrying cannot fix that.
+     */
+    static RetryPolicy retryPolicy(int maxAttempts) {
+        return RetryPolicy.builder()
+                .maxRetries(maxAttempts - 1)
+                .delay(Duration.ofMillis(500))
+                .multiplier(2.0)
+                .maxDelay(Duration.ofSeconds(5))
+                .predicate(failure -> !invalidMessage(failure))
+                .build();
+    }
+
+    private static boolean invalidMessage(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof AmqpRejectAndDontRequeueException
+                    || t instanceof InvalidIntegrationEventException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

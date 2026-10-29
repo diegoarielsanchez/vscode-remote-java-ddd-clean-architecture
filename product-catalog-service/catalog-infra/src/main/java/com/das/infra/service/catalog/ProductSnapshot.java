@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 import com.das.cleanddd.domain.shared.storage.StorageCondition;
 
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.JacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializer;
 
 /**
@@ -51,6 +51,6 @@ public record ProductSnapshot(String id, String name, String description, BigDec
 
     /** Typed JSON serializer for the {@code productById} Redis cache. */
     public static RedisSerializer<ProductSnapshot> redisSerializer() {
-        return new Jackson2JsonRedisSerializer<>(ProductSnapshot.class);
+        return new JacksonJsonRedisSerializer<>(ProductSnapshot.class);
     }
 }

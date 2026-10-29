@@ -13,7 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -26,7 +26,7 @@ import com.das.cleanddd.domain.medicalsalesrep.events.MsrActivatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.events.MsrCreatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.events.MsrDeactivatedEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 @DataJpaTest
 @Import(OutboxMsrEventPublisher.class)
@@ -80,16 +80,16 @@ class OutboxMsrEventPublisherTest {
         OutboxEventEntity row = outbox.findAll().get(0);
         JsonNode json = OutboxMsrEventPublisher.CONTRACT_JSON.readTree(row.getPayload());
 
-        assertEquals(row.getId().toString(), json.get("eventId").asText());
-        assertEquals("msr.created", json.get("eventType").asText());
+        assertEquals(row.getId().toString(), json.get("eventId").asString());
+        assertEquals("msr.created", json.get("eventType").asString());
         assertEquals(1, json.get("schemaVersion").asInt());
-        assertEquals("msr-1", json.get("aggregateId").asText());
+        assertEquals("msr-1", json.get("aggregateId").asString());
         assertEquals(1, json.get("aggregateVersion").asLong());
-        assertEquals("2026-10-08T09:30:00Z", json.get("occurredAt").asText());
-        assertEquals("medical-sales-rep-service", json.get("producer").asText());
-        assertEquals("trace-123", json.get("correlationId").asText());
-        assertEquals("admin", json.get("actor").asText());
-        assertEquals("Ana", json.at("/data/name").asText());
+        assertEquals("2026-10-08T09:30:00Z", json.get("occurredAt").asString());
+        assertEquals("medical-sales-rep-service", json.get("producer").asString());
+        assertEquals("trace-123", json.get("correlationId").asString());
+        assertEquals("admin", json.get("actor").asString());
+        assertEquals("Ana", json.at("/data/name").asString());
         assertEquals(true, json.at("/data/active").asBoolean());
         assertFalse(row.getPayload().contains("ana@clinic.org"), "e-mail must not leave the bounded context");
     }
