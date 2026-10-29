@@ -16,7 +16,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -35,7 +35,7 @@ import com.das.cleanddd.domain.catalog.events.ProductLotRejectedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductRestockedEvent;
 import com.das.cleanddd.domain.catalog.events.ProductStockReservedEvent;
 import com.das.cleanddd.domain.catalog.ports.IProductEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 @DataJpaTest
 @Import(OutboxProductEventPublisher.class)
@@ -73,8 +73,8 @@ class OutboxProductEventPublisherTest {
         assertEquals(List.of(1L, 2L, 3L), rows.stream().map(OutboxEventEntity::getAggregateVersion).toList());
 
         JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
-        assertEquals("product-catalog-service", created.get("producer").asText());
-        assertEquals("Amoxicillin 500mg", created.at("/data/name").asText());
+        assertEquals("product-catalog-service", created.get("producer").asString());
+        assertEquals("Amoxicillin 500mg", created.at("/data/name").asString());
         assertEquals(0, new BigDecimal("12.50").compareTo(created.at("/data/price").decimalValue()));
 
         JsonNode reserved = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
@@ -95,18 +95,18 @@ class OutboxProductEventPublisherTest {
         List<OutboxEventEntity> rows = outbox.findAll().stream()
                 .sorted(Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
         JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
-        assertEquals("09506000134352", created.at("/data/gtin").asText());
+        assertEquals("09506000134352", created.at("/data/gtin").asString());
         assertEquals(1, created.at("/schemaVersion").asInt(), "additive optional fields keep schema version 1");
 
         JsonNode restocked = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
         assertEquals("catalog.product.restocked", rows.get(1).getEventType());
-        assertEquals("L2026-07A", restocked.at("/data/batchNumber").asText());
-        assertEquals("2027-03-31", restocked.at("/data/expirationDate").asText(), "ISO date, not a timestamp");
+        assertEquals("L2026-07A", restocked.at("/data/batchNumber").asString());
+        assertEquals("2027-03-31", restocked.at("/data/expirationDate").asString(), "ISO date, not a timestamp");
         assertEquals(50, restocked.at("/data/stockDelta").asInt());
 
         assertEquals("catalog.product.lot-quarantined", rows.get(2).getEventType());
         JsonNode quarantined = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());
-        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asText());
+        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asString());
         assertTrue(quarantined.at("/data/gtin").isNull());
     }
 
@@ -124,15 +124,15 @@ class OutboxProductEventPublisherTest {
         List<OutboxEventEntity> rows = outbox.findAll().stream()
                 .sorted(Comparator.comparingLong(OutboxEventEntity::getAggregateVersion)).toList();
         JsonNode created = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(0).getPayload());
-        assertEquals("2.0", created.at("/data/storageCondition/minTemperatureC").asText());
-        assertEquals("8.0", created.at("/data/storageCondition/maxTemperatureC").asText());
+        assertEquals("2.0", created.at("/data/storageCondition/minTemperatureC").asString());
+        assertEquals("8.0", created.at("/data/storageCondition/maxTemperatureC").asString());
         assertTrue(created.at("/data/storageCondition/protectFromLight").asBoolean());
         assertTrue(created.at("/data/storageCondition/coldChain").asBoolean());
 
         assertEquals("catalog.product.lot-excursion-recorded", rows.get(1).getEventType());
         JsonNode excursion = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(1).getPayload());
         assertEquals("Fridge 3 logger 2026-10-23T22:00:00Z to 2026-10-24T06:00:00Z: ? to 12.4 °C. Highest temperature"
-                + " 12.4 °C is above 8.0 °C.", excursion.at("/data/reason").asText());
+                + " 12.4 °C is above 8.0 °C.", excursion.at("/data/reason").asString());
 
         assertEquals("catalog.product.lot-rejected", rows.get(2).getEventType());
         JsonNode rejected = OutboxProductEventPublisher.CONTRACT_JSON.readTree(rows.get(2).getPayload());

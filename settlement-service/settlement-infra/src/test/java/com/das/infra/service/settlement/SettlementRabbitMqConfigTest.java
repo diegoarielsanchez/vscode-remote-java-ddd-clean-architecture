@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.retry.RetryContext;
-import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.core.retry.RetryPolicy;
 
 import com.das.infra.service.settlement.events.InvalidIntegrationEventException;
 
@@ -31,14 +30,12 @@ class SettlementRabbitMqConfigTest {
 
     @Test
     void retriesTransientFailuresButNeverInvalidMessages() {
-        SimpleRetryPolicy policy = SettlementRabbitMqConfig.retryPolicy(3);
+        RetryPolicy policy = SettlementRabbitMqConfig.retryPolicy(3);
         assertTrue(canRetry(policy, new DataAccessResourceFailureException("db down")));
         assertFalse(canRetry(policy, new AmqpRejectAndDontRequeueException("bad", new InvalidIntegrationEventException("bad"))));
     }
 
-    private static boolean canRetry(SimpleRetryPolicy policy, Throwable cause) {
-        RetryContext context = policy.open(null);
-        policy.registerThrowable(context, new ListenerExecutionFailedException("failed", cause));
-        return policy.canRetry(context);
+    private static boolean canRetry(RetryPolicy policy, Throwable cause) {
+        return policy.shouldRetry(new ListenerExecutionFailedException("failed", cause));
     }
 }

@@ -17,7 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -44,8 +44,8 @@ import com.das.infra.service.order.outbox.OrderOutboxRelay;
 import com.das.infra.service.order.outbox.OutboxEventEntity;
 import com.das.infra.service.order.outbox.OutboxEventJpaRepository;
 import com.das.infra.service.order.outbox.OutboxOrderEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import io.jsonwebtoken.Jwts;
 
@@ -129,11 +129,11 @@ class OutboxWiringTest {
         assertEquals(List.of("order.created"),
                 events.stream().map(OutboxEventEntity::getEventType).toList());
         JsonNode created = objectMapper.readTree(events.get(0).getPayload());
-        assertEquals("rep.manager", created.get("actor").asText());
-        assertEquals(msr, created.at("/data/medicalSalesRepId").asText());
-        assertEquals(product, created.at("/data/lines/0/productId").asText());
+        assertEquals("rep.manager", created.get("actor").asString());
+        assertEquals(msr, created.at("/data/medicalSalesRepId").asString());
+        assertEquals(product, created.at("/data/lines/0/productId").asString());
         assertEquals(2, created.at("/data/lines/0/quantity").asInt());
-        assertEquals(rows.findAll().get(0).getId(), created.get("aggregateId").asText());
+        assertEquals(rows.findAll().get(0).getId(), created.get("aggregateId").asString());
     }
 
     private static String adminJwt() {

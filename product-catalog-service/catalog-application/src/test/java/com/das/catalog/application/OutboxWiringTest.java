@@ -16,7 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -35,8 +35,8 @@ import com.das.infra.service.catalog.outbox.ProductOutboxRelay;
 import com.das.infra.service.catalog.outbox.OutboxEventEntity;
 import com.das.infra.service.catalog.outbox.OutboxEventJpaRepository;
 import com.das.infra.service.catalog.outbox.OutboxProductEventPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import io.jsonwebtoken.Jwts;
 
@@ -118,9 +118,9 @@ class OutboxWiringTest {
         List<OutboxEventEntity> events = outbox.findAll();
         assertEquals(1, events.size());
         JsonNode envelope = objectMapper.readTree(events.get(0).getPayload());
-        assertEquals("catalog.product.created", envelope.get("eventType").asText());
-        assertEquals("rep.manager", envelope.get("actor").asText());
-        assertEquals(rows.findAll().get(0).getId(), envelope.get("aggregateId").asText());
+        assertEquals("catalog.product.created", envelope.get("eventType").asString());
+        assertEquals("rep.manager", envelope.get("actor").asString());
+        assertEquals(rows.findAll().get(0).getId(), envelope.get("aggregateId").asString());
     }
 
     private static String jwtWith(String subject, String... authorities) {
@@ -152,7 +152,7 @@ class OutboxWiringTest {
                 .andExpect(jsonPath("$.storageCondition.coldChain").value(true))
                 .andExpect(jsonPath("$.storageCondition.description").value("2.0 to 8.0 °C, protect from light"))
                 .andReturn().getResponse().getContentAsString();
-        String id = objectMapper.readTree(created).get("id").asText();
+        String id = objectMapper.readTree(created).get("id").asString();
 
         mockMvc.perform(post("/api/v1/products/" + id + "/restock")
                         .header("Authorization", agent)
@@ -178,8 +178,8 @@ class OutboxWiringTest {
                 .filter(e -> e.getEventType().equals("catalog.product.lot-quarantined"))
                 .map(e -> { try { return objectMapper.readTree(e.getPayload()); } catch (Exception x) { throw new IllegalStateException(x); } })
                 .findFirst().orElseThrow();
-        assertEquals("qa.admin", quarantined.get("actor").asText());
-        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asText());
+        assertEquals("qa.admin", quarantined.get("actor").asString());
+        assertEquals("Recall R-2026-17", quarantined.at("/data/reason").asString());
     }
 
     @Test
@@ -211,7 +211,7 @@ class OutboxWiringTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        String id = objectMapper.readTree(created).get("id").asText();
+        String id = objectMapper.readTree(created).get("id").asString();
 
         mockMvc.perform(post("/api/v1/products/" + id + "/lots/excursions")
                         .header("Authorization", agent)

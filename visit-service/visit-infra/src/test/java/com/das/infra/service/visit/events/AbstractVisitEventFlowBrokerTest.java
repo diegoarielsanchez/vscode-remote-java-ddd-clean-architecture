@@ -21,9 +21,9 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
-import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration;
+import org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -55,7 +55,7 @@ abstract class AbstractVisitEventFlowBrokerTest {
 
 
     @Configuration
-    @EnableAutoConfiguration(exclude = {RedisAutoConfiguration.class, RedisRepositoriesAutoConfiguration.class})
+    @EnableAutoConfiguration(exclude = {DataRedisAutoConfiguration.class, DataRedisRepositoriesAutoConfiguration.class})
     @EntityScan(basePackageClasses = HcpSnapshotJpaRepository.class) // includes the events subpackage
     @EnableJpaRepositories(basePackageClasses = HcpSnapshotJpaRepository.class)
     @Import({VisitRabbitMqConfig.class, HcpEventTranslator.class, HcpEventHandler.class, HcpEventListener.class,

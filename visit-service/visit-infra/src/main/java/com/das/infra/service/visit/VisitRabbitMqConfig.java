@@ -1,6 +1,6 @@
 package com.das.infra.service.visit;
 
-import java.util.Map;
+import java.time.Duration;
 
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Binding;
@@ -14,14 +14,14 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
-import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
-import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.DefaultJacksonJavaTypeMapper;
+import org.springframework.amqp.support.converter.JacksonJavaTypeMapper;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.core.retry.RetryPolicy;
 
 import com.das.infra.service.visit.events.InvalidIntegrationEventException;
 
@@ -128,11 +128,11 @@ public class VisitRabbitMqConfig {
      * producers are never used to pick a class (OWASP A08, insecure deserialization).
      */
     @Bean
-    public Jackson2JsonMessageConverter visitJsonMessageConverter() {
-        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
-        typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
+    public JacksonJsonMessageConverter visitJsonMessageConverter() {
+        DefaultJacksonJavaTypeMapper typeMapper = new DefaultJacksonJavaTypeMapper();
+        typeMapper.setTypePrecedence(JacksonJavaTypeMapper.TypePrecedence.INFERRED);
         typeMapper.setTrustedPackages(); // nothing beyond java.util / java.lang
-        Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
+        JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
         converter.setJavaTypeMapper(typeMapper);
         return converter;
     }
@@ -140,7 +140,7 @@ public class VisitRabbitMqConfig {
     @Bean
     @SuppressWarnings("null")
     public RabbitTemplate visitRabbitTemplate(ConnectionFactory connectionFactory,
-                                               Jackson2JsonMessageConverter visitJsonMessageConverter) {
+                                               JacksonJsonMessageConverter visitJsonMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(visitJsonMessageConverter);
         return template;
@@ -154,7 +154,7 @@ public class VisitRabbitMqConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory visitRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            Jackson2JsonMessageConverter visitJsonMessageConverter,
+            JacksonJsonMessageConverter visitJsonMessageConverter,
             @Value("${visit.events.retry.max-attempts:3}") int maxAttempts,
             @Value("${visit.events.prefetch:20}") int prefetch) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
@@ -165,16 +165,33 @@ public class VisitRabbitMqConfig {
         factory.setPrefetchCount(prefetch);
         factory.setAdviceChain(RetryInterceptorBuilder.stateless()
                 .retryPolicy(retryPolicy(maxAttempts))
-                .backOffOptions(500, 2.0, 5_000)
                 .recoverer(new RejectAndDontRequeueRecoverer())
                 .build());
         return factory;
     }
 
-    static SimpleRetryPolicy retryPolicy(int maxAttempts) {
-        return new SimpleRetryPolicy(maxAttempts, Map.of(
-                AmqpRejectAndDontRequeueException.class, false,
-                InvalidIntegrationEventException.class, false,
-                MessageConversionException.class, false), true, true);
+    /**
+     * At most {@code maxAttempts} deliveries in all, backing off from 500 ms to 5 s, unless the failure was caused by
+     * an invalid message: retrying cannot fix that.
+     */
+    static RetryPolicy retryPolicy(int maxAttempts) {
+        return RetryPolicy.builder()
+                .maxRetries(maxAttempts - 1)
+                .delay(Duration.ofMillis(500))
+                .multiplier(2.0)
+                .maxDelay(Duration.ofSeconds(5))
+                .predicate(failure -> !invalidMessage(failure))
+                .build();
+    }
+
+    private static boolean invalidMessage(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof AmqpRejectAndDontRequeueException
+                    || t instanceof InvalidIntegrationEventException
+                    || t instanceof MessageConversionException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

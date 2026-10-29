@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.das.cleanddd.domain.catalog.reservation.events.StockReservationDomainEvent;
 import com.das.cleanddd.domain.catalog.reservation.ports.IStockReservationEventPublisher;
 import com.das.cleanddd.domain.shared.bus.event.EventEnvelope;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 
 /**
  * {@link IStockReservationEventPublisher} adapter: appends the saga's answers to the same
@@ -80,7 +80,7 @@ public class OutboxStockReservationEventPublisher implements IStockReservationEv
     private static String toJson(EventEnvelope<?> envelope) {
         try {
             return OutboxProductEventPublisher.CONTRACT_JSON.writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize integration event " + envelope.eventType(), e);
         }
     }

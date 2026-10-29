@@ -15,11 +15,10 @@ import com.das.cleanddd.domain.medicalsalesrep.events.MsrDomainEvent;
 import com.das.cleanddd.domain.medicalsalesrep.ports.IMsrEventPublisher;
 import com.das.cleanddd.domain.shared.audit.ChangeTracked;
 import com.das.cleanddd.domain.shared.bus.event.EventEnvelope;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link IMsrEventPublisher} adapter implementing the transactional outbox: instead of talking to
@@ -36,8 +35,7 @@ public class OutboxMsrEventPublisher implements IMsrEventPublisher {
 
     /** Fixed serialization for the wire contract, independent of the application's ObjectMapper. */
     static final ObjectMapper CONTRACT_JSON = JsonMapper.builder()
-            .addModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .build();
 
     private final OutboxEventJpaRepository outbox;
@@ -101,7 +99,7 @@ public class OutboxMsrEventPublisher implements IMsrEventPublisher {
         }
         try {
             return CONTRACT_JSON.writeValueAsString(tracked.changes());
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize the changes of " + event.getClass().getSimpleName(), e);
         }
     }
@@ -109,7 +107,7 @@ public class OutboxMsrEventPublisher implements IMsrEventPublisher {
     private static String toJson(EventEnvelope<?> envelope) {
         try {
             return CONTRACT_JSON.writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize integration event " + envelope.eventType(), e);
         }
     }

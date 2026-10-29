@@ -12,7 +12,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -32,7 +32,7 @@ import com.das.cleanddd.domain.visit.entities.VisitId;
 import com.das.cleanddd.domain.visit.entities.VisitItem;
 import com.das.cleanddd.domain.visit.events.VisitPlanDeactivatedEvent;
 import com.das.infra.service.visit.SQLVisitRepository;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /** Visits recorded, edited and given attachments through the real repository leave their audit trail. */
 @DataJpaTest
@@ -95,8 +95,8 @@ class VisitAuditTrailTest {
         });
 
         JsonNode created = VisitAuditTrail.AUDIT_JSON.readTree(entries.get(0).getPayload());
-        assertEquals("Routine check", created.at("/data/visitComments").asText());
-        assertEquals(PRODUCT + " x 2", created.at("/data/items/0").asText());
+        assertEquals("Routine check", created.at("/data/visitComments").asString());
+        assertEquals(PRODUCT + " x 2", created.at("/data/items/0").asString());
         assertNull(entries.get(0).getChanges());
 
         assertEquals("[{\"field\":\"visitComments\",\"from\":\"Routine check\",\"to\":\"Follow-up booked\"},"
@@ -104,8 +104,8 @@ class VisitAuditTrailTest {
                 entries.get(1).getChanges());
 
         JsonNode attached = VisitAuditTrail.AUDIT_JSON.readTree(entries.get(2).getPayload());
-        assertEquals("leaflet.png", attached.at("/data/fileName").asText());
-        assertEquals("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", attached.at("/data/sha256").asText());
+        assertEquals("leaflet.png", attached.at("/data/fileName").asString());
+        assertEquals("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", attached.at("/data/sha256").asString());
     }
 
     @Test

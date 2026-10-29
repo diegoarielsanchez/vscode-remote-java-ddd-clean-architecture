@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 import com.das.cleanddd.domain.order.entities.Order;
 import com.das.cleanddd.domain.shared.storage.StorageCondition;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Anti-corruption layer for {@code catalog.events} (schema version 1). Only the stock saga's answers
