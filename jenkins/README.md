@@ -90,13 +90,16 @@ Jenkins, so Jenkins itself is never reachable from the internet.
    has it can watch the messages (commit messages, authors, file paths).
 
 2. Run the relay next to Jenkins, on the same network so it can reach the
-   `jenkins` container by name:
+   `jenkins` container by name. Keep the version pinned: smee-client 5
+   strips the trailing slash from `--target`, Jenkins redirects
+   `/github-webhook` to `/github-webhook/`, and the redirected request
+   arrives as a GET, which Jenkins rejects with 405:
    ```bash
    docker run -d --name smee \
      --network ddd-clean-net \
      --restart unless-stopped \
      node:22-alpine \
-     npx --yes smee-client \
+     npx --yes smee-client@4.4.3 \
        --url https://smee.io/AbC123xyz \
        --target http://jenkins:9696/github-webhook/
 
