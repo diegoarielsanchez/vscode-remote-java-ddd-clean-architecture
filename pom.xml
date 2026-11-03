@@ -85,7 +85,7 @@
                                 <format>HTML</format>
                                 <format>XML</format>
                             </formats>
-                            <ossIndexAnalyzerEnabled>false</ossIndexAnalyzerEnabled>
+                            <ossindexAnalyzerEnabled>false</ossindexAnalyzerEnabled>
                             <!-- No .NET runtime in the build: the assembly analyzer would fail the run -->
                             <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
                             <suppressionFile>${maven.multiModuleProjectDirectory}/owasp-suppressions.xml</suppressionFile>
