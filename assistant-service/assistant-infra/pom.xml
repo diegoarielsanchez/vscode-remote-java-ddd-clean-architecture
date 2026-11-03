@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.das.assistant</groupId>
+        <artifactId>assistant-service</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>assistant-infra</artifactId>
+    <name>assistant-infra</name>
+    <packaging>jar</packaging>
+    <description>Assistant — infrastructure layer (Claude adapter and tools, REST adapters to the other services, draft and audit stores)</description>
+
+    <dependencies>
+        <!-- Own domain layer -->
+        <dependency>
+            <groupId>com.das.assistant</groupId>
+            <artifactId>assistant-domain</artifactId>
+        </dependency>
+
+        <!-- Spring Boot core and logging; @ConditionalOnProperty keeps the Claude adapter out unless assistant.enabled=true -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Claude API (official Anthropic Java SDK) -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <exclusions>
+                <!-- Okio's Kotlin 1.9 common stdlib is vulnerable; since Kotlin 2.0 kotlin-stdlib holds its classes -->
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>kotlin-stdlib-common</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- spring-web: RestTemplate for calls to the other services (Option A ACL) -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <!-- servlet API: needed for RequestContextHolder/ServletRequestAttributes (forwarding the caller's JWT) -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Tool input and output JSON -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Test support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -1,0 +1,10 @@
+# Docker build context is this service's own directory (see Jenkinsfile /
+# docker-compose.yml). Mirrors the repo-root .dockerignore.
+**/target/
+**/logs/*.log
+logs/
+.git/
+.idea/
+*.iml
+.vscode/
+.devcontainer/

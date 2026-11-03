@@ -30,6 +30,8 @@
         <module>product-catalog-service</module>
         <!-- Microservice: Order -->
         <module>order-service</module>
+        <!-- Microservice: Order drafting assistant (off by default: assistant.enabled=false) -->
+        <module>assistant-service</module>
         <!-- API Gateway -->
         <module>api-gateway</module>
         <!-- Service Registry (Eureka Server) -->
