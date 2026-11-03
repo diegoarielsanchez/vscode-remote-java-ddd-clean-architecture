@@ -157,7 +157,7 @@ pipeline {
                                     -DnvdApiKey="\${NVD_API_KEY}" \\
                                     -DnvdApiDelay=500 \\
                                     -DretryCount=10 \\
-                                    -DossIndexAnalyzerEnabled=false \\
+                                    -DossindexAnalyzerEnabled=false \\
                                     -Dformats=HTML,XML \\
                                     --no-transfer-progress
                             """
@@ -171,7 +171,7 @@ pipeline {
                                 -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
                                 -DnvdApiDelay=6000 \\
                                 -DretryCount=10 \\
-                                -DossIndexAnalyzerEnabled=false \\
+                                -DossindexAnalyzerEnabled=false \\
                                 -Dformats=HTML,XML \\
                                 --no-transfer-progress
                         """

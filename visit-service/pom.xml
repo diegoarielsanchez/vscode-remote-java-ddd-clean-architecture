@@ -78,6 +78,13 @@
                 <artifactId>commons-jxpath</artifactId>
                 <version>1.4.0</version>
             </dependency>
+            <!-- Swagger UI 5.34.1 bundles DOMPurify 3.4.17: fixes CVE-2026-116803 and CVE-2026-116804 (CVSS 10.0).
+                 springdoc 3.0.3 ships 5.32.2; keep springdoc.swagger-ui.version in application.properties in step. -->
+            <dependency>
+                <groupId>org.webjars</groupId>
+                <artifactId>swagger-ui</artifactId>
+                <version>5.34.1</version>
+            </dependency>
             <!-- Spring Cloud BOM -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
