@@ -1,6 +1,5 @@
 package com.das.infra.service.catalog.events;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
