@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.lang.NonNull;
+import org.jspecify.annotations.NonNull;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
