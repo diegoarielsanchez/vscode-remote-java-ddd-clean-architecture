@@ -1,6 +1,5 @@
 package com.das.infra.service.settlement.events;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.UUID;
 

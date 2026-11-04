@@ -116,7 +116,7 @@ public class ProductOutboxRelay {
         try {
             rabbit.send(EXCHANGE, event.getEventType(), message, correlation);
             CorrelationData.Confirm confirm = correlation.getFuture().get(confirmTimeoutMs, TimeUnit.MILLISECONDS);
-            if (!confirm.isAck()) return "nack: " + confirm.getReason();
+            if (!confirm.ack()) return "nack: " + confirm.reason();
             ReturnedMessage returned = correlation.getReturned(); // read once: a second call isn't guaranteed equal
             if (returned != null) return "unroutable: " + returned.getReplyText();
             return null;
