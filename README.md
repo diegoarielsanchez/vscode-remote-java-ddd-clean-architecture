@@ -1,6 +1,12 @@
-# Java DDD Clean Architecture — Microservices
+# Java DDD - Clean Architecture - EDA - OWASP - API RESTful — Microservices
 
-A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, running on Java 25.
+A Spring Boot microservices project built with Domain-Driven Design (DDD) and Clean Architecture principles, Event-Driven Architecture (EDA) over RabbitMQ, OWASP security controls and RESTful APIs, running on Java 25.
+
+More documentation:
+
+- [SECURITY.md](SECURITY.md): how to report a vulnerability, and the OWASP Top 10 fixes applied to this project.
+- [PRODUCTS.md](PRODUCTS.md): the GS1, GxP and GAMP 5 rules behind product-catalog-service and order-service, traced to their tests.
+- [SQA.md](SQA.md): software quality assurance across the SDLC: test strategy, quality gates, SOLID review and known gaps.
 
 ## Table of Contents
 
@@ -9,8 +15,8 @@ A Spring Boot microservices project built with Domain-Driven Design (DDD) and Cl
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Option A — Run Locally (Development)](#option-a--run-locally-development)
-- [Option C — Run Individual Docker Containers](#option-c--run-individual-docker-containers)
-- [Option B — Run with Docker Compose (Production)](#option-b--run-with-docker-compose-production)
+- [Option B — Run Individual Docker Containers](#option-b--run-individual-docker-containers)
+- [Option C — Run with Docker Compose (Production)](#option-c--run-with-docker-compose-production)
   - [1. Fill in secrets](#1-fill-in-secrets)
   - [2. Create the external Docker network](#2-create-the-external-docker-network)
   - [3. Build and start](#3-build-and-start)
@@ -98,7 +104,7 @@ The `domain-commons` module provides shared DDD building blocks (`AggregateRoot`
 |---|---|
 | Java (JDK) | 25 |
 | Maven | 3.9+ |
-| Docker & Docker Compose | 24+ (for Option B or local databases) |
+| Docker & Docker Compose | 24+ (for Option C or local databases) |
 | Git | any |
 
 Verify:
@@ -333,7 +339,7 @@ docker start redis-ddd-clean
 docker exec -it redis-ddd-clean redis-cli keys '*'
 ```
 
-No password is set here since the dev `application.properties` default (`spring.data.redis.password=${REDIS_PASSWORD:}`) is blank — matching plaintext RabbitMQ dev credentials elsewhere in this section. Docker Compose (Option B) requires `REDIS_PASSWORD` via `.env` instead.
+No password is set here since the dev `application.properties` default (`spring.data.redis.password=${REDIS_PASSWORD:}`) is blank — matching plaintext RabbitMQ dev credentials elsewhere in this section. Docker Compose (Option C) requires `REDIS_PASSWORD` via `.env` instead.
 
 **MinIO** (Settlement Service — S3-compatible invoice file storage, optional):
 
@@ -622,7 +628,7 @@ curl -s "http://localhost:8080/api/v1/medicalsalesrep/get?id=<uuid>" \
 
 ---
 
-## Option C — Run Individual Docker Containers
+## Option B — Run Individual Docker Containers
 
 Use this option to build and run each service as a standalone Docker container on a shared network.
 All services must be on the same Docker network (`ddd-clean-net`) and use `SPRING_PROFILES_ACTIVE=prod`
@@ -825,8 +831,6 @@ docker run -d --name healthcare-prof-service --network ddd-clean-net -p 8087:808
 # equivalent to:
 DOCKER_BUILDKIT=1 docker build \
   --build-context domain-commons=domain-commons \
-  --build-context medical-sales-rep-service=medical-sales-rep-service \
-  --build-context healthcare-prof-service=healthcare-prof-service \
   -f visit-service/visit-application/Dockerfile \
   -t visit-service:local \
   visit-service
@@ -1000,7 +1004,7 @@ docker run -d ... <service>:local   # reuse the run command above
 
 ---
 
-## Option B — Run with Docker Compose (Production)
+## Option C — Run with Docker Compose (Production)
 
 All services run as Docker containers on an internal network. Only the API Gateway port is published to the host.
 
@@ -1141,12 +1145,14 @@ The configuration lives in [observability/](observability/): the collector pipel
 | Grafana | `http://localhost:3000` (`admin` / `GRAFANA_ADMIN_PASSWORD`, default `admin`) | *Explore* → **Loki** for logs (e.g. `{service_name="visit-service"}`), **Prometheus** for metrics, **Jaeger** for traces |
 | Prometheus | `http://localhost:9090` | Raw metrics, e.g. `http_server_request_duration_seconds_count` |
 
-### With Docker Compose (Option B)
+### With services run locally (Option A)
 
-Nothing to do: `docker compose up -d` starts the collector, Jaeger, Prometheus, Loki and Grafana, and every service
-is already configured to send to the collector.
+`mvn spring-boot:run` does not load the agent, so services started that way send nothing. To trace one, start the
+stack shown under Option B below with `-p 4317:4317` added to the `otel-collector` command, and run the service from its jar with
+`-javaagent:<path>/opentelemetry-javaagent.jar` and the same `OTEL_*` variables, using
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
-### With individual containers (Option C)
+### With individual containers (Option B)
 
 **1. Start the observability stack** on `ddd-clean-net`. Run from the repo root, since the commands mount files from
 `observability/`. Keep the container names: the configuration files reach each other by them.
@@ -1209,12 +1215,10 @@ If nothing shows up:
 - On Git Bash for Windows, if the `-v "$(pwd)/..."` mounts fail, run the commands from WSL or replace `$(pwd)` with
   the full path (e.g. `//c/Users/<you>/.../vscode-remote-java-ddd-clean-architecture`).
 
-### With services run locally (Option A)
+### With Docker Compose (Option C)
 
-`mvn spring-boot:run` does not load the agent, so services started that way send nothing. To trace one, start the
-stack above with `-p 4317:4317` added to the `otel-collector` command, and run the service from its jar with
-`-javaagent:<path>/opentelemetry-javaagent.jar` and the same `OTEL_*` variables, using
-`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+Nothing to do: `docker compose up -d` starts the collector, Jaeger, Prometheus, Loki and Grafana, and every service
+is already configured to send to the collector.
 
 ---
 
@@ -1608,6 +1612,8 @@ The API Gateway does **not** proxy Swagger UI paths. Access each service's Swagg
 
 ## Security
 
+To report a vulnerability, and for each OWASP Top 10 finding with its fix, see [SECURITY.md](SECURITY.md).
+
 ### Authentication & Authorization
 
 - **Token issuance** is centralised in `identity-service` (`POST /auth/login`, port `8090`).
@@ -1655,7 +1661,7 @@ purged:
 |---|---|---|
 | `actor` | Attributable | The authenticated principal (JWT subject). `NULL` for steps a service takes on its own, such as the stock saga; `producer` and `correlation_id` attribute those. |
 | `occurred_at` | Contemporaneous | When the change committed (UTC), taken in the same transaction |
-| `payload` | Original, Legible | The event envelope as published (JSON), never re-serialised |
+| `payload` | Original, Legible | The event envelope as published (JSON), never re-serialized |
 | `aggregate_type`, `aggregate_id`, `aggregate_version` | Complete, Consistent | Which record changed, and its change number. The number is unique per record, so a gap shows a missing entry |
 | `event_type` | | What happened, e.g. `catalog.product.lot-quarantined` |
 | `reason` | Attributable, Complete | For an edit: why it was made, as entered by the person (required on every update) |
@@ -2278,7 +2284,7 @@ The `docker run` command is shown in the [Option A — Run Locally](#option-a--r
 http://localhost:15672   (default credentials: guest / guest)
 ```
 
-### RabbitMQ in Docker Compose (Option B)
+### RabbitMQ in Docker Compose (Option C)
 
 RabbitMQ is **not** bundled in `docker-compose.yml` — it is expected to be an externally managed service (e.g. a managed CloudAMQP instance or a dedicated Docker container on the same network). Set the three required env vars in `.env`:
 
@@ -2324,7 +2330,7 @@ The flip side: the handler also swallows *non-connectivity* failures, such as a 
 
 See the **Redis** block under [Option A — Run Locally](#option-a--run-locally-development). Not required for these services to start.
 
-### In Docker Compose (Option B)
+### In Docker Compose (Option C)
 
 Unlike RabbitMQ, Redis **is** bundled in `docker-compose.yml` as an internal-only `redis` service — no published host port, `--requirepass` sourced from `REDIS_PASSWORD` in `.env`, and `--maxmemory 256mb --maxmemory-policy allkeys-lru` so an unexpectedly large key space self-evicts (LRU) instead of growing unbounded. `visit-service`, `order-service`, and `product-catalog-service` depend on it (`service_healthy`) and are wired with `REDIS_HOST=redis`, `REDIS_PORT=6379`, `REDIS_PASSWORD=${REDIS_PASSWORD}`.
 
@@ -2410,6 +2416,9 @@ Checkout → Domain Tests → Infra Tests → Application Tests
          → SAST (SpotBugs) → OWASP Dependency-Check → Package
          → Build Docker Image → [Docker Image Scan*] → [Push*]
 ```
+
+> The OWASP Dependency-Check stage applies the false-positive suppressions in `owasp-suppressions.xml` at the repo
+> root. See [SQA.md, Quality gates](SQA.md#quality-gates) for what each stage blocks.
 
 Each stage maps to a specific DDD layer and OWASP control:
 

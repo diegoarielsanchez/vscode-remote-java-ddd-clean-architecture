@@ -1,0 +1,17 @@
+# Replaces observability/prometheus.yml while the load-test overlay is in use.
+global:
+  scrape_interval: 5s   # short tests need finer samples than the default stack's 15s
+
+scrape_configs:
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object   # the default /metrics path has no per-queue series
+    static_configs:
+      - targets: ["rabbitmq-ddd-clean:15692"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]

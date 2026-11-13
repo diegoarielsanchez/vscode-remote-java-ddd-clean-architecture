@@ -1,0 +1,28 @@
+# Load-test overlay — never use it outside a disposable environment: it removes the gateway rate limit.
+#
+#   docker compose -f docker-compose.yml -f load-test/docker-compose.loadtest.yml up -d
+#
+# Relative paths resolve from the repository root (the first file's directory).
+
+services:
+  api-gateway:
+    environment:
+      # 20 requests/minute per IP would otherwise turn every test into a test of the limiter.
+      GATEWAY_RATELIMIT_CAPACITY: 1000000
+      GATEWAY_RATELIMIT_REFILLTOKENS: 1000000
+
+  redis-exporter:
+    container_name: redis-exporter
+    image: oliver006/redis_exporter:v1.62.0
+    networks: [backend]
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  prometheus:
+    networks: [frontend, backend, ddd-clean-net]   # ddd-clean-net reaches rabbitmq-ddd-clean
+    volumes:
+      - ./load-test/prometheus.yml:/etc/prometheus/prometheus.yml:ro

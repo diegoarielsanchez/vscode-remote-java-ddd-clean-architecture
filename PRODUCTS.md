@@ -28,7 +28,7 @@ and for the Quality, validation and regulatory people who review them.
 | Product master data: name, price, unit, GTIN, lot tracking, storage conditions | Manufacturing, batch release by a Qualified Person |
 | Stock held in lots (batch + expiry), goods receipt, FEFO allocation | Warehouse management (locations, picking) |
 | Quarantine, rejection, recall lookups | Temperature monitoring hardware, mapping, alarms |
-| Excursions reported by a logger or monitoring system | Pack-level serialisation and verification (EU FMD, DSCSA) |
+| Excursions reported by a logger or monitoring system | Pack-level serialization and verification (EU FMD, DSCSA) |
 | Orders from MSRs, stock reservation, delivery with a transport check | Shipping, carriers, qualified packaging |
 | Audit trail of every change | Backups, archiving, disaster recovery (infrastructure) |
 
@@ -45,7 +45,7 @@ Products are of two kinds:
 |---|---|---|
 | **GS1** | A global standard for identifying products and logistic units (GTIN, Application Identifiers, DataMatrix, GDSN, EPCIS). Not a regulation, but the identifiers regulators expect on medicine packs. | Identify each trade item by one GTIN; read batch and expiry from the pack's code; keep identifiers exactly as printed. |
 | **GxP**, here mainly **GDP** (Good Distribution Practice) | Regulations and guidelines for distributing medicines: EU GDP Guidelines 2013/C 343/01, WHO TRS 961 Annex 9, 21 CFR 211 and, for drug samples, 21 CFR 203. Data integrity: EU GMP Annex 11, 21 CFR Part 11, MHRA and PIC/S guidance (ALCOA+). | Traceable lots, FEFO, no expired or quarantined stock delivered, recall, storage and transport within the label's conditions, excursions recorded and decided by Quality, a complete audit trail. |
-| **GAMP 5** (ISPE, 2nd edition 2022) | A risk-based approach to validating computerised systems used in GxP work. | Know which functions are GxP-critical, design and test them in proportion to risk, keep records trustworthy, and control change. |
+| **GAMP 5** (ISPE, 2nd edition 2022) | A risk-based approach to validating computerized systems used in GxP work. | Know which functions are GxP-critical, design and test them in proportion to risk, keep records trustworthy, and control change. |
 
 ## Requirements and where they are met
 
@@ -145,9 +145,9 @@ Rules are in each service's `SecurityConfig` and verified by `ProductControllerS
   directly (`*-domain` tests) apart from the database and HTTP layers.
 - **Database changes.** Each change ships as an idempotent SQL script, and a test runs it against the previous schema
   with Hibernate's `validate`: `StockLotsSchemaScriptTest`, `SagaSchemaScriptTest`, `TransportSchemaScriptTest`.
-- **CI gates.** Each service's Jenkins pipeline runs the domain, infra and application tests, SpotBugs with Find
+- **CI gates.** Each service's Jenkins pipeline runs the domain, infra and application tests and SpotBugs with Find
   Security Bugs, and OWASP Dependency-Check, which fails the build on CVSS 7 or above. See
-  [CI with Jenkins](README.md#ci-with-jenkins).
+  [CI with Jenkins](README.md#ci-with-jenkins) and [SQA.md, Quality gates](SQA.md#quality-gates).
 - **Change control.** Every change is a reviewed commit on a feature branch, merged into `main`. The git history and
   this document record what changed and why.
 
@@ -160,14 +160,14 @@ assessments for the infrastructure, periodic review, and the validation report.
 | Gap | Impact | Possible next step |
 |---|---|---|
 | **No electronic signature** on Quality decisions (reject a lot, release or reject a delivery). They are authenticated and audited, but not signed. | Part 11 §11.50 / §11.200 and Annex 11 §14 expect a signature with its meaning where a signature is required by the predicate rule. | Re-authentication with a stated meaning ("Rejected by Quality") before the decision is stored. |
-| **No pack serialisation.** AI 21 is read but not stored; stock is per lot. | EU FMD (Delegated Regulation 2016/161) and US DSCSA need serial-level verification and decommissioning for prescription medicines. | Integrate with the national verification system (EMVS) or a DSCSA partner instead of storing serials here. |
+| **No pack serialization.** AI 21 is read but not stored; stock is per lot. | EU FMD (Delegated Regulation 2016/161) and US DSCSA need serial-level verification and decommissioning for prescription medicines. | Integrate with the national verification system (EMVS) or a DSCSA partner instead of storing serials here. |
 | **Excursions are posted per lot as JSON,** not as GS1 EPCIS 2.0 sensor events. | A monitoring system needs an adapter, and one fridge holding many lots means many calls. | Accept EPCIS 2.0 `sensorElementList` for a location and resolve the lots held there. |
 | **GS1 temperature AIs (4330–4333) are not read** from labels. | Conditions are entered by hand from the label. | Accept them in `Gs1ElementString` and compare them with the product's conditions. |
 | **Storage by the MSR** (car, home) is not recorded. | A known GDP risk for drug samples (21 CFR 203.32). | Record each MSR's storage location and a periodic confirmation of its conditions. |
 | **Existing medicines** created before storage conditions have none until an update adds them. | Readings can't be recorded for them, and their orders need no transport report. | Add the conditions to every medicine with `PUT /api/v1/products/update`; consider refusing restocks of medicines without them. |
 | **Status changes** (activate, deactivate, approve) don't ask for a reason. | Weaker audit trail for those events. | Require a reason as for edits. |
 | **Under the `dev` profile** HCP, MSR, catalog and order write no events, so nothing is audited. | Dev data is not GxP data. | Never use the `dev` profile for GxP work. |
-| **Backups, retention, time synchronisation** are set up outside this repository. | Annex 11 §7, §17. | Cover them in the infrastructure qualification. |
+| **Backups, retention, time synchronization** are set up outside this repository. | Annex 11 §7, §17. | Cover them in the infrastructure qualification. |
 
 ## Changing these rules
 

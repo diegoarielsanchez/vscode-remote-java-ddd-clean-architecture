@@ -1,44 +1,27 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V0.0.7 BLOCK -->
+# Security
 
-## Security
+## Reporting a vulnerability
 
-Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet), [Xamarin](https://github.com/xamarin), and [our GitHub organizations](https://opensource.microsoft.com/).
+**Please don't report security vulnerabilities in public GitHub issues.**
 
-If you believe you have found a security vulnerability in any Microsoft-owned repository that meets [Microsoft's definition of a security vulnerability](https://aka.ms/opensource/security/definition), please report it to us as described below.
+Report them privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**
+([direct link](https://github.com/diegoarielsanchez/vscode-remote-java-ddd-clean-architecture/security/advisories/new)).
 
-## Reporting Security Issues
+Include as much of the following as you can:
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+- The type of issue (e.g. SQL injection, broken access control, cross-site scripting)
+- The service and the full paths of the source files involved
+- The branch, tag or commit affected
+- Any configuration or Spring profile needed to reproduce it
+- Step-by-step instructions to reproduce it
+- Proof-of-concept or exploit code, if you have it
+- The impact: what an attacker could do with it
 
-Instead, please report them to the Microsoft Security Response Center (MSRC) at [https://msrc.microsoft.com/create-report](https://aka.ms/opensource/security/create-report).
+Please give us a reasonable time to fix the issue before you disclose it publicly.
 
-If you prefer to submit without logging in, send email to [secure@microsoft.com](mailto:secure@microsoft.com).  If possible, encrypt your message with our PGP key; please download it from the [Microsoft Security Response Center PGP Key page](https://aka.ms/opensource/security/pgpkey).
+## Supported versions
 
-You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [microsoft.com/msrc](https://aka.ms/opensource/security/msrc). 
-
-Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
-
-  * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
-  * Full paths of source file(s) related to the manifestation of the issue
-  * The location of the affected source code (tag/branch/commit or direct URL)
-  * Any special configuration required to reproduce the issue
-  * Step-by-step instructions to reproduce the issue
-  * Proof-of-concept or exploit code (if possible)
-  * Impact of the issue, including how an attacker might exploit the issue
-
-This information will help us triage your report more quickly.
-
-If you are reporting for a bug bounty, more complete reports can contribute to a higher bounty award. Please visit our [Microsoft Bug Bounty Program](https://aka.ms/opensource/security/bounty) page for more details about our active programs.
-
-## Preferred Languages
-
-We prefer all communications to be in English.
-
-## Policy
-
-Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://aka.ms/opensource/security/cvd).
-
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+Only the latest commit on `main` receives security fixes.
 
 ---
 
@@ -91,13 +74,13 @@ authz.requestMatchers("/api/**").hasRole("USER");   // must come after
 - `ConfirmOrderDeliveryUseCase` checks the order belongs to the caller's MSR. Someone else's order gets the same `"Order not found."` as a missing one, so order ids can't be probed.
 - Ownership is only meaningful if it can't be chosen freely, so `POST /api/v1/orders/create` no longer trusts the body's `medicalSalesRepId`: the order is always placed for the caller's `msr_id`. Callers not linked to an MSR get `403`, and so does a body naming a different MSR.
 
-**Finding 6 — Visits and Visit Plans Could Be Created for, or Moved to, Any MSR:** The create and update endpoints of `/api/v1/visit` and `/api/v1/visitplan` took `medicalSalesRepId` from the body, and update never checked ownership. Any user could record visits or schedule plans in another rep's name — skewing the history visit-plan suggestions are built from — or edit and reassign them.
-
-**Fix:** Same rule as orders. visit-service's JWT filter exposes the `msr_id` claim, and the controller always uses it: callers not linked to an MSR get `403`, and so does a body naming a different MSR. `UpdateVisitUseCase` and `UpdateVisitPlanUseCase` refuse a record owned by another MSR with the same "not found" as a missing one. Both controllers share one helper, `CallerMsr`.
-
 **Finding 5 — Any User Could Manage the Catalog and Activate Records:** Creating, updating, activating and deactivating products, and activating/deactivating HCPs and MSRs, were open to every logged-in user.
 
 **Fix:** These now require `ROLE_ADMIN` in product-catalog-service, healthcare-prof-service and medical-sales-rep-service. identity-service seeds the admin account (`ROLE_USER` + `ROLE_ADMIN`) only when `IDENTITY_ADMIN_USERNAME` / `IDENTITY_ADMIN_PASSWORD_HASH` are set, in every profile, so it fails closed like the agent account.
+
+**Finding 6 — Visits and Visit Plans Could Be Created for, or Moved to, Any MSR:** The create and update endpoints of `/api/v1/visit` and `/api/v1/visitplan` took `medicalSalesRepId` from the body, and update never checked ownership. Any user could record visits or schedule plans in another rep's name — skewing the history visit-plan suggestions are built from — or edit and reassign them.
+
+**Fix:** Same rule as orders. visit-service's JWT filter exposes the `msr_id` claim, and the controller always uses it: callers not linked to an MSR get `403`, and so does a body naming a different MSR. `UpdateVisitUseCase` and `UpdateVisitPlanUseCase` refuse a record owned by another MSR with the same "not found" as a missing one. Both controllers share one helper, `CallerMsr`.
 
 ---
 
@@ -114,7 +97,7 @@ private static String sanitize(String value) {
 
 **Finding 2 — Unbounded Query Parameters (CWE-20):** The `pageSize` parameter on list/search endpoints accepted arbitrary integers. A large value (e.g. `pageSize=100000`) could trigger a full-table scan, exhausting database and heap resources.
 
-**Fix:** A hard cap of 100 rows was enforced at the controller layer for `MedicalSalesRepController` and `HealthCareProfController`:
+**Fix:** A hard cap of 100 rows was enforced at the controller layer for `MedicalSalesRepController`, `HealthCareProfController`, `VisitController`, `VisitPlanController`, `SettlementController` and `ProductController`:
 ```java
 pageSize = Math.min(pageSize, 100);
 ```
@@ -163,11 +146,11 @@ public final class IssueDate extends DateValueObject {
 
 ### A05 — Security Misconfiguration
 
-**Finding 1 — CORS Wildcard Headers:** All four `SecurityConfig` classes allowed `Access-Control-Allow-Headers: *`. This permits any custom header (including attacker-controlled headers) to be sent cross-origin, widening the attack surface for cross-origin attacks.
+**Finding 1 — CORS Wildcard Headers:** The `SecurityConfig` classes allowed `Access-Control-Allow-Headers: *`. This permits any custom header (including attacker-controlled headers) to be sent cross-origin, widening the attack surface for cross-origin attacks.
 
-**Fix:** Replaced the wildcard with an explicit allowlist in every `SecurityConfig`:
+**Fix:** Replaced the wildcard with an explicit allowlist in every `SecurityConfig` (the API Gateway and each service). identity-service, whose login endpoint takes no token, allows only `Content-Type`:
 ```java
-configuration.setAllowedHeaders(
+config.setAllowedHeaders(
     List.of("Authorization", "Content-Type", "X-Requested-With")
 );
 ```
@@ -175,13 +158,13 @@ configuration.setAllowedHeaders(
 **Finding 2 — Swagger/OpenAPI Exposed in Production:** The Swagger UI and API-docs endpoints were reachable in all profiles, giving attackers a complete map of the API surface without authentication.
 
 **Fix:**
-- Annotated all five `OpenApiConfig` beans with `@Profile("!prod")` so they are not loaded in the `prod` Spring profile.
+- Annotated all seven `OpenApiConfig` beans with `@Profile("!prod")` so they are not loaded in the `prod` Spring profile.
 - Added a `swaggerEnabled` flag (bound to `springdoc.swagger-ui.enabled`) in each `SecurityConfig`; when false, the Swagger URL paths require full authentication instead of being permitted:
 ```java
 @Value("${springdoc.swagger-ui.enabled:true}")
 private boolean swaggerEnabled;
 ```
-- Added `application-prod.properties` to `identity-service` with `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
+- Every service's `application-prod.properties` sets `springdoc.swagger-ui.enabled=false` and `springdoc.api-docs.enabled=false`.
 
 **Finding 3 — Inconsistent Handling of Malformed Input (CWE-209 Information Exposure Through an Error Message):** Malformed JSON request bodies (e.g. an unparsable date) were caught by a dedicated handler and returned a clean `400`, but malformed `@RequestParam`/`@PathVariable` values — such as an invalid `issueDate` on the multipart `/invoice/add` endpoint — threw `MethodArgumentTypeMismatchException`, which had no dedicated handler and fell through to the catch-all `Exception` handler. This misreported a client input error as `500 Internal Server Error`, and depending on server configuration risks a framework-default error page leaking implementation details for exceptions not explicitly handled.
 
