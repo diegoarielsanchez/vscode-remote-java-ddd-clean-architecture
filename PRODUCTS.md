@@ -110,7 +110,7 @@ request.
 | Create, update, activate, deactivate products | `ADMIN` | Master data is controlled (Annex 11 §12) |
 | Goods receipt, manual reserve/release | `AGENT` (AI Agent Service) | Stock changes only through a controlled interface |
 | Record excursions | `ADMIN` or `AGENT` (monitoring integration) | Readings come from Quality or a validated monitoring system |
-| Quarantine, lift, reject a lot; recall lookups | `ADMIN` | Quality decisions by authorised people (GDP 2.2) |
+| Quarantine, lift, reject a lot; recall lookups | `ADMIN` | Quality decisions by authorized people (GDP 2.2) |
 | Approve or reject an order | `AGENT` | Approver is the token's principal, never the request |
 | Confirm delivery | the order's own MSR, or `AGENT` | An MSR can't confirm someone else's order |
 | Release or reject a quarantined delivery | `ADMIN` | Quality decision |
