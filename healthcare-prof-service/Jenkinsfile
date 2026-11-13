@@ -128,48 +128,65 @@ pipeline {
         // Scans all declared dependencies against the NVD CVE database.
         // Build fails if any dependency has a CVSS score ≥ OWASP_FAIL_CVSS.
         stage('OWASP Dependency-Check') {
-            // Disabled: OWASP Dependency-Check deactivated for this pipeline.
-            when {
-                expression { return false }
-            }
+            // Suppressions (false positives only, each with its reason) live in owasp-suppressions.xml at the
+            // repo root. The service poms don't inherit the root pom's `owasp` profile, so the plugin version
+            // and its settings are passed here.
             steps {
                 script {
-                    // NVD API key is optional — speeds up NVD updates but is not required.
-                    // Register a Secret Text credential named 'nvd-api-key' in Jenkins to enable it.
-                    // Free key: https://nvd.nist.gov/developers/request-an-api-key
-                    // Any failure with the key (missing credential, revoked/invalid key, NVD outage)
-                    // falls back to a keyless run instead of failing the whole build.
-                    // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe.
+                    // Scans with the NVD API key when the 'nvd-api-key' Secret Text credential exists
+                    // (free key: https://nvd.nist.gov/developers/request-an-api-key), otherwise without it.
+                    // nvdApiDelay: without a key NVD allows ~5 req/30 s → 6 000 ms is safe;
                     //              with a key the limit is 50 req/30 s → 500 ms is fine.
                     // retryCount:  retry up to 10 times before failing on persistent 429s.
-                    try {
-                        withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                            sh """
-                                mvn -pl ${APP_MODULE} -am \\
-                                    org.owasp:dependency-check-maven:check \\
-                                    -Ddependency-check.skip=false \\
-                                    -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
-                                    -DnvdApiKey="\${NVD_API_KEY}" \\
-                                    -DnvdApiDelay=500 \\
-                                    -DretryCount=10 \\
-                                    -DossindexAnalyzerEnabled=false \\
-                                    -Dformats=HTML,XML \\
-                                    --no-transfer-progress
-                            """
-                        }
-                    } catch (hudson.AbortException e) {
-                        echo "NVD Dependency-Check with API key failed (${e.message}) — retrying without API key (rate-limited)."
-                        sh """
-                            mvn -pl ${APP_MODULE} -am \\
-                                org.owasp:dependency-check-maven:check \\
+                    //
+                    // A run that finds a dependency with CVSS ≥ OWASP_FAIL_CVSS fails the stage straight away.
+                    // Only a run that failed for another reason (missing or revoked key, NVD outage) is
+                    // repeated without the key.
+                    def scan = { String nvdArgs ->
+                        // POSIX sh has no pipefail: the exit code is saved to a file so `tee` can stream the log.
+                        sh(returnStatus: true, script: """
+                            { mvn -pl ${APP_MODULE} -am \\
+                                org.owasp:dependency-check-maven:12.1.3:check \\
                                 -Ddependency-check.skip=false \\
+                                -DsuppressionFile="\${WORKSPACE}/owasp-suppressions.xml" \\
+                                -DassemblyAnalyzerEnabled=false \\
                                 -DfailBuildOnCVSS=${OWASP_FAIL_CVSS} \\
-                                -DnvdApiDelay=6000 \\
+                                ${nvdArgs} \\
                                 -DretryCount=10 \\
                                 -DossindexAnalyzerEnabled=false \\
                                 -Dformats=HTML,XML \\
-                                --no-transfer-progress
-                        """
+                                --no-transfer-progress \\
+                                && echo 0 > dependency-check.status \\
+                                || echo \$? > dependency-check.status; } 2>&1 | tee dependency-check.log
+                            exit \$(cat dependency-check.status)
+                        """)
+                    }
+                    // The plugin's own message when failBuildOnCVSS is exceeded.
+                    def foundVulnerabilities = {
+                        readFile('dependency-check.log')
+                            .contains('identified with vulnerabilities that have a CVSS score greater than or equal to')
+                    }
+
+                    int status = -1
+                    try {
+                        withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                            // Single quotes: the shell expands the key, so it never enters the Groovy string.
+                            status = scan('-DnvdApiKey="$NVD_API_KEY" -DnvdApiDelay=500')
+                        }
+                    } catch (hudson.AbortException e) {
+                        // withCredentials throws this when the credential does not exist.
+                        echo "NVD API key unavailable (${e.message}) — scanning without it (rate-limited)."
+                    }
+                    if (status > 0 && !foundVulnerabilities()) {
+                        echo "Dependency-Check with the NVD API key failed (exit ${status}) — retrying without it (rate-limited)."
+                    }
+                    if (status == -1 || (status > 0 && !foundVulnerabilities())) {
+                        status = scan('-DnvdApiDelay=6000')
+                    }
+                    if (status != 0) {
+                        error(foundVulnerabilities()
+                            ? "Dependencies with CVSS ≥ ${OWASP_FAIL_CVSS} found — see the Dependency-Check report."
+                            : "Dependency-Check could not complete (exit ${status}) — see the log above.")
                     }
                 }
             }
