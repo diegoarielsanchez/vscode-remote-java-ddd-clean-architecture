@@ -18,7 +18,7 @@ More documentation:
 - [Option B — Run Individual Docker Containers](#option-b--run-individual-docker-containers)
 - [Option C — Run with Docker Compose (Production)](#option-c--run-with-docker-compose-production)
   - [1. Fill in secrets](#1-fill-in-secrets)
-  - [2. Create the external Docker network](#2-create-the-external-docker-network)
+  - [2. Start the databases and RabbitMQ on the external Docker network](#2-start-the-databases-and-rabbitmq-on-the-external-docker-network)
   - [3. Build and start](#3-build-and-start)
   - [4. Check status](#4-check-status)
   - [5. Verify all services registered with Eureka](#5-verify-all-services-registered-with-eureka)
@@ -1015,15 +1015,36 @@ cp .env.example .env
 # Edit .env — replace every "change-me" value with a real secret
 ```
 
-### 2. Create the external Docker network
+### 2. Start the databases and RabbitMQ on the external Docker network
 
-Several services (`msr`, `hcp`, `visit`) join a pre-existing network called `ddd-clean-net` to reach a RabbitMQ container that lives outside of Compose. Create it once on the Docker host:
+The databases and RabbitMQ live outside Compose. The services reach them on a pre-existing network called `ddd-clean-net`, by the container names in the `*_DB_URL` values of `.env`:
 
-```bash
-docker network create ddd-clean-net
-```
+| Container | Used by | Databases |
+|---|---|---|
+| `postgres-ddd-clean` | MSR, HCP, Product Catalog, Order | `medicalsalesrep_db`, `healthcare_db`, `productcatalog_db`, `order_db` |
+| `sqlserver-ddd-clean` | Visit | `visitdb` |
+| `mysql-ddd-clean` | Settlement | `settlementdb` |
+| `rabbitmq-ddd-clean` | all services that publish or consume events | — |
 
-> If this network already exists (e.g. created by another Compose project) the command returns an error you can safely ignore.
+1. Create the network once on the Docker host:
+
+   ```bash
+   docker network create ddd-clean-net
+   ```
+
+2. Start the four containers as in [Option A, step 1](#1-start-the-databases), then create any missing database with [step 1b](#1b-create-databases-if-they-dont-exist).
+
+3. Attach them to the network:
+
+   ```bash
+   for c in postgres-ddd-clean sqlserver-ddd-clean mysql-ddd-clean rabbitmq-ddd-clean; do
+     docker network connect ddd-clean-net "$c"
+   done
+   ```
+
+> Either command returns an error you can safely ignore if the network already exists or the container is already on it.
+
+Don't start Redis yourself: Compose runs its own, with a password, as `redis-ddd-clean`. If one from Option A is still there, remove it first (`docker rm -f redis-ddd-clean`), or Compose fails on the name.
 
 ### 3. Build and start
 

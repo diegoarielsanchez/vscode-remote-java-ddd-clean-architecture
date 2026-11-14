@@ -1,6 +1,13 @@
-# Load tests: RabbitMQ and Redis
+# Load tests
 
-Stress and failure tests for the event flow and the cache used by the MSR, HCP and Visit services.
+Stress and failure tests for the event flow and the cache used by the MSR, HCP and Visit services (tests 1–10), for
+stock reservation, login and the gateway's rate limit (tests 11–13).
+
+| Script | Tests |
+|---|---|
+| `k6/events-and-cache.js` | 2–10 |
+| `k6/stock-and-login.js` | 11, 12 |
+| `k6/gateway-limit.js` | 13 |
 
 ```
 MSR/HCP write → outbox table → relay → msr.events / hcp.events → Visit (and Settlement, MSR only)
@@ -16,7 +23,9 @@ permanent, and flush Redis. Never point them at data you care about.
 
 1. Copy `.env.example` to `.env`. Use the compose stack as it is, on the `prod` profile: under `dev`, MSR and HCP
    publish no events.
-2. Create an MSR and set `IDENTITY_SEED_MSR_ID` to its ID. Visit plans need a token with an `msr_id` claim.
+2. Create an MSR and set `IDENTITY_SEED_MSR_ID` to its ID. Visit plans and orders need a token with an `msr_id`
+   claim. Test 11 also needs the admin account (`IDENTITY_ADMIN_*`), and the agent account (`IDENTITY_AGENT_*`) to
+   check FEFO.
 3. Start the stack with the overlay, and load the variables the commands below use:
 
    ```bash
@@ -84,6 +93,9 @@ Run the tests in this order. The "Expect" column is a prediction from the code, 
 | 8 | Redis outage | `docker stop redis-ddd-clean`; separately `docker pause` and `docker unpause` | Should fall back to HTTP, but `spring.data.redis.timeout` is unset, so calls may stall and return gateway 503s |
 | 9 | Data freshness | Deactivate an HCP as admin, then retry a visit plan for it until rejected | About 1–2s; up to 60s if events are stuck |
 | 10 | Soak | `PLAN_RATE=20 HCP_PEAK_RATE=20 RAMP_SECONDS=60 HOLD_SECONDS=14400` | Flat memory and lag, no gradual slowdown |
+| 11 | Stock race | `stock-and-login.js` with `STOCK_ROUNDS=5`, see below | No stock lost or sold twice; FEFO kept; every reservation audited |
+| 12 | Login throughput | `stock-and-login.js` with `LOGIN_PEAK_RATE=50` | p95 climbs once identity-service's CPUs are busy hashing passwords |
+| 13 | Gateway limit | `gateway-limit.js` **without** the overlay, see below | Fast 429s, no 5xx; currently fails on `X-Forwarded-For` (see below) |
 
 ### Test 1: raw limits
 
@@ -118,6 +130,65 @@ SELECT count(*) FROM outbox_event WHERE published_at IS NOT NULL;
 -- Visit database
 SELECT count(*) FROM processed_event;
 ```
+
+### Test 11: stock race
+
+Each round creates and activates a product with `STOCK_UNITS` units, then sends `ORDER_COUNT` orders of `ORDER_QTY`
+units for it all at once, so they compete for the same lots in product-catalog-service. With the defaults (200 units,
+60 orders of 5) about 40 orders get stock and 20 are turned away. Once the saga has answered every order, the round
+checks:
+
+| Check | Fails when |
+|---|---|
+| No negative stock | A lot holds fewer than 0 units |
+| Nothing lost, nothing sold twice | Units on hand + units reserved by accepted orders ≠ units received |
+| No false rejection | An order was rejected for stock while at least `ORDER_QTY` units remain. The allocator retries a lot it lost to another order only 3 times, so heavy contention can turn orders away while stock is left |
+| FEFO | Units were taken from the lot expiring later while the one expiring earlier still holds some (agent account only) |
+| Audit trail | The product's history doesn't have one `catalog.product.stock-reserved` entry per accepted order |
+
+Any failure counts in `stock_invariant_violations` and is logged with its round. Orders still `AWAITING_STOCK` after
+`SETTLE_SECONDS` count in `orders_unsettled`: that's a saga bottleneck, not lost stock. `reservation_settle_ms` is the
+time from sending the orders until the last one is answered.
+
+```bash
+USERNAME=user PASSWORD='...' ADMIN_USERNAME=admin ADMIN_PASSWORD='...' AGENT_USERNAME=agent AGENT_PASSWORD='...' \
+  STOCK_ROUNDS=5 k6 run load-test/k6/stock-and-login.js
+```
+
+Raise `ORDER_COUNT` and lower `ORDER_QTY` for more contention. `catalog.events.prefetch` and the number of catalog replicas decide how many
+reservations really run in parallel.
+
+### Test 12: login throughput
+
+Passwords are hashed with BCrypt, which is slow on purpose, so `identity-service` saturates long before the other
+services. Ramp up and note the rate where the p95 of `http_req_duration{scenario:logins}` starts to climb. That rate,
+not the other services, limits how many people can start a session at once.
+
+```bash
+USERNAME=user PASSWORD='...' LOGIN_PEAK_RATE=50 k6 run load-test/k6/stock-and-login.js
+```
+
+### Test 13: gateway limit
+
+Run this one against the stack **without** the overlay, so the real limit applies (20 requests a minute per client),
+and restart the gateway first: its buckets are kept in memory.
+
+```bash
+docker compose -f docker-compose.yml up -d    # drops the overlay
+docker compose restart api-gateway
+USERNAME=user PASSWORD='...' k6 run load-test/k6/gateway-limit.js
+```
+
+It sends a burst three times the bucket's size. Everything past the bucket must get a 429 with
+`X-RateLimit-Retry-After`, quickly (p95 under 100 ms) and without any 5xx. Then, with the bucket empty, it sends 40
+requests that each carry a different `X-Forwarded-For`. Those must stay limited too.
+
+**Expected to fail today on `forwarded_for_bypass`.** `RateLimitFilter` keys the bucket on the first address in
+`X-Forwarded-For` whenever the header is present, and the gateway is published straight on port 8080 with no proxy in
+front to set it. So any client can skip the limit, including the one on `/auth/login` that slows down password
+guessing (OWASP A07), by sending a new address each time. Every new address also adds a bucket that is never
+removed, so the same trick slowly fills the gateway's memory. Trust the header only from known proxies, and expire
+idle buckets.
 
 ## Reading the results
 
