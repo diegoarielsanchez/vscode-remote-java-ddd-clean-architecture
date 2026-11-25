@@ -434,6 +434,43 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── Back-office web app (Next.js BFF, hybrid rendering) ───────────────────
+  # The browser holds only an encrypted HttpOnly session cookie; this server calls the gateway
+  # with the user's JWT. Put TLS in front of it outside localhost (the cookie is Secure) and set
+  # TRUSTED_PROXY_HOPS to the number of proxies. The catalog account (ROLE_USER) only fills the
+  # shared ISR cache with product master data.
+  backoffice-ui:
+    container_name: backoffice-ui-ddd-clean
+    build:
+      context: backoffice-ui
+      dockerfile: Dockerfile
+    networks: [frontend]            # only needs to reach api-gateway; no backend access
+    ports:
+      - "8083:8080"
+    environment:
+      GATEWAY_URL: http://api-gateway:8080
+      SESSION_SECRET: ${BACKOFFICE_SESSION_SECRET}
+      CATALOG_SERVICE_USERNAME: ${IDENTITY_CLIENT_USERNAME}
+      CATALOG_SERVICE_PASSWORD: ${IDENTITY_CLIENT_PASSWORD}
+      REVALIDATE_SECRET: ${BACKOFFICE_REVALIDATE_SECRET:-}
+      IDLE_TIMEOUT_MINUTES: ${BACKOFFICE_IDLE_TIMEOUT_MINUTES:-15}
+      TRUSTED_PROXY_HOPS: ${BACKOFFICE_TRUSTED_PROXY_HOPS:-0}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── Observability: Loki (log storage) ──────────────────────────────────────
   loki:
     container_name: loki
