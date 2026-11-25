@@ -1,0 +1,171 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Back-office web app (Next.js BFF) — CI Pipeline
+//
+// Every step runs in `docker build` stages of backoffice-ui/Dockerfile, so the
+// Jenkins controller needs the Docker CLI (jenkins/README.md) but no Node.js,
+// no browser and no extra plugins. Each gate's stage exports its logs, JUnit
+// XML and exit code (the *-report targets); this file publishes them and then
+// decides, so a failing gate still shows its results.
+//
+// Gates:
+//   Type Check        → tsc over the whole app
+//   Unit Tests        → session crypto, cache allow-list, CSP, redirects, SSE back-off
+//   Dependency Audit  → npm audit of shipped dependencies, fails on HIGH/CRITICAL (OWASP A06)
+//   Smoke             → the production build in headless Chromium against a mock gateway:
+//                       access control, cookie flags, CSP nonces, ISR isolation, CSRF (A01/A05/A07)
+// ─────────────────────────────────────────────────────────────────────────────
+pipeline {
+    agent any
+
+    // Builds on push: GitHub delivers the event to Jenkins' /github-webhook/ endpoint.
+    triggers {
+        githubPush()
+    }
+
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+    }
+
+    environment {
+        APP_DIR    = 'backoffice-ui'
+        IMAGE_NAME = 'backoffice-ui'
+        IMAGE_TAG  = "${env.BUILD_NUMBER}"
+        REPORTS    = 'backoffice-ui/reports'
+        DOCKER_BUILDKIT = '1'
+    }
+
+    stages {
+
+        // ── Stage 1: Checkout ─────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ── Stage 2: Docker is required (unlike the Java pipelines, nothing runs without it) ──
+        stage('Prepare') {
+            steps {
+                script {
+                    if (sh(script: 'docker version > /dev/null 2>&1', returnStatus: true) != 0) {
+                        error('This pipeline runs in Docker, which the agent cannot reach. Set up the controller as in jenkins/README.md.')
+                    }
+                }
+                sh "rm -rf ${REPORTS} && mkdir -p ${REPORTS}/check ${REPORTS}/smoke"
+            }
+        }
+
+        // ── Stage 3: Install, then run the three static gates in one build ───
+        stage('Install & Check') {
+            steps {
+                sh "docker build --target check-report --output type=local,dest=${REPORTS}/check ${APP_DIR}"
+            }
+        }
+
+        stage('Type Check') {
+            steps {
+                script { gate('check/typecheck', 'Type check failed') }
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                script { gate('check/unit', 'Unit tests failed') }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: false, testResults: "${REPORTS}/check/unit.xml"
+                }
+            }
+        }
+
+        // ── OWASP A06: vulnerable components in what ships ───────────────────
+        stage('Dependency Audit') {
+            steps {
+                script { gate('check/audit', 'Shipped dependencies have HIGH or CRITICAL advisories') }
+            }
+        }
+
+        // ── Stage 4: Smoke — production build in Chromium ─────────────────────
+        stage('Smoke') {
+            steps {
+                sh "docker build --target smoke-report --output type=local,dest=${REPORTS}/smoke ${APP_DIR}"
+                script {
+                    if (!fileExists("${REPORTS}/smoke/smoke.status")) {
+                        sh "cat ${REPORTS}/smoke/build.log || true"
+                        error('The production build failed — see build.log above.')
+                    }
+                    gate('smoke/smoke', 'Smoke checks failed')
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: "${REPORTS}/smoke/smoke.xml"
+                }
+            }
+        }
+
+        // ── Stage 5: Build Docker Image (the runtime target, as compose builds it) ──
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest ${APP_DIR}"
+            }
+        }
+
+        // ── Stage 6: Docker Image Scan (optional — requires Trivy on agent) ───
+        // stage('Docker Image Scan — Trivy') {
+        //     steps {
+        //         sh """
+        //             trivy image --exit-code 1 \
+        //                 --severity HIGH,CRITICAL \
+        //                 --no-progress \
+        //                 ${IMAGE_NAME}:${IMAGE_TAG}
+        //         """
+        //     }
+        // }
+
+        // ── Stage 7: Push Docker Image (optional) ─────────────────────────────
+        // stage('Push Docker Image') {
+        //     steps {
+        //         withCredentials([usernamePassword(
+        //             credentialsId: 'docker-registry-credentials',
+        //             usernameVariable: 'REGISTRY_USER',
+        //             passwordVariable: 'REGISTRY_PASS'
+        //         )]) {
+        //             sh 'echo "$REGISTRY_PASS" | docker login -u "$REGISTRY_USER" --password-stdin <your-registry>'
+        //             sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} <your-registry>/${IMAGE_NAME}:${IMAGE_TAG}"
+        //             sh "docker push <your-registry>/${IMAGE_NAME}:${IMAGE_TAG}"
+        //         }
+        //     }
+        // }
+    }
+
+    post {
+        always {
+            archiveArtifacts allowEmptyArchive: true, artifacts: "${REPORTS}/**/*.log"
+            script {
+                try {
+                    cleanWs()
+                } catch (Exception e) {
+                    echo "Workspace cleanup skipped — no workspace context available: ${e.message}"
+                }
+            }
+        }
+        success {
+            echo "Pipeline for ${env.IMAGE_NAME} passed all gates — build #${env.IMAGE_TAG}."
+        }
+        failure {
+            echo "Pipeline for ${env.IMAGE_NAME} FAILED — see the stage log and the archived reports."
+        }
+    }
+}
+
+// Prints a gate's log and fails the stage when its exit code (written by the Dockerfile) isn't 0.
+def gate(String name, String message) {
+    String base = "${env.REPORTS}/${name}"
+    sh "cat ${base}.log"
+    String status = readFile("${base}.status").trim()
+    if (status != '0') {
+        error("${message} (exit ${status}).")
+    }
+}

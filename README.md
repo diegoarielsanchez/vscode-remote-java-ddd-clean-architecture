@@ -2375,7 +2375,7 @@ docker compose start redis
 
 To run Jenkins itself in Docker, see [jenkins/README.md](jenkins/README.md) (it serves on http://localhost:9696).
 
-Each microservice has a `Jenkinsfile` at its service root. The DDD services (domain/infra/application split) define a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls; the single-module infrastructure services (API Gateway, Eureka Server) use a shorter 8-stage variant without the per-layer test split.
+Each microservice has a `Jenkinsfile` at its service root. The DDD services (domain/infra/application split) define a **10-stage declarative pipeline** aligned with DDD Clean Architecture layers and OWASP Top 10 security controls; the single-module infrastructure services (API Gateway, Eureka Server) use a shorter 8-stage variant without the per-layer test split. The back-office web app has its own Node.js pipeline, which runs entirely in Docker (see [below](#back-office-pipeline)).
 
 | Service | Jenkinsfile path |
 |---|---|
@@ -2388,6 +2388,7 @@ Each microservice has a `Jenkinsfile` at its service root. The DDD services (dom
 | Identity | `identity-service/Jenkinsfile` |
 | API Gateway | `api-gateway/Jenkinsfile` |
 | Eureka Server | `eureka-server/Jenkinsfile` |
+| Back office (Next.js) | `backoffice-ui/Jenkinsfile` |
 
 ### 1. Install required plugins
 
@@ -2465,6 +2466,24 @@ Each stage maps to a specific DDD layer and OWASP control:
 - **OWASP Dependency-Check** — queries the NVD CVE database against every declared Maven dependency. Build fails if any dependency has a CVSS score ≥ 7 (`-DfailBuildOnCVSS=7`). HTML + XML reports are archived and published via the Jenkins plugin.
 - **Package** — assembles the final JAR (`-DskipTests`) only after all security gates pass.
 - **Build Docker Image** — uses `context: .` (repo root) so the multi-stage Dockerfile can resolve cross-module dependencies.
+
+### Back-office pipeline
+
+`backoffice-ui/Jenkinsfile` needs only the Docker CLI on the controller ([jenkins/README.md](jenkins/README.md)): no Node.js, browser, `tools {}` entry or extra plugin. Each gate is a `docker build` target in `backoffice-ui/Dockerfile` that exports its log, JUnit XML and exit code, so a failing gate still publishes its results.
+
+```
+Checkout → Prepare → Install & Check → Type Check → Unit Tests → Dependency Audit
+         → Smoke → Build Docker Image → [Docker Image Scan*] → [Push*]
+```
+
+| Stage | What fails it |
+|---|---|
+| **Type Check** | Any TypeScript error |
+| **Unit Tests** | Session cookie crypto, cache allow-list, CSP, redirect and rate-limit rules, SSE back-off |
+| **Dependency Audit** | `npm audit` advisory of HIGH or CRITICAL in shipped dependencies (A06) |
+| **Smoke** | The production build in headless Chromium against a mock gateway: access control, cookie flags, CSP nonces, ISR isolation, CSRF (A01, A05, A07) |
+
+The Smoke stage pulls `mcr.microsoft.com/playwright`, whose version must match `playwright` in `backoffice-ui/package-lock.json` (`PLAYWRIGHT_IMAGE` in the Dockerfile).
 
 ### 5. OWASP controls summary
 

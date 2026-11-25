@@ -59,6 +59,7 @@ Tests follow the layers, so most of them run without Spring, a database or a bro
 | `*-infra` | Messaging | `OutboxWiringTest`, `*EventTranslatorTest`, saga tests | Outbox atomicity, event shape, the order stock saga |
 | `*-application` | Security | `*ControllerSecurityTest`, `@WebMvcTest`, `@SpringBootTest` | Role rules and ownership checks with real signed JWTs |
 | `pwa/` | Unit and smoke | Vitest, Testing Library; Playwright smoke in `pwa/e2e/` | View-model logic; the built app loads under the production security headers |
+| `backoffice-ui/` | Unit and smoke | Node test runner; Playwright smoke against a mock gateway in `backoffice-ui/e2e/`, both in `backoffice-ui/Jenkinsfile` | Session, CSP, cache isolation, access control and CSRF in the production build |
 | System | Load and failure | k6 (`load-test/`) | Throughput, relay lag, cache behaviour when Redis or RabbitMQ fails |
 
 **Test design rules used in this repository**
@@ -78,6 +79,7 @@ What blocks a change today, and what only looks like it does.
 | Domain, infra and application tests per service | Jenkins, one pipeline per service | **Yes** for that service's pipeline |
 | SpotBugs + Find Security Bugs (`failOnError`) | Jenkins `SAST — SpotBugs` stage (`verify`) | **Yes** in Jenkins. **No** in GitHub Actions, which stops at `package` |
 | OWASP Dependency-Check, CVSS ≥ 7 | Jenkins `OWASP Dependency-Check` stage | **Yes**, in all 10 pipelines. Without an `nvd-api-key` credential the first run can take 30 minutes or more |
+| Back office: typecheck, unit tests, `npm audit` (HIGH/CRITICAL), browser smoke | Jenkins `backoffice-ui/Jenkinsfile` | **Yes** for that pipeline. Not run by GitHub Actions |
 | Trivy image scan, HIGH/CRITICAL | Jenkins | **No**: commented out |
 | Code coverage threshold | — | **No**: no coverage tool is configured |
 | Architecture rules (layering, no framework in domain) | — | **No**: not enforced by a test |

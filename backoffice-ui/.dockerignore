@@ -1,5 +1,7 @@
 node_modules
 .next
-e2e
+reports
 .env
 .env.*
+!.env.example
+AGENTS.md

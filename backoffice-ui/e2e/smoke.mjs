@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { ID, PASSWORD, startMockGateway } from "./mock-gateway.mjs";
 
@@ -16,13 +17,31 @@ const server = spawn(process.execPath, ["--import", "./scripts/client-ip.mjs", "
 let log = "";
 for (const s of [server.stdout, server.stderr]) s.on("data", (d) => { log += d; });
 
-let passed = 0, failed = 0;
+let passed = 0, failed = 0, group = "";
+const results = [];
 async function check(name, fn) {
-  try { await fn(); passed++; console.log(`  ok   ${name}`); }
-  catch (e) { failed++; console.log(`  FAIL ${name}\n       ${String(e.message).split("\n").slice(0, 6).join("\n       ")}`); }
+  const start = Date.now();
+  try { await fn(); passed++; console.log(`  ok   ${name}`); results.push({ group, name, ms: Date.now() - start }); }
+  catch (e) {
+    failed++;
+    const message = String(e.message).split("\n").slice(0, 6).join("\n       ");
+    console.log(`  FAIL ${name}\n       ${message}`);
+    results.push({ group, name, ms: Date.now() - start, failure: message });
+  }
+}
+const section = (title) => { group = title; console.log(title); };
+
+/** JUnit XML for CI (SMOKE_JUNIT=path). */
+function writeJunit(path, crashed) {
+  const esc = (v) => String(v).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c]);
+  const cases = results.map((r) => `    <testcase classname="smoke.${esc(r.group)}" name="${esc(r.name)}" time="${r.ms / 1000}">` +
+    (r.failure ? `<failure message="${esc(r.failure.split("\n")[0])}">${esc(r.failure)}</failure>` : "") + "</testcase>");
+  if (crashed) cases.push(`    <testcase classname="smoke" name="smoke run"><failure message="${esc(crashed.message)}">${esc(crashed.stack)}</failure></testcase>`);
+  writeFileSync(path, `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="backoffice-ui smoke" tests="${cases.length}" failures="${failed + (crashed ? 1 : 0)}">\n${cases.join("\n")}\n</testsuite>\n`);
 }
 const callsTo = (path) => gateway.calls.filter((c) => c.path === path).length;
 
+let crashed = null;
 try {
   for (let i = 0; i < 100; i++) { if (await fetch(`${BASE}/healthz`).then((r) => r.ok, () => false)) break; await new Promise((r) => setTimeout(r, 100)); }
   const browser = await chromium.launch();
@@ -42,7 +61,7 @@ try {
   }
   const cookieHeader = async (context) => (await context.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
 
-  console.log("Startup");
+  section("Startup");
   await check("missing configuration stops the server at startup", async () => {
     const bad = spawn(process.execPath, [".next/standalone/server.js"], { env: { PATH: process.env.PATH, PORT: "5197", NODE_ENV: "production" }, stdio: "ignore" });
     const code = await Promise.race([new Promise((r) => bad.on("exit", r)), new Promise((r) => setTimeout(r, 8000, "still running"))]);
@@ -50,7 +69,7 @@ try {
     assert.equal(code, 1);
   });
 
-  console.log("Access");
+  section("Access");
   await check("anonymous: every protected route redirects or answers 401", async () => {
     for (const p of ["/", "/orders", `/orders/${ID.changing}`, "/catalog/1", `/catalog/product/${ID.product}`, "/settlements", "/hcps", "/msrs", `/products/${ID.product}`, "/nope"]) {
       const r = await fetch(BASE + p, { redirect: "manual" });
@@ -105,7 +124,7 @@ try {
     assert.ok(c.ip && c.ip !== "6.6.6.6" && !c.ip.includes(","), c.ip);
   });
 
-  console.log("SSG");
+  section("SSG");
   await check("/help: prerendered, public, no gateway calls", async () => {
     gateway.calls.length = 0;
     const r = await fetch(`${BASE}/help`);
@@ -113,7 +132,7 @@ try {
     assert.equal(gateway.calls.length, 0);
   });
 
-  console.log("ISR");
+  section("ISR");
   const cookie = await cookieHeader(user.context);
   const revalidate = (signature) => {
     const body = '{"type":"product"}', ts = String(Math.floor(Date.now() / 1000));
@@ -181,7 +200,7 @@ try {
     for (const p of ["/catalog/99", "/catalog/abc", "/catalog/product/nope", "/orders/nope", `/orders/${ID.msr}`]) assert.equal((await get(p)).status, 404, p);
   });
 
-  console.log("SSR");
+  section("SSR");
   await check("strict CSP: fresh nonce per response, on every script; no store", async () => {
     const nonces = [];
     for (let i = 0; i < 2; i++) {
@@ -285,7 +304,7 @@ try {
     assert.deepEqual(real, []);
   });
 
-  console.log("Failure and session end");
+  section("Failure and session end");
   await check("rate limited: a clear message, not a crash", async () => {
     gateway.state.limited = true;
     await page.goto(`${BASE}/orders`);
@@ -330,10 +349,14 @@ try {
     console.log(`  mobile overflow: ${await shots.page.evaluate(() => document.documentElement.scrollWidth - innerWidth)}`);
   }
   await browser.close();
+} catch (e) {
+  crashed = e;
+  console.log(`  CRASH ${e.stack}`);
 } finally {
   server.kill();
   gateway.close();
 }
 console.log(`\n${passed} passed, ${failed} failed`);
-if (failed) { console.log(log.slice(-3000)); process.exit(1); }
+if (process.env.SMOKE_JUNIT) writeJunit(process.env.SMOKE_JUNIT, crashed);
+if (failed || crashed) { console.log(log.slice(-3000)); process.exit(1); }
 process.exit(0);
