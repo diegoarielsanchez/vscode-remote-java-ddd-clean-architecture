@@ -27,6 +27,8 @@ Start the backend first (gateway on `localhost:8080`). With compose: `docker com
 | `npm run smoke` | Builds, then drives the production server in headless Chromium against a mock gateway (run `npx playwright install --with-deps chromium` once) |
 | `npm run typecheck`, `npm run audit:prod` | Types; advisories in shipped dependencies |
 
+CI: [`Jenkinsfile`](Jenkinsfile) runs the same checks in Docker (see [the main README](../README.md#back-office-pipeline)). Locally, `docker build --target check-report --output reports .` does too.
+
 ## Rendering
 
 | Mode | Routes | Why |
