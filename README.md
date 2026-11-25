@@ -153,6 +153,7 @@ docker --version # Docker 24.x
 │   ├── order-domain/           # Order (approval workflow), use-cases
 │   └── order-infra/            # JPA repos, outbox, catalog.events consumer
 ├── mobile-android/             # Kotlin/Compose MVVM client (see mobile-android/README.md)
+├── backoffice-ui/              # Next.js back office: BFF + SSR/SSG/ISR (see backoffice-ui/README.md)
 ├── pwa/                        # React PWA, MVVM + OWASP hardening (see pwa/README.md)
 ├── docker-compose.yml          # Full stack (prod profile)
 ├── .env.example                # Environment variable template
@@ -1069,6 +1070,7 @@ This starts:
 | `order-service` (2 replicas) | none | `prod` |
 | `redis` | none | internal cache for Visit, Order and Product Catalog |
 | `pwa` | `8082` (http://localhost:8082) | nginx, proxies `/api` + `/auth` to the gateway |
+| `backoffice-ui` | `8083` (http://localhost:8083) | Next.js BFF, calls the gateway |
 
 > In prod mode Swagger UI is disabled on all services. All secrets are required — missing env vars will cause the service to fail to start.
 >
@@ -1258,6 +1260,7 @@ is already configured to send to the collector.
 | Order | 8092 | `order-service/order-application` | PostgreSQL `order_db` |
 | RabbitMQ | 5672 / 15672 | external (user-managed) | — |
 | MedRep PWA | 5174 (`npm run dev`) / 8082 (compose) | `pwa` | — |
+| Back office | 5175 (`npm run dev`) / 8083 (compose) | `backoffice-ui` | — |
 | Android app | — (emulator → gateway `10.0.2.2:8080`) | `mobile-android` | — |
 
 ---
